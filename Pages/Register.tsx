@@ -2,323 +2,303 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
+  TouchableOpacity,
   SafeAreaView,
   StatusBar,
   ScrollView,
+  TextInput,
   Alert,
 } from "react-native";
-import useNicknameCheck from "../hooks/useNicknameCheck";
-import useRegister from "../hooks/useRegister";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 
-interface UserInfo {
-  nickname: string;
-  location: string;
-  age: string;
-  runningDistance: string;
-  gender: "male" | "female" | null;
-}
+export default function UserInfoInputScreen({ navigation }) {
+  const [nickname, setNickname] = useState("");
+  const [location, setLocation] = useState("");
+  const [ageRange, setAgeRange] = useState("");
+  const [goal, setGoal] = useState("");
+  const [gender, setGender] = useState(null);
+  const [isNicknameChecked, setIsNicknameChecked] = useState(false);
 
-export default function Register() {
-  const [userInfo, setUserInfo] = useState<UserInfo>({
-    nickname: "",
-    location: "",
-    age: "",
-    runningDistance: "",
-    gender: null,
-  });
+  // ✅ 닉네임 중복 확인
+  const handleNicknameCheck = async () => {
+    if (!nickname.trim()) {
+      Alert.alert("입력 오류", "닉네임을 입력해주세요.");
+      return;
+    }
 
-  const { handleCheck, checked } = useNicknameCheck();
-  const handleRegister = useRegister();
+    try {
+      const res = await axios.get(
+        `http://10.50.205.250:8080/v1/users/check-nickname`,
+        {
+          params: { nickname },
+        }
+      );
 
-  const handleInputChange = (field: keyof UserInfo, value: string) => {
-    setUserInfo((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+      console.log("닉네임 체크 응답:", res.data);
+
+      // 서버 응답 구조에 맞게 조건 수정
+      if (
+        res.data.isDuplicate === true || // duplicated 필드가 true이면 중복
+        res.data.success === false // success가 false이면 중복
+      ) {
+        Alert.alert(
+          "중복 닉네임",
+          res.data.message || "이미 사용 중인 닉네임입니다."
+        );
+        setIsNicknameChecked(false);
+      } else {
+        Alert.alert("사용 가능", "사용 가능한 닉네임입니다.");
+        setIsNicknameChecked(true);
+      }
+    } catch (error) {
+      console.error(
+        "❌ 닉네임 중복 확인 실패:",
+        error.response?.data || error.message
+      );
+      Alert.alert("오류", "중복 확인 중 문제가 발생했습니다.");
+      setIsNicknameChecked(false);
+    }
   };
 
-  const handleGenderSelect = (gender: "male" | "female") => {
-    setUserInfo((prev) => ({
-      ...prev,
-      gender,
-    }));
-  };
+  // ✅ 온보딩 정보 저장
+  const handleStart = async () => {
+    if (!nickname || !location || !ageRange || !goal || !gender) {
+      Alert.alert("입력 오류", "모든 항목을 입력해주세요.");
+      return;
+    }
 
-  const validateForm = () => {
-    if (!userInfo.nickname.trim()) {
-      Alert.alert("알림", "닉네임을 입력해주세요.");
-      return false;
+    if (!isNicknameChecked) {
+      Alert.alert("중복 확인 필요", "닉네임 중복 확인을 해주세요.");
+      return;
     }
-    if (!userInfo.location.trim()) {
-      Alert.alert("알림", "거주지를 입력해주세요.");
-      return false;
-    }
-    if (!userInfo.age.trim()) {
-      Alert.alert("알림", "연령대를 입력해주세요.");
-      return false;
-    }
-    if (!userInfo.runningDistance.trim()) {
-      Alert.alert("알림", "주간 목표를 입력해주세요.");
-      return false;
-    }
-    if (!userInfo.gender) {
-      Alert.alert("알림", "성별을 선택해주세요.");
-      return false;
-    }
-    return true;
-  };
 
-  const isFormValid =
-    userInfo.nickname &&
-    userInfo.location &&
-    userInfo.age &&
-    userInfo.runningDistance &&
-    userInfo.gender;
+    try {
+      const token = await AsyncStorage.getItem("jwtToken");
+      if (!token) {
+        Alert.alert("인증 오류", "로그인 토큰을 찾을 수 없습니다.");
+        return;
+      }
+
+      const payload = {
+        nickname,
+        residence: location,
+        age_group: ageRange,
+        weekly_goal_distance: goal,
+        gender,
+      };
+
+      await axios.post(
+        "http://10.50.205.250:8080/v1/auth/onboarding",
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      Alert.alert("입력 완료", "러닝을 시작해봅시다!");
+      navigation.navigate("main");
+    } catch (error) {
+      console.error(
+        "❌ 정보 저장 실패:",
+        error.response?.data || error.message
+      );
+      Alert.alert("오류", "정보 저장에 실패했습니다.");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.mainTitle}>조금 더 알고 싶어요!</Text>
+        <Text style={styles.subTitle}>
+          러닝을 시작하기 위한{"\n"}기본 정보를 입력해주세요
+        </Text>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.headerContainer}>
-          <Text style={styles.mainTitle}>조금 더 알고 싶어요!</Text>
-          <Text style={styles.subTitle}>러닝을 시작하기 위한</Text>
-          <Text style={styles.subTitle}>기본 정보를 입력해주세요</Text>
-        </View>
-
-        <View style={styles.formContainer}>
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <Text style={styles.placeholder}>닉네임</Text>
-              <TextInput
-                style={styles.textInput}
-                value={userInfo.nickname}
-                onChangeText={(text) => handleInputChange("nickname", text)}
-                placeholder="ex) 런닝맨"
-                placeholderTextColor="#999999"
-                maxLength={20}
-              />
-              {userInfo.nickname && (
-                <TouchableOpacity
-                  style={styles.clearButton}
-                  onPress={() => handleCheck(userInfo.nickname)}
-                >
-                  <Text style={styles.clearButtonText}>중복확인</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+        {/* 닉네임 */}
+        <View style={styles.inputWrapper}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.label}>닉네임</Text>
+            <TextInput
+              placeholder="ex) 런닝맨"
+              value={nickname}
+              onChangeText={(text) => {
+                setNickname(text);
+                setIsNicknameChecked(false); // 닉네임 변경 시 확인 상태 초기화
+              }}
+              style={styles.inputText}
+            />
           </View>
-
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <Text style={styles.placeholder}>거주지</Text>
-              <TextInput
-                style={styles.textInput}
-                value={userInfo.location}
-                onChangeText={(text) => handleInputChange("location", text)}
-                placeholder="ex) 춘천시"
-                placeholderTextColor="#999999"
-              />
-            </View>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <Text style={styles.placeholder}>연령대</Text>
-              <TextInput
-                style={styles.textInput}
-                value={userInfo.age}
-                onChangeText={(text) => handleInputChange("age", text)}
-                placeholder="ex) 20대 후반"
-                placeholderTextColor="#999999"
-              />
-            </View>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <Text style={styles.placeholder}>주간 목표</Text>
-              <TextInput
-                style={styles.textInput}
-                value={userInfo.runningDistance}
-                onChangeText={(text) =>
-                  handleInputChange("runningDistance", text)
-                }
-                placeholder="ex) 10km 러닝"
-                placeholderTextColor="#999999"
-              />
-            </View>
-          </View>
-
-          <View style={styles.genderContainer}>
-            <TouchableOpacity
-              style={[
-                styles.genderButton,
-                userInfo.gender === "male" && styles.selectedGenderButton,
-              ]}
-              onPress={() => handleGenderSelect("male")}
-            >
-              <Text
-                style={[
-                  styles.genderButtonText,
-                  userInfo.gender === "male" && styles.selectedGenderButtonText,
-                ]}
-              >
-                남성
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.genderButton,
-                userInfo.gender === "female" && styles.selectedGenderButton,
-              ]}
-              onPress={() => handleGenderSelect("female")}
-            >
-              <Text
-                style={[
-                  styles.genderButtonText,
-                  userInfo.gender === "female" &&
-                    styles.selectedGenderButtonText,
-                ]}
-              >
-                여성
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            isFormValid && styles.submitButtonActive,
-          ]}
-          onPress={() => {
-            if (validateForm() && checked) {
-              handleRegister(userInfo);
-            } else {
-              Alert.alert(
-                "알림",
-                "모든 입력값을 완료하고 닉네임 중복확인을 해주세요."
-              );
-            }
-          }}
-          disabled={!isFormValid}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.submitButtonText,
-              isFormValid && styles.submitButtonTextActive,
-            ]}
+          <TouchableOpacity
+            style={styles.dupCheckButton}
+            onPress={handleNicknameCheck}
           >
-            시작하기
-          </Text>
+            <Text style={styles.dupCheckText}>중복확인</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 거주지 */}
+        <View style={styles.inputBox}>
+          <Text style={styles.label}>거주지</Text>
+          <TextInput
+            placeholder="ex) 춘천시"
+            value={location}
+            onChangeText={setLocation}
+            style={styles.inputText}
+          />
+        </View>
+
+        {/* 연령대 */}
+        <View style={styles.inputBox}>
+          <Text style={styles.label}>연령대</Text>
+          <TextInput
+            placeholder="ex) 20대"
+            value={ageRange}
+            onChangeText={setAgeRange}
+            style={styles.inputText}
+          />
+        </View>
+
+        {/* 주간 목표 */}
+        <View style={styles.inputBox}>
+          <Text style={styles.label}>주간 목표</Text>
+          <TextInput
+            placeholder="ex) 10km 러닝"
+            value={goal}
+            onChangeText={setGoal}
+            style={styles.inputText}
+          />
+        </View>
+
+        {/* 성별 */}
+        <View style={styles.genderContainer}>
+          <TouchableOpacity
+            style={[
+              styles.genderBox,
+              gender === "남성" && styles.genderBoxActive,
+            ]}
+            onPress={() => setGender("남성")}
+          >
+            <Text style={styles.genderText}>남성</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.genderBox,
+              gender === "여성" && styles.genderBoxActive,
+            ]}
+            onPress={() => setGender("여성")}
+          >
+            <Text style={styles.genderText}>여성</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 시작하기 */}
+        <TouchableOpacity style={styles.startButton} onPress={handleStart}>
+          <Text style={styles.startButtonText}>시작하기</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#ffffff" },
-  scrollView: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 20,
+  container: {
+    flex: 1,
+    backgroundColor: "#ffffff",
   },
-  headerContainer: { marginBottom: 40 },
+  content: {
+    padding: 24,
+    paddingTop: 40,
+    paddingBottom: 100,
+  },
   mainTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333333",
-    marginBottom: 12,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#000",
+    marginBottom: 8,
   },
   subTitle: {
     fontSize: 16,
-    color: "#666666",
-    lineHeight: 24,
+    color: "rgba(0,0,0,0.54)",
+    marginBottom: 30,
   },
-  formContainer: { gap: 20 },
-  inputContainer: { marginBottom: 4 },
   inputWrapper: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    minHeight: 56,
-    justifyContent: "center",
-    position: "relative",
+    backgroundColor: "rgba(204,222,235,0.5)",
+    borderWidth: 1,
+    borderColor: "#d9d9d9",
+    borderRadius: 15,
+    padding: 16,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
   },
-  placeholder: {
+  inputBox: {
+    backgroundColor: "rgba(204,222,235,0.5)",
+    borderWidth: 1,
+    borderColor: "#d9d9d9",
+    borderRadius: 15,
+    padding: 16,
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 10,
+    color: "#b6adad",
+    fontWeight: "300",
+  },
+  inputText: {
     fontSize: 12,
-    color: "#999999",
-    marginBottom: 2,
-  },
-  textInput: {
-    fontSize: 16,
-    color: "#333333",
+    color: "#000",
+    marginTop: 4,
     padding: 0,
-    minHeight: 24,
   },
-  clearButton: {
-    position: "absolute",
-    right: 16,
-    top: "50%",
-    transform: [{ translateY: -12 }],
-    backgroundColor: "#8B7CF6",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 5,
+  dupCheckButton: {
+    backgroundColor: "#667eea",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    opacity: 0.71,
+    marginLeft: 10,
   },
-  clearButtonText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "500",
+  dupCheckText: {
+    fontSize: 10,
+    color: "#fff",
   },
-  genderContainer: { flexDirection: "row", gap: 12, marginTop: 4 },
-  genderButton: {
+  genderContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 30,
+  },
+  genderBox: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
-    paddingVertical: 16,
-    borderRadius: 12,
+    backgroundColor: "rgba(204,222,235,0.5)",
+    borderColor: "#d9d9d9",
+    borderWidth: 1,
+    borderRadius: 15,
+    paddingVertical: 14,
+    marginHorizontal: 5,
     alignItems: "center",
-    justifyContent: "center",
   },
-  selectedGenderButton: { backgroundColor: "#8B7CF6" },
-  genderButtonText: {
-    fontSize: 16,
-    color: "#666666",
-    fontWeight: "500",
+  genderBoxActive: {
+    backgroundColor: "#4A90E2",
   },
-  selectedGenderButtonText: { color: "#ffffff" },
-  buttonContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 20,
+  genderText: {
+    fontSize: 14,
+    color: "#000",
   },
-  submitButton: {
-    backgroundColor: "#CCCCCC",
+  startButton: {
+    backgroundColor: "#000",
+    borderRadius: 20,
     paddingVertical: 18,
-    borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center",
+    marginTop: 10,
   },
-  submitButtonActive: { backgroundColor: "#000000" },
-  submitButtonText: {
+  startButtonText: {
+    color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-    color: "#999999",
   },
-  submitButtonTextActive: { color: "#ffffff" },
 });
