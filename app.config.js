@@ -2,13 +2,15 @@ import "dotenv/config";
 
 export default {
   expo: {
-    name: "my-app",
-    slug: "my-app",
+    name: "WayToEarth",
+    slug: "WayToEarth",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
     newArchEnabled: true,
+    scheme: "waytoearth",
+    owner: "jeongjinho",
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
@@ -17,13 +19,13 @@ export default {
     ios: {
       supportsTablet: true,
       config: {
-        googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY, // ✅ 여기 환경변수 사용
+        googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
       },
     },
     android: {
       config: {
         googleMaps: {
-          apiKey: process.env.GOOGLE_MAPS_API_KEY, // ✅ 여기 환경변수 사용
+          apiKey: process.env.GOOGLE_MAPS_API_KEY,
         },
       },
       adaptiveIcon: {
