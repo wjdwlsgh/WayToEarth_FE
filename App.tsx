@@ -1,20 +1,28 @@
-import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View } from "react-native";
-import MapScreen from "./Pages/MapScreen";
+// App.tsx
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import type { RootStackParamList } from "./types/types";
+
+import Onboading from "./Pages/Onboading";
 import Login from "./Pages/Login";
+import Register from "./Pages/Register";
+import MapScreen from "./Pages/MapScreen";
+
+const Stack = createStackNavigator();
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      {/* <Text>시작이구만</Text> ← 일단 지워보자 */}
-      <Login />
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator
+        initialRouteName="Login"
+        screenOptions={{ headerShown: false }}
+      >
+        <Stack.Screen name="Onboading" component={Onboading} />
+        <Stack.Screen name="MapScreen" component={MapScreen} />
+        <Stack.Screen name="Register" component={Register} />
+        <Stack.Screen name="Login" component={Login} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
