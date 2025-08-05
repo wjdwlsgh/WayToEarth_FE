@@ -1,13 +1,11 @@
 import axios from "axios";
 import { UserInfo } from "../types/user";
 
-const BASE_URL = "http://192.168.200.177:5000"; // 너의 로컬 서버 주소
+// ✅ ngrok 주소 — 백엔드 API 호출용
+const BASE_URL = "https://8e86abeae0d8.ngrok-free.app";
 
-export const kakaoLogin = async (code: string, redirectUri: string) => {
-  const res = await axios.post(`${BASE_URL}/v1/kakao`, {
-    code,
-    redirectUri,
-  });
+export const kakaoLogin = async (code: string) => {
+  const res = await axios.post(`${BASE_URL}/v1/kakao`, { code });
   return res.data;
 };
 

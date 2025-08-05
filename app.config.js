@@ -1,3 +1,4 @@
+// app.config.ts
 import "dotenv/config";
 
 export default {
@@ -8,9 +9,10 @@ export default {
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
-    newArchEnabled: true,
+    newArchEnabled: false,
     scheme: "waytoearth",
     owner: "jeongjinho",
+    jsEngine: "hermes",
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
@@ -23,6 +25,7 @@ export default {
       },
     },
     android: {
+      package: "com.jeongjinho.waytoearth",
       config: {
         googleMaps: {
           apiKey: process.env.GOOGLE_MAPS_API_KEY,
@@ -39,8 +42,10 @@ export default {
     },
     extra: {
       kakaoNativeAppKey: process.env.KAKAO_NATIVE_APP_KEY,
-      kakaoJavascriptKey: process.env.KAKAO_JAVASCRIPT_KEY,
       kakaoRestApiKey: process.env.KAKAO_REST_API_KEY,
+      eas: {
+        projectId: "92a31a7c-397a-417f-93bf-841ba76ac6bd", // ✅ 여기 추가
+      },
     },
   },
 };
