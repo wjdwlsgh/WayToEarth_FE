@@ -1,9 +1,9 @@
-import { Alert } from "react-native";
+import { useState, useEffect } from "react";
+import { Alert, Linking } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import * as WebBrowser from "expo-web-browser";
-import * as AuthSession from "expo-auth-session";
 import Constants from "expo-constants";
-import { kakaoLogin } from "../utils/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
 
@@ -12,50 +12,65 @@ export default function useKakaoLogin() {
   const navigation = useNavigation<Navigation>();
 
   const kakaoRestApiKey = Constants.expoConfig?.extra?.kakaoRestApiKey ?? "";
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: "waytoearth",
-  });
+  const redirectUri = "https://e56540bed708.ngrok-free.app/kakao/callback";
 
-  console.log("✅ redirectUri:", redirectUri);
+  const [logText, setLogText] = useState("🟡 로그인 대기 중...");
+  const [loading, setLoading] = useState(false);
 
-  const handleKakaoLogin = async () => {
-    try {
-      const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${kakaoRestApiKey}&redirect_uri=${encodeURIComponent(
-        redirectUri
-      )}&response_type=code`;
+  useEffect(() => {
+    const handleUrl = async ({ url }: { url: string }) => {
+      const parsedUrl = new URL(url);
+      const code = parsedUrl.searchParams.get("code");
 
-      // ✅ 최신 방식 (expo-auth-session v6 대응)
-      const result = await WebBrowser.openAuthSessionAsync(
-        authUrl,
-        redirectUri
-      );
-      console.log(result);
+      if (code) {
+        setLogText("✅ 인가 코드 수신! JWT 요청 중...");
+        setLoading(true);
+        try {
+          const res = await axios.post(
+            "http://10.50.205.250:8080/v1/auth/kakao",
+            {
+              code, // ✅ 이렇게 변경
+              redirectUri,
+              isMobile: true,
+            }
+          );
 
-      if (result.type === "success" && result.url) {
-        const url = new URL(result.url);
-        const code = url.searchParams.get("code");
+          const { jwtToken } = res.data;
+          console.log("✅ JWT from backend:", jwtToken);
 
-        if (code) {
-          try {
-            const { jwtToken } = await kakaoLogin(code, redirectUri);
-            console.log("✅ JWT 토큰:", jwtToken);
-            Alert.alert("로그인 성공", "환영합니다!");
-            navigation.navigate("Register");
-          } catch (error) {
-            console.error("❌ 백엔드 요청 실패:", error);
-            Alert.alert("로그인 실패", "토큰 요청 중 문제가 발생했어요");
-          }
-        } else {
-          Alert.alert("로그인 실패", "인가 코드를 찾지 못했어요");
+          await AsyncStorage.setItem("jwtToken", jwtToken);
+
+          setLogText("🎉 로그인 성공! 페이지 이동 중...");
+          Alert.alert("로그인 성공", "환영합니다!");
+          navigation.navigate("Register");
+        } catch (error) {
+          console.error(
+            "❌ 백엔드 오류:",
+            error?.response?.data ?? error?.message ?? error
+          );
+          setLogText("❌ 서버 오류: JWT 요청 실패");
+          Alert.alert("로그인 실패", "서버 통신 오류가 발생했습니다.");
+        } finally {
+          setLoading(false);
         }
-      } else {
-        Alert.alert("로그인 실패", "사용자가 로그인을 취소했어요");
       }
-    } catch (err) {
-      console.error("카카오 로그인 에러:", err);
-      Alert.alert("로그인 실패", "예기치 못한 오류가 발생했어요");
-    }
+    };
+
+    const subscribe = Linking.addEventListener("url", handleUrl);
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl({ url });
+    });
+
+    return () => {
+      subscribe.remove();
+    };
+  }, []);
+
+  const handleKakaoLogin = () => {
+    const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${kakaoRestApiKey}&redirect_uri=${redirectUri}&response_type=code`;
+    setLogText("🟡 카카오 로그인 요청 중...");
+    Linking.openURL(authUrl);
   };
 
-  return handleKakaoLogin;
+  return { handleKakaoLogin, logText, loading };
 }
