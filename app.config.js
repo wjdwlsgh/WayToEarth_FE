@@ -28,7 +28,7 @@ export default {
       package: "com.jeongjinho.waytoearth",
       config: {
         googleMaps: {
-          apiKey: process.env.GOOGLE_MAPS_API_KEY,
+          apiKey: process.env.ANDROID_MAPS_KEY,
         },
       },
       adaptiveIcon: {
