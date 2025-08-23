@@ -1,5 +1,3 @@
-// screens/WayToEarthOnboarding.tsx
-
 import React from "react";
 import {
   View,
@@ -8,6 +6,7 @@ import {
   StatusBar,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import KakaoLoginButton from "../components/KakaoLoginButton";
 import RunningManIcon from "../components/Running/RunningManIcon";
@@ -16,7 +15,7 @@ import useKakaoLogin from "../hooks/useKakaoLogin";
 const { height } = Dimensions.get("window");
 
 export default function WayToEarthOnboarding() {
-  const handleKakaoLogin = useKakaoLogin();
+  const { handleKakaoLogin, logText, loading } = useKakaoLogin();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -34,7 +33,21 @@ export default function WayToEarthOnboarding() {
         </View>
 
         <View style={styles.buttonContainer}>
-          <KakaoLoginButton onPress={handleKakaoLogin} />
+          <KakaoLoginButton
+            onPress={() => {
+              if (__DEV__) console.log("🔥 [TEST] 카카오 로그인 버튼 클릭됨");
+              handleKakaoLogin();
+            }}
+          />
+
+          {/* 상태 메시지 */}
+          <View style={{ alignItems: "center", marginTop: 20 }}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#4A90E2" />
+            ) : (
+              <Text style={{ color: "#666", fontSize: 12 }}>{logText}</Text>
+            )}
+          </View>
         </View>
       </View>
     </SafeAreaView>
