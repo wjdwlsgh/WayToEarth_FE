@@ -3,7 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import Constants from "expo-constants";
-import { kakaoLogin } from "../utils/api";
+import { kakaoLogin } from "../utils/api/auth";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
 
@@ -14,7 +14,7 @@ export default function useKakaoLogin() {
   const kakaoRestApiKey = Constants.expoConfig?.extra?.kakaoRestApiKey ?? "";
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: "waytoearth",
-  });
+  });
 
   console.log("✅ redirectUri:", redirectUri);
 
