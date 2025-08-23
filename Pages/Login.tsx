@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import KakaoLoginButton from "../components/KakaoLoginButton";
-import RunningManIcon from "../components/RunningManIcon";
+import RunningManIcon from "../components/Running/RunningManIcon";
 import useKakaoLogin from "../hooks/useKakaoLogin";
 
 const { height } = Dimensions.get("window");
