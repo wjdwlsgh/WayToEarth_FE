@@ -10,26 +10,36 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiComplete } from "../utils/api";
+// ✅ 올바른 경로로 수정
+import { apiComplete } from "../utils/api/running";
 import SummaryMap from "../components/Running/SummaryMap";
 
 export default function RunSummaryScreen({ route, navigation }: any) {
   const {
-    distanceKm,
-    paceLabel,
-    kcal,
-    elapsedLabel,
+    distanceKm = 0,
+    paceLabel = "--:--",
+    kcal = 0,
+    elapsedLabel = "0:00",
     elapsedSec,
     routePath = [],
     startedAt,
     endedAt,
     sessionId,
+    snapshotUri,
+    runId: runIdFromParams,
   } = route.params || {};
 
   const [title, setTitle] = useState("금요일 오전 러닝");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [saving, setSaving] = useState(false);
-  const runIdRef = useRef<string | null>(null);
+
+  const initialRunId =
+    typeof runIdFromParams === "number"
+      ? runIdFromParams
+      : Number.isFinite(Number(runIdFromParams))
+      ? Number(runIdFromParams)
+      : null;
+  const runIdRef = useRef<number | null>(initialRunId);
 
   const paceSecPerKm = useMemo(() => {
     if (!paceLabel || paceLabel.includes("-")) return null;
@@ -40,62 +50,77 @@ export default function RunSummaryScreen({ route, navigation }: any) {
     return m * 60 + s;
   }, [paceLabel]);
 
-  // 현재 날짜와 시간 포맷
   const currentDateTime = useMemo(() => {
     const now = new Date();
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-
-    const timeStr = `${hours}:${minutes.toString().padStart(2, "0")}`;
-    return `${month.toString().padStart(2, "0")}월 ${day
-      .toString()
-      .padStart(2, "0")}일 오전 ${timeStr}`;
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = now.getHours();
+    const min = String(now.getMinutes()).padStart(2, "0");
+    const ampm = hh < 12 ? "오전" : "오후";
+    const hh12 = ((hh + 11) % 12) + 1;
+    return `${mm}월 ${dd}일 ${ampm} ${hh12}:${min}`;
   }, []);
 
   useEffect(() => {
     (async () => {
       if (runIdRef.current || saving) return;
+
+      // 개발 중 서버 세션이 없으면 더미 id로 즉시 활성화
+      if (!sessionId || String(sessionId).startsWith("local_")) {
+        console.warn("[RunSummary] 서버 세션 없음 → DEV 더미 runId=1 사용");
+        runIdRef.current = 1; // ⚠️ 운영 전 제거
+        return;
+      }
+
       try {
         setSaving(true);
 
-        // 경로 데이터 정규화
         const normalized =
-          routePath?.length && routePath[0]?.lat != null
+          routePath?.length &&
+          (routePath[0]?.lat != null || routePath[0]?.lng != null)
             ? routePath.map((p: any, i: number) => ({
                 latitude: p.latitude ?? p.lat,
                 longitude: p.longitude ?? p.lng,
-                sequence: i,
+                sequence: i + 1,
                 t: p.t ? Math.floor(p.t) : undefined,
               }))
             : routePath.map((p: any, i: number) => ({
                 latitude: p.latitude,
                 longitude: p.longitude,
-                sequence: i,
+                sequence: i + 1,
               }));
 
-        const res = await apiComplete({
-          sessionId: sessionId ?? `local_${Date.now()}`,
+        const durSec =
+          typeof elapsedSec === "number"
+            ? elapsedSec
+            : (() => {
+                const [mm, ss] = String(elapsedLabel ?? "0:00")
+                  .split(":")
+                  .map((x) => parseInt(x, 10));
+                return (mm || 0) * 60 + (ss || 0);
+              })();
+
+        const { runId } = await apiComplete({
+          sessionId,
           endedAt: endedAt ? Date.parse(endedAt) : Date.now(),
-          distanceMeters: Math.round((distanceKm ?? 0) * 1000),
-          durationSeconds:
-            elapsedSec ??
-            (() => {
-              const [mm, ss] = String(elapsedLabel ?? "0:00")
-                .split(":")
-                .map((x) => parseInt(x, 10));
-              return (mm || 0) * 60 + (ss || 0);
-            })(),
+          distanceMeters: Math.round(distanceKm * 1000),
+          durationSeconds: durSec,
           averagePaceSeconds: paceSecPerKm,
-          calories: kcal ?? 0,
+          calories: Math.round(kcal),
           routePoints: normalized,
           title,
         });
 
-        runIdRef.current = res.runId;
+        if (!runId) {
+          console.warn("[RunSummary] runId 없음 → DEV 더미 id 적용");
+          runIdRef.current = 1; // ⚠️ 운영 전 제거
+          setSaving(false);
+          return;
+        }
+
+        runIdRef.current = runId;
       } catch (e) {
-        console.error(e);
+        console.error("[RunSummary] 저장 실패:", e);
         Alert.alert("저장 실패", "네트워크 상태를 확인하고 다시 시도해주세요.");
       } finally {
         setSaving(false);
@@ -114,55 +139,122 @@ export default function RunSummaryScreen({ route, navigation }: any) {
     title,
   ]);
 
+  const onSharePress = () => {
+    if (runIdRef.current === null) {
+      Alert.alert("잠시만요", "기록 저장 후 다시 시도해주세요.");
+      return;
+    }
+
+    navigation.navigate("FeedCompose", {
+      runId: runIdRef.current,
+      defaultTitle: title,
+      snapshotUri: snapshotUri ?? null,
+      distanceKm,
+      paceLabel,
+      elapsedLabel,
+      kcal: Math.round(kcal),
+    });
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* 헤더 */}
-        <View style={styles.header}>
-          <Pressable
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 20,
+            paddingVertical: 16,
+          }}
+        >
+          <Pressable onPress={() => navigation.goBack()} style={{ padding: 4 }}>
             <Ionicons name="arrow-back" size={24} color="#000" />
           </Pressable>
         </View>
 
-        {/* 날짜 및 시간 */}
-        <Text style={styles.dateTime}>{currentDateTime}</Text>
+        <Text
+          style={{
+            fontSize: 14,
+            color: "#666",
+            marginTop: 8,
+            marginBottom: 4,
+            paddingHorizontal: 20,
+          }}
+        >
+          {currentDateTime}
+        </Text>
 
-        {/* 제목 */}
-        <View style={styles.titleSection}>
+        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
           {isEditingTitle ? (
             <TextInput
-              style={styles.titleInput}
               value={title}
               onChangeText={setTitle}
               onBlur={() => setIsEditingTitle(false)}
               onSubmitEditing={() => setIsEditingTitle(false)}
               autoFocus
               selectTextOnFocus
+              style={{
+                fontSize: 24,
+                fontWeight: "700",
+                color: "#000",
+                borderBottomWidth: 1,
+                borderBottomColor: "#3B82F6",
+                paddingBottom: 4,
+              }}
             />
           ) : (
             <Pressable
-              style={styles.titleContainer}
               onPress={() => setIsEditingTitle(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
             >
-              <Text style={styles.title}>{title}</Text>
+              <Text
+                style={{
+                  fontSize: 24,
+                  fontWeight: "700",
+                  color: "#000",
+                  flex: 1,
+                }}
+              >
+                {title}
+              </Text>
               <Ionicons name="pencil" size={20} color="#666" />
             </Pressable>
           )}
         </View>
 
-        {/* 거리 표시 */}
-        <Text style={styles.distance}>
-          {distanceKm?.toFixed(2) || "0.00"}Km
+        <Text
+          style={{
+            fontSize: 48,
+            fontWeight: "900",
+            color: "#000",
+            textAlign: "center",
+            marginBottom: 24,
+          }}
+        >
+          {distanceKm.toFixed(2)}Km
         </Text>
 
-        {/* 지도 */}
-        <View style={styles.mapContainer}>
+        <View
+          style={{
+            marginHorizontal: 20,
+            marginBottom: 32,
+            borderRadius: 16,
+            overflow: "hidden",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 4,
+          }}
+        >
           <SummaryMap
             route={
-              routePath?.length && routePath[0]?.lat != null
+              routePath?.length &&
+              (routePath[0]?.lat != null || routePath[0]?.lng != null)
                 ? routePath.map((p: any) => ({
                     latitude: p.latitude ?? p.lat,
                     longitude: p.longitude ?? p.lng,
@@ -175,45 +267,76 @@ export default function RunSummaryScreen({ route, navigation }: any) {
           />
         </View>
 
-        {/* 통계 */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{elapsedLabel || "0:00"}</Text>
-            <Text style={styles.statLabel}>시간</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-around",
+            paddingHorizontal: 20,
+            marginBottom: 40,
+          }}
+        >
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 28,
+                fontWeight: "800",
+                color: "#000",
+                marginBottom: 4,
+              }}
+            >
+              {elapsedLabel}
+            </Text>
+            <Text style={{ fontSize: 12, color: "#666", fontWeight: "500" }}>
+              시간
+            </Text>
           </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{paceLabel || "0'00\""}</Text>
-            <Text style={styles.statLabel}>평균 페이스</Text>
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 28,
+                fontWeight: "800",
+                color: "#000",
+                marginBottom: 4,
+              }}
+            >
+              {paceLabel}
+            </Text>
+            <Text style={{ fontSize: 12, color: "#666", fontWeight: "500" }}>
+              평균 페이스
+            </Text>
           </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{kcal || 0}</Text>
-            <Text style={styles.statLabel}>칼로리</Text>
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 28,
+                fontWeight: "800",
+                color: "#000",
+                marginBottom: 4,
+              }}
+            >
+              {Math.round(kcal)}
+            </Text>
+            <Text style={{ fontSize: 12, color: "#666", fontWeight: "500" }}>
+              칼로리
+            </Text>
           </View>
         </View>
 
-        {/* 공유하기 버튼 */}
         <Pressable
-          style={[
-            styles.shareButton,
-            (!runIdRef.current || saving) && styles.shareButtonDisabled,
-          ]}
-          disabled={!runIdRef.current || saving}
-          onPress={() => {
-            if (!runIdRef.current) {
-              Alert.alert("잠시만요", "기록 저장 후 다시 시도해주세요.");
-              return;
-            }
-            navigation.navigate("FeedCompose", {
-              runId: runIdRef.current,
-              defaultTitle: title,
-              distanceKm,
-              paceLabel,
-              elapsedLabel,
-              kcal,
-            });
+          onPress={onSharePress}
+          disabled={runIdRef.current === null || saving}
+          style={{
+            backgroundColor:
+              runIdRef.current === null || saving ? "#ccc" : "#000",
+            marginHorizontal: 20,
+            marginBottom: 40,
+            height: 56,
+            borderRadius: 28,
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <Text style={styles.shareButtonText}>
+          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
             {saving ? "저장 중..." : "공유하기"}
           </Text>
         </Pressable>
@@ -223,19 +346,14 @@ export default function RunSummaryScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
+  container: { flex: 1, backgroundColor: "#fff" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
-  backButton: {
-    padding: 4,
-  },
+  backButton: { padding: 4 },
   dateTime: {
     fontSize: 14,
     color: "#666",
@@ -243,21 +361,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingHorizontal: 20,
   },
-  titleSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
+  titleSection: { paddingHorizontal: 20, marginBottom: 20 },
   titleContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#000",
-    flex: 1,
-  },
+  title: { fontSize: 24, fontWeight: "700", color: "#000", flex: 1 },
   titleInput: {
     fontSize: 24,
     fontWeight: "700",
@@ -279,10 +389,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
@@ -293,21 +400,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 40,
   },
-  statItem: {
-    alignItems: "center",
-    flex: 1,
-  },
+  statItem: { alignItems: "center", flex: 1 },
   statValue: {
     fontSize: 28,
     fontWeight: "800",
     color: "#000",
     marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-  },
+  statLabel: { fontSize: 12, color: "#666", fontWeight: "500" },
   shareButton: {
     backgroundColor: "#000",
     marginHorizontal: 20,
@@ -317,12 +417,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  shareButtonDisabled: {
-    backgroundColor: "#ccc",
-  },
-  shareButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  shareButtonDisabled: { backgroundColor: "#ccc" },
+  shareButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

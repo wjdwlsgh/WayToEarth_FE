@@ -1,0 +1,299 @@
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  SafeAreaView,
+  ScrollView,
+  Dimensions,
+  Alert,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+
+const { width } = Dimensions.get("window");
+const API_BASE = "http://waytoearth.duckdns.org:8080"; // ⚠️ 환경에 맞게 변경
+
+const api = axios.create({
+  baseURL: API_BASE,
+  timeout: 10000,
+});
+
+// ✅ JWT 토큰 자동 주입
+api.interceptors.request.use(async (config) => {
+  const token = await AsyncStorage.getItem("jwtToken");
+  if (token) {
+    config.headers = {
+      ...(config.headers || {}),
+      Authorization: `Bearer ${token}`,
+    };
+  }
+  return config;
+});
+
+export default function FeedDetail({ route, navigation }) {
+  const { feed } = route.params;
+  const [me, setMe] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // ✅ 사용자 정보 가져오기
+  const fetchUserData = useCallback(async () => {
+    try {
+      const meRes = await api.get("/v1/users/me");
+      setMe(meRes.data);
+    } catch (err) {
+      console.warn(err);
+      Alert.alert(
+        "오류",
+        err?.response?.data?.message || "사용자 정보를 불러오지 못했습니다."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUserData();
+  }, [fetchUserData]);
+
+  // 필드 매핑(백엔드 snake/camel 혼용 대응)
+  const profileUrl = me?.profile_image_url || me?.profileImageUrl || "";
+
+  // ✅ 러닝 시간 포맷 (항상 h:mm:ss)
+  const formatDuration = (seconds) => {
+    if (!seconds) return "0:00:00";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h}:${m.toString().padStart(2, "0")}:${s
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  // ✅ 피드 삭제 핸들러
+  const handleDelete = async () => {
+    Alert.alert("삭제 확인", "이 게시물을 삭제하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api.delete(`/v1/feeds/${feed.id}`);
+            Alert.alert("삭제 완료", "피드가 삭제되었습니다.");
+
+            // ✅ FeedScreen으로 이동 + 삭제된 ID 전달
+            navigation.navigate("FeedScreen", { deletedId: feed.id });
+          } catch (error) {
+            console.error(error);
+            Alert.alert("오류", "피드 삭제에 실패했습니다.");
+          }
+        },
+      },
+    ]);
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* 상단 상태바 */}
+      <View style={styles.statusBar}>
+        <Text style={styles.time}>9:41</Text>
+        <View style={styles.levels}>
+          <Text>📶</Text>
+          <Text>📡</Text>
+          <Text>🔋</Text>
+        </View>
+      </View>
+
+      {/* 피드 카드 */}
+      <ScrollView contentContainerStyle={styles.feedArea}>
+        <View style={styles.feedCard}>
+          {/* 프로필 영역 */}
+          <View style={styles.feedHeader}>
+            <Image
+              source={
+                profileUrl
+                  ? { uri: profileUrl }
+                  : require("../assets/ix-user-profile0.png")
+              }
+              style={styles.profileIcon}
+            />
+            <View>
+              <Text style={styles.feedAuthor}>{feed.nickname}</Text>
+              <Text style={styles.feedTime}>방금 전</Text>
+            </View>
+            <TouchableOpacity
+              style={{ marginLeft: "auto" }}
+              onPress={handleDelete}
+            >
+              <Text style={{ fontSize: 16 }}>🗑️</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 본문 */}
+          <Text style={styles.feedContent}>{feed.content}</Text>
+
+          {/* 기록 박스 */}
+          <View style={styles.recordBox}>
+            <View style={styles.recordItem}>
+              <Text style={styles.recordValue}>
+                {feed.distance ? `${feed.distance.toFixed(2)} km` : "-"}
+              </Text>
+              <Text style={styles.recordLabel}>거리</Text>
+            </View>
+            <View style={styles.recordItem}>
+              <Text style={styles.recordValue}>
+                {formatDuration(feed.duration)}
+              </Text>
+              <Text style={styles.recordLabel}>시간</Text>
+            </View>
+            <View style={styles.recordItem}>
+              <Text style={styles.recordValue}>{feed.averagePace || "-"}</Text>
+              <Text style={styles.recordLabel}>페이스</Text>
+            </View>
+          </View>
+
+          {/* 이미지 */}
+          {feed.imageUrl && (
+            <Image
+              source={{ uri: feed.imageUrl }}
+              style={styles.feedImage}
+              resizeMode="cover"
+            />
+          )}
+        </View>
+      </ScrollView>
+
+      {/* 바텀 네비게이션 */}
+      <View style={styles.bottomNavigation}>
+        <TouchableOpacity style={styles.navItem}>
+          <Image
+            source={require("../assets/head-to-head0.png")}
+            style={styles.navIcon}
+            resizeMode="contain"
+          />
+          <Text style={styles.navText}>대결</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem}>
+          <Image
+            source={require("../assets/people0.png")}
+            style={styles.navIcon}
+            resizeMode="contain"
+          />
+          <Text style={styles.navText}>크루</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem}>
+          <Image
+            source={require("../assets/group0.png")}
+            style={styles.navIcon}
+            resizeMode="contain"
+          />
+          <Text style={[styles.navText, styles.activeNavText]}>러닝</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem}>
+          <Image
+            source={require("../assets/material-symbols-feed-outline0.png")}
+            style={styles.navIcon}
+            resizeMode="contain"
+          />
+          <Text style={styles.navText}>피드</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem}>
+          <Image
+            source={require("../assets/combo-chart0.png")}
+            style={styles.navIcon}
+            resizeMode="contain"
+          />
+          <Text style={styles.navText}>기록</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
+
+  // 상태바
+  statusBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+  },
+  time: { fontSize: 16, fontWeight: "600" },
+  levels: { flexDirection: "row", gap: 6 },
+
+  // 피드 영역 - 상단 패딩 추가하여 카드를 아래로 내림
+  feedArea: {
+    padding: 20,
+    paddingTop: 30, // 상단 패딩을 늘려서 카드를 아래로 내림
+  },
+
+  feedCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  feedHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  profileIcon: { width: 28, height: 28, marginRight: 8, borderRadius: 14 },
+  feedAuthor: { fontWeight: "700", fontSize: 14, color: "#000" },
+  feedTime: { fontSize: 12, color: "#000000ff" },
+  feedContent: { fontSize: 14, marginBottom: 12, color: "#000" },
+
+  // 기록 박스
+  recordBox: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#000",
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  recordItem: { alignItems: "center", flex: 1 },
+  recordValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+    fontWeight: 500,
+    color: "#000",
+  },
+  recordLabel: { fontSize: 15, color: "#718096" },
+
+  // 이미지 - 세로 길이를 더 길게 증가
+  feedImage: {
+    width: "100%",
+    height: 530, // 250 -> 530으로 증가
+    borderRadius: 12,
+    marginBottom: 0,
+  },
+
+  // 바텀 네비
+  bottomNavigation: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    height: 60,
+    borderTopWidth: 1,
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
+  },
+  navItem: { justifyContent: "center", alignItems: "center" },
+  navIcon: { width: 28, height: 28, marginBottom: 4 },
+  navText: { fontSize: 12, color: "#000", fontWeight: "500" },
+  activeNavText: { color: "#007AFF" },
+});

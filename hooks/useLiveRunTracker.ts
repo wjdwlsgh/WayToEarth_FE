@@ -3,7 +3,12 @@ import * as Location from "expo-location";
 import type { LatLng } from "../types/types";
 import { distanceKm } from "../utils/geo";
 import { fmtMMSS, avgPaceSecPerKm, caloriesKcal } from "../utils/run";
-import { apiStartSession, apiUpdate, apiPause, apiResume } from "../utils/api";
+import {
+  apiStartSession,
+  apiUpdate,
+  apiPause,
+  apiResume,
+} from "../utils/api/running";
 
 type TimerId = ReturnType<typeof setInterval>;
 type Sample = { t: number; p: LatLng };

@@ -31,7 +31,7 @@ export default function Register() {
   });
 
   const { handleCheck, checked } = useNicknameCheck();
-  const handleRegister = useRegister();
+  const { handleRegister, loading } = useRegister();
 
   const handleInputChange = (field: keyof UserInfo, value: string) => {
     setUserInfo((prev) => ({
@@ -212,7 +212,7 @@ export default function Register() {
               );
             }
           }}
-          disabled={!isFormValid}
+          disabled={!isFormValid || loading}
           activeOpacity={0.8}
         >
           <Text

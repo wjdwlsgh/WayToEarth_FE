@@ -4,14 +4,14 @@ import "dotenv/config";
 export default {
   expo: {
     name: "WayToEarth",
-    slug: "WayToEarth",
+    slug: "waytoearth",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
     newArchEnabled: false,
     scheme: "waytoearth",
-    owner: "jeongjinho",
+    owner: "waytoearth",
     jsEngine: "hermes",
     splash: {
       image: "./assets/splash-icon.png",
@@ -27,9 +27,7 @@ export default {
     android: {
       package: "com.jeongjinho.waytoearth",
       config: {
-        googleMaps: {
-          apiKey: process.env.ANDROID_MAPS_KEY,
-        },
+        googleMaps: { apiKey: process.env.ANDROID_MAPS_KEY },
       },
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
@@ -37,15 +35,20 @@ export default {
       },
       edgeToEdgeEnabled: true,
     },
-    web: {
-      favicon: "./assets/favicon.png",
-    },
+    web: { favicon: "./assets/favicon.png" },
+
+    // ✅ 공식 카카오 플러그인만 사용
+    plugins: [
+      [
+        "@react-native-seoul/kakao-login",
+        { kakaoAppKey: process.env.KAKAO_NATIVE_APP_KEY },
+      ],
+    ],
+
     extra: {
       kakaoNativeAppKey: process.env.KAKAO_NATIVE_APP_KEY,
       kakaoRestApiKey: process.env.KAKAO_REST_API_KEY,
-      eas: {
-        projectId: "92a31a7c-397a-417f-93bf-841ba76ac6bd", // ✅ 여기 추가
-      },
+      eas: { projectId: "7a5e6a60-69ad-4ddc-8301-9aaf03e404a6" },
     },
   },
 };

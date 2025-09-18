@@ -12,3 +12,28 @@ export interface UserInfo {
   runningDistance: string;
   gender: "male" | "female" | null;
 }
+
+// running/types.ts
+export interface LatLng {
+  latitude: number;
+  longitude: number;
+}
+
+// types/emblem.ts
+export interface Achievement {
+  emblem_id: string;
+  name: string;
+  description: string;
+  image_url: string;
+  owned: boolean;
+  earned_at?: string;
+}
+
+export interface Summary {
+  owned: number;
+  total: number;
+  /** 0~1 값 (예: 0.42) */
+  completion_rate: number;
+}
+
+export type EmblemFilter = "전체" | "획득" | "미획득";
