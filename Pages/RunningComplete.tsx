@@ -13,101 +13,23 @@ import {
   TextInput, // ✅ 추가
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
+import { apiComplete, apiStart } from "../utils/api/running";
+import { createFeed } from "../utils/api/feeds";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
 
 const { width, height } = Dimensions.get("window");
-const API_BASE = "http://waytoearth.duckdns.org:8080"; // ⚠️ 본인 환경에 맞게 변경
+// 공용 client 사용: HTTPS + JWT 자동 주입
 
-const api = axios.create({
-  baseURL: API_BASE,
-  timeout: 10000,
-});
-
-// ✅ 모든 요청에 JWT 토큰 주입
-api.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem("jwtToken");
-  if (token) {
-    config.headers = {
-      ...(config.headers || {}),
-      Authorization: `Bearer ${token}`,
-    };
-  }
-  return config;
-});
-
-const RunningComplete = () => {
+const RunningComplete: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [recordId, setRecordId] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [exerciseImage, setExerciseImage] = useState(null); // ✅ 최종 S3 URL 저장
   const [comment, setComment] = useState(""); // ✅ 사용자 입력 상태 추가
 
-  // ✅ 확장자 기반 MIME 추론
-  const guessMime = (uri) => {
-    const ext = (uri.split(".").pop() || "").toLowerCase();
-    if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
-    if (ext === "png") return "image/png";
-    if (ext === "webp") return "image/webp";
-    return "image/jpeg";
-  };
+  // 이미지 업로드는 createFeed가 presign+S3 업로드를 처리합니다.
 
-  // ✅ S3 업로드 함수 (uploadAsync 사용)
-  const uploadToS3 = async (fileUri) => {
-    try {
-      const fileName = fileUri.split("/").pop() || "feed.jpg";
-      const info = await FileSystem.getInfoAsync(fileUri);
-      const size = typeof info?.size === "number" ? info.size : 0;
-      const contentType = guessMime(fileName);
-
-      if (size <= 0) {
-        Alert.alert("오류", "파일 크기를 확인할 수 없습니다.");
-        return null;
-      }
-      if (size > 5 * 1024 * 1024) {
-        Alert.alert("용량 초과", "최대 5MB까지 업로드할 수 있습니다.");
-        return null;
-      }
-
-      // Presigned URL 요청
-      const { data } = await api.post("/v1/files/presign/feed", {
-        fileName,
-        contentType,
-        size,
-      });
-      console.log("[presign]", data);
-
-      const signedUrl = data?.upload_url ?? data?.signed_url ?? data?.uploadUrl;
-      const publicUrl = data?.public_url ?? data?.publicUrl;
-
-      if (!signedUrl || !publicUrl) {
-        Alert.alert("오류", "업로드 URL 발급에 실패했습니다.");
-        return null;
-      }
-
-      // S3 업로드 (PUT)
-      const resUpload = await FileSystem.uploadAsync(signedUrl, fileUri, {
-        httpMethod: "PUT",
-        headers: {
-          "Content-Type": contentType,
-          "Content-Length": String(size),
-        },
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-      });
-
-      if (!(resUpload.status === 200 || resUpload.status === 204)) {
-        throw new Error(`S3 업로드 실패: ${resUpload.status}`);
-      }
-
-      console.log("[s3 uploaded]", publicUrl);
-      return publicUrl;
-    } catch (err) {
-      console.warn(err);
-      Alert.alert("오류", "이미지 업로드에 실패했습니다.");
-      return null;
-    }
-  };
+  // 사전 업로드 대신, createFeed가 로컬 파일이면 presign+업로드를 수행합니다.
 
   // ✅ 운동 추가하기 (이미지 선택 + S3 업로드)
   const pickExerciseImage = useCallback(async () => {
@@ -123,8 +45,8 @@ const RunningComplete = () => {
         const localUri = result.assets[0].uri;
         console.log("[exercise image selected]", localUri);
 
-        const s3Url = await uploadToS3(localUri);
-        if (s3Url) setExerciseImage(s3Url);
+        // 업로드는 공유 시점에 createFeed가 처리
+        setExerciseImage(localUri);
       }
     } catch (e) {
       console.warn(e);
@@ -137,10 +59,7 @@ const RunningComplete = () => {
     try {
       setLoading(true);
       const sid = `mock-${Date.now()}`;
-      const { data } = await api.post("/v1/running/start", {
-        sessionId: sid,
-        runningType: "SINGLE",
-      });
+      const data = await apiStart({ sessionId: sid, runningType: "SINGLE" });
       console.log("[running started]", data);
       setSessionId(sid);
       await AsyncStorage.setItem("runningSessionId", sid);
@@ -176,9 +95,9 @@ const RunningComplete = () => {
 
       console.log("[complete payload]", payload);
 
-      const { data } = await api.post("/v1/running/complete", payload);
-      console.log("[running completed]", data);
-      setRecordId(data.runningRecordId ?? data.recordId ?? data.id);
+      const { runId, data } = await apiComplete(payload);
+      console.log("[running completed]", { runId, summary: data });
+      setRecordId(runId);
 
       await AsyncStorage.removeItem("runningSessionId");
     } catch (e) {
@@ -201,12 +120,12 @@ const RunningComplete = () => {
     }
     try {
       setLoading(true);
-      const { data } = await api.post("/v1/feeds", {
+      const feed = await createFeed({
         runningRecordId: recordId,
-        content: comment, // ✅ 사용자 입력 전달
-        imageUrl: exerciseImage ?? "https://picsum.photos/400/300",
+        content: comment,
+        photoUrl: exerciseImage ?? undefined,
       });
-      console.log("[feed created]", data);
+      console.log("[feed created]", feed);
       Alert.alert("완료", "피드가 공유되었습니다!");
       setComment(""); // 입력 초기화
     } catch (e) {

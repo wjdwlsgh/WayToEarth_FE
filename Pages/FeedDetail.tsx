@@ -10,30 +10,13 @@ import {
   Dimensions,
   Alert,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
+import { getMyProfile } from "../utils/api/users";
+import { deleteFeed as apiDeleteFeed } from "../utils/api/feeds";
 
 const { width } = Dimensions.get("window");
-const API_BASE = "http://waytoearth.duckdns.org:8080"; // ⚠️ 환경에 맞게 변경
+// 공용 client를 사용해 HTTPS 및 JWT 자동 처리를 일원화합니다.
 
-const api = axios.create({
-  baseURL: API_BASE,
-  timeout: 10000,
-});
-
-// ✅ JWT 토큰 자동 주입
-api.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem("jwtToken");
-  if (token) {
-    config.headers = {
-      ...(config.headers || {}),
-      Authorization: `Bearer ${token}`,
-    };
-  }
-  return config;
-});
-
-export default function FeedDetail({ route, navigation }) {
+export default function FeedDetail({ route, navigation }: any) {
   const { feed } = route.params;
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,8 +24,8 @@ export default function FeedDetail({ route, navigation }) {
   // ✅ 사용자 정보 가져오기
   const fetchUserData = useCallback(async () => {
     try {
-      const meRes = await api.get("/v1/users/me");
-      setMe(meRes.data);
+      const meRes = await getMyProfile();
+      setMe(meRes);
     } catch (err) {
       console.warn(err);
       Alert.alert(
@@ -81,11 +64,11 @@ export default function FeedDetail({ route, navigation }) {
         style: "destructive",
         onPress: async () => {
           try {
-            await api.delete(`/v1/feeds/${feed.id}`);
+            await apiDeleteFeed(feed.id);
             Alert.alert("삭제 완료", "피드가 삭제되었습니다.");
-
-            // ✅ FeedScreen으로 이동 + 삭제된 ID 전달
-            navigation.navigate("FeedScreen", { deletedId: feed.id });
+            // 목록 화면으로 돌아가면 focus에서 자동 새로고침
+            if (navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate("Feed", { deletedId: feed.id });
           } catch (error) {
             console.error(error);
             Alert.alert("오류", "피드 삭제에 실패했습니다.");
@@ -166,53 +149,7 @@ export default function FeedDetail({ route, navigation }) {
         </View>
       </ScrollView>
 
-      {/* 바텀 네비게이션 */}
-      <View style={styles.bottomNavigation}>
-        <TouchableOpacity style={styles.navItem}>
-          <Image
-            source={require("../assets/head-to-head0.png")}
-            style={styles.navIcon}
-            resizeMode="contain"
-          />
-          <Text style={styles.navText}>대결</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Image
-            source={require("../assets/people0.png")}
-            style={styles.navIcon}
-            resizeMode="contain"
-          />
-          <Text style={styles.navText}>크루</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Image
-            source={require("../assets/group0.png")}
-            style={styles.navIcon}
-            resizeMode="contain"
-          />
-          <Text style={[styles.navText, styles.activeNavText]}>러닝</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Image
-            source={require("../assets/material-symbols-feed-outline0.png")}
-            style={styles.navIcon}
-            resizeMode="contain"
-          />
-          <Text style={styles.navText}>피드</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Image
-            source={require("../assets/combo-chart0.png")}
-            style={styles.navIcon}
-            resizeMode="contain"
-          />
-          <Text style={styles.navText}>기록</Text>
-        </TouchableOpacity>
-      </View>
+      {/* 하단 네비 제거: 상세 화면에서는 표시하지 않음 */}
     </SafeAreaView>
   );
 }
@@ -283,17 +220,5 @@ const styles = StyleSheet.create({
   },
 
   // 바텀 네비
-  bottomNavigation: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    height: 60,
-    borderTopWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "#fff",
-  },
-  navItem: { justifyContent: "center", alignItems: "center" },
-  navIcon: { width: 28, height: 28, marginBottom: 4 },
-  navText: { fontSize: 12, color: "#000", fontWeight: "500" },
-  activeNavText: { color: "#007AFF" },
+  // (제거)
 });
