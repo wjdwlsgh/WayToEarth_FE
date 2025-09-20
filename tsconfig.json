@@ -12,6 +12,7 @@
     "index.ts",
     "app",
     "src",
+    "Pages",
     "components",
     "types",
     "nativewind-env.d.ts"

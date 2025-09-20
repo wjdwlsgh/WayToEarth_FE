@@ -18,27 +18,35 @@ export default {
       resizeMode: "contain",
       backgroundColor: "#ffffff",
     },
+
     ios: {
+      bundleIdentifier: "com.waytoearth", // ✅ 필수 추가
       supportsTablet: true,
-      config: {
-        googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
-      },
+      config: { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY },
     },
+
     android: {
-      package: "com.jeongjinho.waytoearth",
-      config: {
-        googleMaps: { apiKey: process.env.ANDROID_MAPS_KEY },
-      },
+      package: "com.waytoearth", // ✅ 이미 있어서 OK
+      config: { googleMaps: { apiKey: process.env.ANDROID_MAPS_KEY } },
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff",
       },
       edgeToEdgeEnabled: true,
     },
+
     web: { favicon: "./assets/favicon.png" },
 
-    // ✅ 공식 카카오 플러그인만 사용
     plugins: [
+      [
+        "expo-build-properties",
+        {
+          android: {
+            kotlinVersion: "2.0.21",
+            gradlePluginVersion: "8.6.1",
+          },
+        },
+      ],
       [
         "@react-native-seoul/kakao-login",
         { kakaoAppKey: process.env.KAKAO_NATIVE_APP_KEY },
