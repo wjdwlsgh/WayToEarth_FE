@@ -11,8 +11,8 @@ export type FeedItem = {
   distance?: number;
 };
 
-type CreateFeedPayload = {
-  runningRecordId: number | string; // ✅ 서버가 만든 실제 id
+export type CreateFeedPayload = {
+  runningRecordId: number | string; // 서버가 만든 실제 id
   content?: string;
   photoUrl?: string | null; // file:///... 또는 https://...
 };
@@ -25,21 +25,24 @@ const guessMime = (nameOrUri: string) => {
   return "image/jpeg";
 };
 
-// presign → S3 PUT → public URL
-async function ensureRemoteUrl(
+// presign → S3 PUT → download_url/key 반환(Swagger 기준)
+async function ensureRemoteObject(
   localOrRemote?: string | null
-): Promise<string | null> {
+): Promise<{ url: string; key?: string } | null> {
   if (!localOrRemote) return null;
-  if (/^https?:\/\//i.test(localOrRemote)) return localOrRemote;
+  if (/^https?:\/\//i.test(localOrRemote)) return { url: localOrRemote };
 
   const fileUri = localOrRemote;
   const fileName = fileUri.split("/").pop() || "feed.jpg";
   const contentType = guessMime(fileName);
   const info = await FileSystem.getInfoAsync(fileUri);
-  const size = typeof info?.size === "number" ? info.size : 0;
+  if (!info.exists || info.isDirectory) {
+    throw new Error("파일을 찾을 수 없거나 폴더입니다.");
+  }
+  const size = typeof (info as any).size === "number" ? (info as any).size : 0;
   if (size <= 0) throw new Error("파일 크기를 확인할 수 없습니다.");
 
-  // 1) presign
+  // 1) presign (Swagger: upload_url, download_url, key)
   const { data: sign } = await client.post("/v1/files/presign/feed", {
     fileName,
     contentType,
@@ -48,8 +51,10 @@ async function ensureRemoteUrl(
 
   const signedUrl =
     sign?.upload_url ?? sign?.signed_url ?? sign?.uploadUrl ?? sign?.signedUrl;
-  const publicUrl = sign?.public_url ?? sign?.publicUrl;
-  if (!signedUrl || !publicUrl) throw new Error("업로드 URL 발급 실패");
+  const downloadUrl =
+    sign?.download_url ?? sign?.public_url ?? sign?.downloadUrl ?? sign?.publicUrl;
+  const key = sign?.key;
+  if (!signedUrl || !downloadUrl) throw new Error("업로드 URL 발급 실패");
 
   // 2) S3 업로드
   const resUpload = await FileSystem.uploadAsync(signedUrl, fileUri, {
@@ -64,7 +69,7 @@ async function ensureRemoteUrl(
     throw new Error(`S3 업로드 실패: ${resUpload.status}`);
   }
 
-  return publicUrl as string;
+  return { url: downloadUrl as string, key: key as string | undefined };
 }
 
 export async function createFeed(
@@ -76,13 +81,14 @@ export async function createFeed(
     throw new Error("유효하지 않은 runningRecordId 입니다.");
   }
 
-  const imageUrl = await ensureRemoteUrl(payload.photoUrl);
+  const remote = await ensureRemoteObject(payload.photoUrl);
 
-  const body = {
-    runningRecordId: n, // ⬅️ 백엔드 DTO가 기대하는 이름/타입
+  const body: Record<string, any> = {
+    runningRecordId: n, // 백엔드 DTO가 기대하는 이름/타입
     content: payload.content ?? "",
-    imageUrl: imageUrl ?? null,
+    imageUrl: remote?.url ?? null,
   };
+  if (remote?.key) body.imageKey = remote.key; // Swagger에 imageKey가 존재하는 경우 포함
 
   const { data } = await client.post("/v1/feeds", body); // JWT는 client 인터셉터로 자동 첨부
   return data as FeedItem;
@@ -95,7 +101,16 @@ export async function listFeeds(offset = 0, limit = 4): Promise<FeedItem[]> {
 
 export async function toggleFeedLike(
   feedId: number
-): Promise<{ likeCount: number; liked: boolean }> {
+): Promise<{ feedId?: number; likeCount: number; liked: boolean }> {
   const { data } = await client.post(`/v1/feeds/${feedId}/like`);
-  return data as { likeCount: number; liked: boolean };
+  const res = (data as any) || {};
+  return {
+    feedId: res.feedId ?? feedId,
+    likeCount: res.likeCount,
+    liked: res.liked,
+  };
+}
+
+export async function deleteFeed(feedId: number): Promise<void> {
+  await client.delete(`/v1/feeds/${feedId}`);
 }

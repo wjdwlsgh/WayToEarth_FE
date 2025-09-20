@@ -13,14 +13,15 @@ import {
   SafeAreaView,
 } from "react-native";
 import { createFeed } from "../utils/api/feeds";
+import * as ImagePicker from "expo-image-picker";
 
 export default function FeedComposeScreen({ route, navigation }: any) {
-  const { runId, defaultTitle, snapshotUri, distanceKm, paceLabel, kcal } =
+  const { runId, defaultTitle, distanceKm, paceLabel, kcal } =
     route.params || {};
 
   const [title, setTitle] = useState(defaultTitle || "");
   const [content, setContent] = useState("");
-  const [photoUrl, setPhotoUrl] = useState<string | null>(snapshotUri || null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // runId 정규화: local_... → null, "123" → 123, 그 외 NaN → null
@@ -35,6 +36,22 @@ export default function FeedComposeScreen({ route, navigation }: any) {
   }, [runId]);
 
   const canShare = Boolean(normalizedRunId) && !submitting;
+
+  const pickPhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.9,
+      });
+      if (!result.canceled) {
+        setPhotoUrl(result.assets[0].uri);
+      }
+    } catch (e) {
+      Alert.alert("오류", "사진 선택에 실패했습니다.");
+    }
+  };
 
   const onSubmit = async () => {
     if (!normalizedRunId) {
@@ -112,11 +129,21 @@ export default function FeedComposeScreen({ route, navigation }: any) {
             />
 
             {photoUrl ? (
-              <Image source={{ uri: photoUrl }} style={s.photo} />
+              <>
+                <Image source={{ uri: photoUrl }} style={s.photo as any} />
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <Pressable
+                    onPress={() => setPhotoUrl(null)}
+                    style={[s.btn, s.ghost, { flex: 1 }]}
+                  >
+                    <Text style={[s.btnText, { color: "#111" }]}>사진 제거</Text>
+                  </Pressable>
+                </View>
+              </>
             ) : (
-              <View style={s.addBox}>
-                <Text style={{ color: "#6b7280" }}>＋ 운동 사진(선택)</Text>
-              </View>
+              <Pressable style={s.addBox} onPress={pickPhoto}>
+                <Text style={{ color: "#6b7280" }}>＋ 사진 선택</Text>
+              </Pressable>
             )}
 
             <View style={{ gap: 12, marginTop: 12 }}>
@@ -177,7 +204,7 @@ const s = StyleSheet.create({
 
   summaryRow: {
     flexDirection: "row",
-    justifyContent: "space_between",
+    justifyContent: "space-between",
     marginBottom: 16,
   },
   pill: {

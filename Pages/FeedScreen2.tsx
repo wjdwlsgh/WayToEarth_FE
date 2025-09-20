@@ -17,6 +17,7 @@ import {
 import BottomNavigation from "../components/Layout/BottomNav";
 import { useBottomNav } from "../hooks/useBottomNav";
 import { listFeeds, toggleFeedLike, FeedItem } from "../utils/api/feeds";
+import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 
@@ -52,7 +53,14 @@ export default function FeedScreen({ navigation, route }: any) {
     fetchFeeds();
   }, [fetchFeeds]);
 
-  // 삭제 반영(선택)
+  // 화면 복귀 시 최신 데이터 재조회(삭제/수정 반영)
+  useFocusEffect(
+    useCallback(() => {
+      fetchFeeds();
+    }, [fetchFeeds])
+  );
+
+  // 삭제 반영(선택): 파라미터로 넘어온 경우 즉시 반영
   useEffect(() => {
     if (route?.params?.deletedId) {
       const deletedId = route.params.deletedId;
@@ -86,7 +94,11 @@ export default function FeedScreen({ navigation, route }: any) {
     if (!feed) return <View style={[style, styles.emptyCard]} />;
 
     return (
-      <TouchableOpacity style={style} onPress={() => null} activeOpacity={0.9}>
+      <TouchableOpacity
+        style={style}
+        onPress={() => navigation.navigate("FeedDetail", { feed })}
+        activeOpacity={0.9}
+      >
         {feed.imageUrl ? (
           <Image source={{ uri: feed.imageUrl }} style={imageStyle} />
         ) : (
