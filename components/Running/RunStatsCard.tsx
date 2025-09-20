@@ -20,9 +20,23 @@ export default function RunStatsCard({
   const bottomSafe = Math.max(insets.bottom, 12);
   const BASE = 120;
 
+  const fmtTime = (s?: number) => {
+    if (!s || !Number.isFinite(s)) return "0:00";
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
+      : `${m}:${String(sec).padStart(2, "0")}`;
+  };
+
   return (
     <View style={[styles.container, { bottom: bottomSafe + BASE }]}>
       <View style={styles.card}>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{fmtTime(elapsedSec)}</Text>
+          <Text style={styles.statLabel}>시간</Text>
+        </View>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{distanceKm.toFixed(2)}</Text>
           <Text style={styles.statLabel}>거리(km)</Text>

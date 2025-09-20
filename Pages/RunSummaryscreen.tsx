@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 // ✅ 올바른 경로로 수정
 import { apiComplete } from "../utils/api/running";
 import SummaryMap from "../components/Running/SummaryMap";
+import { getRunningRecordDetail } from "../utils/api/running";
 
 export default function RunSummaryScreen({ route, navigation }: any) {
   const {
@@ -32,6 +33,11 @@ export default function RunSummaryScreen({ route, navigation }: any) {
   const [title, setTitle] = useState("금요일 오전 러닝");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [routeForMap, setRouteForMap] = useState<any[]>(
+    (routePath?.length && (routePath[0]?.lat != null || routePath[0]?.lng != null))
+      ? routePath.map((p: any) => ({ latitude: p.latitude ?? p.lat, longitude: p.longitude ?? p.lng }))
+      : (Array.isArray(routePath) ? routePath : [])
+  );
 
   const initialRunId =
     typeof runIdFromParams === "number"
@@ -139,6 +145,22 @@ export default function RunSummaryScreen({ route, navigation }: any) {
     title,
   ]);
 
+  // 폴리라인 보강: routePath가 비어있고 runId가 있으면 서버에서 상세 경로 가져오기
+  useEffect(() => {
+    (async () => {
+      try {
+        if (routeForMap?.length) return;
+        const id = runIdRef.current;
+        if (!id) return;
+        const detail = await getRunningRecordDetail(id);
+        const pts = (detail.routePoints || []).map((p: any) => ({ latitude: p.latitude, longitude: p.longitude }));
+        if (pts.length) setRouteForMap(pts);
+      } catch (e) {
+        // 경로가 없어도 화면은 계속 동작
+      }
+    })();
+  }, [runIdRef.current]);
+
   const onSharePress = () => {
     if (runIdRef.current === null) {
       Alert.alert("잠시만요", "기록 저장 후 다시 시도해주세요.");
@@ -148,7 +170,7 @@ export default function RunSummaryScreen({ route, navigation }: any) {
     navigation.navigate("FeedCompose", {
       runId: runIdRef.current,
       defaultTitle: title,
-      snapshotUri: snapshotUri ?? null,
+      // 지도 스냅샷 사용 중단 → 직접 업로드 유도
       distanceKm,
       paceLabel,
       elapsedLabel,
@@ -252,15 +274,7 @@ export default function RunSummaryScreen({ route, navigation }: any) {
           }}
         >
           <SummaryMap
-            route={
-              routePath?.length &&
-              (routePath[0]?.lat != null || routePath[0]?.lng != null)
-                ? routePath.map((p: any) => ({
-                    latitude: p.latitude ?? p.lat,
-                    longitude: p.longitude ?? p.lng,
-                  }))
-                : routePath
-            }
+            route={routeForMap}
             height={280}
             borderRadius={16}
             showKmMarkers

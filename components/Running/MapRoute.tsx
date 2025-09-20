@@ -79,8 +79,6 @@ export default function MapRoute({
 
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Low,
-          maximumAge: 10000,
-          timeout: 5000,
         });
         if (!mounted) return;
 

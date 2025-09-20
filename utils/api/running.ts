@@ -17,6 +17,19 @@ export async function apiStartSession(payload?: { runningType?: RunningType }) {
   };
 }
 
+// 실서버 세션 시작: /v1/running/start
+export async function apiStart(payload: {
+  sessionId: string;
+  runningType?: RunningType;
+}) {
+  const body = {
+    sessionId: payload.sessionId,
+    runningType: payload.runningType ?? "SINGLE",
+  };
+  const { data } = await client.post("/v1/running/start", body);
+  return data as { sessionId?: string } & Record<string, any>;
+}
+
 export async function apiUpdate(payload: {
   sessionId: string;
   distanceMeters: number;
@@ -33,6 +46,7 @@ export async function apiUpdate(payload: {
     averagePaceSeconds: payload.averagePaceSeconds ?? undefined, // null 회피
   };
   const { data } = await client.post("/v1/running/update", body);
+  // Swagger 예시: { success, data: { ack: true } }
   return data;
 }
 
@@ -50,6 +64,22 @@ export async function apiResume(payload: { sessionId: string }) {
   return data;
 }
 
+export type CompletedRun = {
+  runningRecordId: number;
+  title?: string;
+  totalDistanceKm?: number;
+  averagePace?: string;
+  calories?: number;
+  startedAt?: string;
+  endedAt?: string;
+  routePoints?: Array<
+    Pick<RoutePoint, "latitude" | "longitude"> & { sequence: number }
+  >;
+  emblemAwardResult?: { awarded_count: number; awarded_emblem_ids: number[] };
+  runningType?: string;
+  virtualCourseId?: number | null;
+};
+
 export async function apiComplete(payload: {
   sessionId: string;
   distanceMeters: number;
@@ -61,10 +91,10 @@ export async function apiComplete(payload: {
   >;
   endedAt?: string | number;
   title?: string;
-}) {
+}): Promise<{ runId: number | null; data?: CompletedRun }> {
   // ⛔ 운영 전 반드시 제거: 로컬 세션이면 더미 runId 반환(버튼 활성화용)
   if (isLocal(payload.sessionId)) {
-    return { runId: 1, mocked: true } as { runId: number | null; mocked: true };
+    return { runId: 1, data: undefined };
   }
 
   // endedAt ISO 통일
@@ -98,8 +128,115 @@ export async function apiComplete(payload: {
 
   const { data } = await client.post("/v1/running/complete", body);
 
-  // 어떤 키가 와도 통일
-  const runId = data?.runningRecordId ?? data?.recordId ?? data?.id ?? null;
+  // Swagger: wrapper.data.runningRecordId
+  const d: any = data;
+  const runId =
+    d?.runningRecordId ??
+    d?.recordId ??
+    d?.id ??
+    d?.data?.runningRecordId ??
+    null;
+  return { runId, data: (d?.data ?? d) as CompletedRun };
+}
 
-  return { runId } as { runId: number | null };
+// ---------- Additional GET APIs ----------
+
+export type WeeklyStats = {
+  totalDistance: number;
+  totalDuration: number; // seconds
+  averagePace: string; // mm:ss
+  dailyDistances: Array<{ day: string; distance: number }>;
+};
+
+export async function getWeeklyStats(): Promise<WeeklyStats> {
+  const { data } = await client.get("/v1/statistics/weekly");
+  // data는 인터셉터에 의해 언래핑됨
+  return data as WeeklyStats;
+}
+
+export type RunningRecordItem = {
+  id: number;
+  title?: string | null;
+  distanceKm?: number;
+  durationSeconds?: number;
+  calories?: number;
+  startedAt?: string;
+  runningType?: "SINGLE" | "VIRTUAL" | "GROUP" | string;
+};
+
+export async function listRunningRecords(
+  limit = 5
+): Promise<RunningRecordItem[]> {
+  const { data } = await client.get("/v1/running/records", {
+    params: { limit },
+  });
+  // 서버가 pagination wrapper를 줄 수 있어 content 안전 접근
+  const items = (data?.content ?? data) as any[];
+  return Array.isArray(items) ? items : [];
+}
+
+export type RunningRecordDetail = {
+  id: number;
+  title?: string | null;
+  totalDistanceKm?: number;
+  totalDurationSec?: number;
+  averagePace?: string | null;
+  calories?: number;
+  startedAt?: string;
+  endedAt?: string;
+  runningType?: string;
+  routePoints?: Array<{
+    latitude: number;
+    longitude: number;
+    sequence?: number;
+  }>;
+};
+
+export async function getRunningRecordDetail(
+  recordId: number
+): Promise<RunningRecordDetail> {
+  const { data } = await client.get(`/v1/running/${recordId}`);
+  // 서버가 { data: {...} } 래퍼를 줄 수 있어 안전 언래핑
+  const d: any =
+    data && typeof data === "object" && "data" in data
+      ? (data as any).data
+      : data ?? {};
+  return {
+    id: d.id ?? recordId,
+    title: d.title ?? d.name ?? null,
+    totalDistanceKm:
+      d.totalDistanceKm ??
+      d.distanceKm ??
+      d.total_distance_km ??
+      d.totalDistance ??
+      d.distance ??
+      (typeof d.totalDistanceMeters === "number"
+        ? d.totalDistanceMeters / 1000
+        : typeof d.distanceMeters === "number"
+        ? d.distanceMeters / 1000
+        : undefined),
+    totalDurationSec:
+      d.totalDurationSec ??
+      d.durationSeconds ??
+      d.total_duration_sec ??
+      d.totalDuration ??
+      d.duration ??
+      d.elapsedSec ??
+      d.elapsedSeconds,
+    averagePace: d.averagePace ?? d.avgPace ?? null,
+    calories: d.calories ?? d.kcal,
+    startedAt: d.startedAt ?? d.start_time ?? d.started_at,
+    endedAt: d.endedAt ?? d.end_time ?? d.ended_at,
+    runningType: d.runningType ?? d.type,
+    routePoints: (d.routePoints ?? d.points ?? d.route_points ?? [])
+      .map((p: any, i: number) => ({
+        latitude: p.latitude ?? p.lat,
+        longitude: p.longitude ?? p.lng,
+        sequence: p.sequence ?? i + 1,
+      }))
+      .filter(
+        (p: any) =>
+          typeof p.latitude === "number" && typeof p.longitude === "number"
+      ),
+  } as RunningRecordDetail;
 }

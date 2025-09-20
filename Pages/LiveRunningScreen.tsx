@@ -21,7 +21,7 @@ import { useBottomNav } from "../hooks/useBottomNav";
 import { apiComplete } from "../utils/api/running"; // ✅ 추가
 
 export default function LiveRunningScreen({ navigation }: { navigation: any }) {
-  const { activeTab, onTabPress } = useBottomNav("LiveRunningScreen");
+  const { activeTab, onTabPress } = useBottomNav("running");
   const t = useLiveRunTracker();
   const insets = useSafeAreaInsets();
   const bottomSafe = Math.max(insets.bottom, 12);
@@ -142,21 +142,23 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
         onMapReady={() => setMapReady(true)}
       />
 
-      <View
-        style={{
-          position: "absolute",
-          right: 12,
-          top: insets.top + 8,
-          zIndex: 30,
-        }}
-      >
-        <Pressable
-          onPress={() => navigation.navigate("Profile")}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      {!(t.isRunning || t.isPaused || countdownVisible) && (
+        <View
+          style={{
+            position: "absolute",
+            right: 12,
+            top: insets.top + 8,
+            zIndex: 30,
+          }}
         >
-          <Ionicons name="person-circle-outline" size={28} color="#111" />
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={() => navigation.navigate("Profile")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="person-circle-outline" size={28} color="#111" />
+          </Pressable>
+        </View>
+      )}
 
       {(t.isRunning || t.isPaused) && (
         <RunStatsCard
@@ -337,10 +339,7 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
             if (isStoppingRef.current) return;
             isStoppingRef.current = true;
             try {
-              const snapshotUri = await takeSnapshotWithTimeout(
-                snapshotFnRef.current,
-                2500
-              );
+              // 지도 스냅샷은 더 이상 공유 사진으로 사용하지 않음
 
               const avgPaceSec =
                 t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
@@ -354,7 +353,7 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
               }));
 
               const { runId } = await apiComplete({
-                sessionId: t.sessionId,
+                sessionId: t.sessionId as string,
                 distanceMeters: Math.round(t.distance * 1000),
                 durationSeconds: t.elapsedSec,
                 averagePaceSeconds: avgPaceSec,
@@ -369,11 +368,13 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
               navigation.navigate("RunSummary", {
                 runId,
                 defaultTitle: "오늘의 러닝",
-                snapshotUri,
                 distanceKm: t.distance,
                 paceLabel: t.paceLabel,
                 kcal: Math.round(t.kcal),
-                sessionId: t.sessionId,
+                elapsedSec: t.elapsedSec,
+                elapsedLabel: `${Math.floor(t.elapsedSec/60)}:${String(t.elapsedSec%60).padStart(2,'0')}`,
+                routePath: t.route,
+                sessionId: (t.sessionId as string) ?? "",
               });
             } catch (e) {
               console.error("러닝 완료/저장 실패:", e);
@@ -385,7 +386,9 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
         />
       )}
 
-      <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      {!(t.isRunning || t.isPaused || countdownVisible) && (
+        <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      )}
 
       <CountdownOverlay
         visible={countdownVisible}

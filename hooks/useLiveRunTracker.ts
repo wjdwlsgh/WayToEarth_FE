@@ -3,12 +3,7 @@ import * as Location from "expo-location";
 import type { LatLng } from "../types/types";
 import { distanceKm } from "../utils/geo";
 import { fmtMMSS, avgPaceSecPerKm, caloriesKcal } from "../utils/run";
-import {
-  apiStartSession,
-  apiUpdate,
-  apiPause,
-  apiResume,
-} from "../utils/api/running";
+import { apiStart, apiUpdate, apiPause, apiResume } from "../utils/api/running";
 
 type TimerId = ReturnType<typeof setInterval>;
 type Sample = { t: number; p: LatLng };
@@ -37,7 +32,7 @@ export function useLiveRunTracker() {
   const prev = useRef<LatLng | null>(null);
   const subRef = useRef<Location.LocationSubscription | null>(null);
   const elapsedTimerRef = useRef<TimerId | null>(null);
-  const mapCenterRef = useRef<(p: LatLng) => void>();
+  const mapCenterRef = useRef<((p: LatLng) => void) | undefined>(undefined);
   const recentRef = useRef<Sample[]>([]);
   const pausedRef = useRef(false);
 
@@ -59,8 +54,8 @@ export function useLiveRunTracker() {
     cur: Location.LocationObject
   ) => {
     const acc = cur.coords.accuracy ?? 999; // m
-    const spd = cur.coords.speed ?? null; // m/s or null
-    if (acc > 35) return true; // 정확도 낮음
+    // 정확도 너무 나쁘면 제외(완화)
+    if (acc > 75) return true;
 
     if (!prevP) return false; // 첫 포인트 수락
     const p = {
@@ -68,11 +63,9 @@ export function useLiveRunTracker() {
       longitude: cur.coords.longitude,
     };
     const seg = toMeters(prevP, p);
-
-    const minMove = Math.max(acc * 0.6, 5); // 정확도 20m → 12m 이하 무시
-    if (seg < minMove) {
-      if (spd === null || spd < 0.4) return true; // 사실상 정지
-    }
+    // 이동 최소 임계치(완화): 정확도 20m → 6m, 하한 3m
+    const minMove = Math.max(acc * 0.3, 3);
+    if (seg < minMove) return true;
     return false;
   };
 
@@ -84,8 +77,6 @@ export function useLiveRunTracker() {
         if (status === "granted") {
           const location = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Low,
-            maximumAge: 30000,
-            timeout: 3000,
           });
           cachedLocationRef.current = {
             latitude: location.coords.latitude,
@@ -217,8 +208,6 @@ export function useLiveRunTracker() {
       } else {
         const cur = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
-          maximumAge: 10000,
-          timeout: 3000,
         });
         initialLocation = {
           latitude: cur.coords.latitude,
@@ -242,13 +231,12 @@ export function useLiveRunTracker() {
       setIsRunning(true);
       startElapsed();
 
-      // 세션 생성(백그라운드)
+      // 세션 생성(백엔드 등록): 고유 세션ID 생성 후 /v1/running/start 호출
       (async () => {
         try {
-          const { sessionId } = await apiStartSession({
-            runningType: "SINGLE",
-          });
-          sessionIdRef.current = sessionId;
+          const sid = `s_${Date.now()}`; // 서버에 전달할 세션ID
+          await apiStart({ sessionId: sid, runningType: "SINGLE" });
+          sessionIdRef.current = sid;
           lastUpdateAtRef.current = 0;
           lastUpdateDistanceRef.current = 0;
         } catch (e) {
@@ -264,8 +252,8 @@ export function useLiveRunTracker() {
           subRef.current = await Location.watchPositionAsync(
             {
               accuracy: Location.Accuracy.High,
-              timeInterval: 2000,
-              distanceInterval: 12, // ⬅️ 2m → 8m (노이즈/배터리 개선)
+              timeInterval: 1000,
+              distanceInterval: 5,
             },
             (loc) => {
               if (pausedRef.current) return;
