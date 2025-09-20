@@ -28,6 +28,7 @@ Pods/
 *.gradle/
 gradle/
 **/build/
+*.apk
 
 # 환경/OS
 .env
