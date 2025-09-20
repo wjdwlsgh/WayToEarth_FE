@@ -17,37 +17,20 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
+import { client } from "../utils/api/client";
+import { checkNickname, getMyProfile } from "../utils/api/users";
 // import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
+import * as ImagePicker from "expo-image-picker";
 
-const API_BASE = "http://waytoearth.duckdns.org:8080";
-
-const api = axios.create({
-  baseURL: API_BASE,
-  timeout: 10000,
-});
-
-// 요청마다 AsyncStorage에서 jwtToken 주입
-api.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem("jwtToken");
-  if (token) {
-    config.headers = {
-      ...(config.headers || {}),
-      Authorization: `Bearer ${token}`,
-    };
-  }
-  return config;
-});
-
-export default function ProfileEditScreen({ navigation }) {
+export default function ProfileEditScreen({ navigation }: { navigation: any }) {
   // form state
   const [nickname, setNickname] = useState("");
   const [originalNickname, setOriginalNickname] = useState(""); // ✅ 원래 닉네임 보관
   const [residence, setResidence] = useState("");
   const [weeklyGoal, setWeeklyGoal] = useState(""); // 문자열로 관리 후 전송 시 숫자화
   const [profileImageUrl, setProfileImageUrl] = useState("");
+  const [profileImageKey, setProfileImageKey] = useState<string | null>(null);
 
   // ui state
   const [loading, setLoading] = useState(true);
@@ -56,25 +39,28 @@ export default function ProfileEditScreen({ navigation }) {
 
   // 닉네임 중복 체크 (별도 저장 플로우)
   const [nicknameChecking, setNicknameChecking] = useState(false);
-  const [nicknameError, setNicknameError] = useState(null);
+  const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [nicknameSaving, setNicknameSaving] = useState(false); // ✅ 닉네임만 저장 상태
-  const debounceTimer = useRef(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 초기값 로드
   const loadMe = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await api.get("/v1/users/me");
-      const nk = data?.nickname ?? "";
+      const me = await getMyProfile();
+      const nk = (me as any)?.nickname ?? "";
       setNickname(nk);
       setOriginalNickname(nk); // ✅ 원본 셋
-      setResidence(data?.residence ?? "");
+      setResidence((me as any)?.residence ?? "");
       setWeeklyGoal(
-        data?.weekly_goal_distance != null
-          ? String(data.weekly_goal_distance)
+        (me as any)?.weekly_goal_distance != null
+          ? String((me as any).weekly_goal_distance)
           : ""
       );
-      setProfileImageUrl(data?.profileImageUrl ?? "");
+      setProfileImageUrl(
+        (me as any)?.profileImageUrl ?? (me as any)?.profile_image_url ?? ""
+      );
+      setProfileImageKey((me as any)?.profile_image_key ?? null);
       setNicknameError(null);
     } catch (e) {
       console.warn(e);
@@ -104,12 +90,8 @@ export default function ProfileEditScreen({ navigation }) {
 
     debounceTimer.current = setTimeout(async () => {
       try {
-        const { data } = await api.get("/v1/users/check-nickname", {
-          params: { nickname: trimmed },
-        });
-        setNicknameError(
-          data?.isDuplicate ? "이미 사용 중인 닉네임입니다." : null
-        );
+        const res = await checkNickname(trimmed);
+        setNicknameError(res.isDuplicate ? "이미 사용 중인 닉네임입니다." : null);
       } catch {
         // API 실패 시 저장을 막지 않도록 오류표시는 하지 않음
         setNicknameError(null);
@@ -146,7 +128,7 @@ export default function ProfileEditScreen({ navigation }) {
   ]);
 
   // S3 업로드용: MIME 추론
-  const guessMime = (nameOrUri) => {
+  const guessMime = (nameOrUri: string) => {
     const ext = (nameOrUri?.split(".").pop() || "").toLowerCase();
     if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
     if (ext === "png") return "image/png";
@@ -164,11 +146,8 @@ export default function ProfileEditScreen({ navigation }) {
         return;
       }
 
-      const MEDIA_IMAGES =
-        ImagePicker?.MediaType?.IMAGES ?? ImagePicker?.MediaTypeOptions?.Images; // fallback
-
       const picked = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: MEDIA_IMAGES,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.9,
       });
       if (picked.canceled) return;
@@ -177,7 +156,11 @@ export default function ProfileEditScreen({ navigation }) {
       const fileUri = asset.uri; // file://...
       const fileName = fileUri.split("/").pop() || "profile.jpg";
       const info = await FileSystem.getInfoAsync(fileUri);
-      const size = typeof info?.size === "number" ? info.size : 0;
+      if (!info.exists || info.isDirectory) {
+        Alert.alert("오류", "파일을 찾을 수 없거나 폴더입니다.");
+        return;
+      }
+      const size = typeof (info as any).size === "number" ? (info as any).size : 0;
       const contentType = guessMime(fileName);
 
       if (size <= 0) {
@@ -190,22 +173,24 @@ export default function ProfileEditScreen({ navigation }) {
       }
 
       // presign 요청
-      const { data } = await api.post("/v1/files/presign/profile", {
+      const { data } = await client.post("/v1/files/presign/profile", {
         fileName,
         contentType,
         size,
       });
       console.log("[presign response]", data);
 
-      // 서버 응답: upload_url / public_url (또는 호환 키) 대응
+      // 서버 응답: upload_url / download_url(public_url 호환) 대응
       const signedUrl =
         data?.upload_url ??
         data?.signed_url ??
         data?.signedUrl ??
         data?.uploadUrl;
-      const publicUrl = data?.public_url ?? data?.publicUrl;
+      const downloadUrl =
+        data?.download_url ?? data?.public_url ?? data?.downloadUrl ?? data?.publicUrl;
+      const key = data?.key ?? data?.file_key ?? data?.fileKey;
 
-      if (!signedUrl || !publicUrl) {
+      if (!signedUrl || !downloadUrl) {
         Alert.alert("오류", "업로드 URL 발급에 실패했습니다.");
         return;
       }
@@ -225,11 +210,19 @@ export default function ProfileEditScreen({ navigation }) {
         throw new Error(`S3 업로드 실패: ${resUpload.status}`);
       }
 
-      // DB 저장 (프로필 이미지 URL만)
-      await api.put("/v1/users/me", { profile_image_url: publicUrl });
-      setProfileImageUrl(publicUrl);
+      // DB 저장 (URL + KEY 모두 전달: 서버가 key 기준 저장 시 호환)
+      await client.put("/v1/users/me", {
+        profile_image_url: downloadUrl,
+        ...(key ? { profile_image_key: key } : {}),
+      });
+      setProfileImageUrl(downloadUrl);
+      if (key) setProfileImageKey(key);
       Alert.alert("완료", "프로필 사진이 변경되었습니다.");
-    } catch (e) {
+      // 내정보 화면이 즉시 반영되도록 파라미터로 최신 URL 전달
+      try {
+        navigation.navigate("Profile", { avatarUrl: downloadUrl, cacheBust: Date.now() });
+      } catch {}
+    } catch (e: any) {
       console.warn(e);
       const msg =
         e?.response?.data?.message ||
@@ -247,11 +240,11 @@ export default function ProfileEditScreen({ navigation }) {
       if (!canChangeNickname) return;
       setNicknameSaving(true);
       const trimmed = nickname.trim();
-      await api.put("/v1/users/me", { nickname: trimmed });
+      await client.put("/v1/users/me", { nickname: trimmed });
       setOriginalNickname(trimmed); // ✅ 원본 갱신
       setNicknameError(null);
       Alert.alert("완료", "닉네임이 변경되었습니다.");
-    } catch (e) {
+    } catch (e: any) {
       console.warn(e);
       const msg =
         e?.response?.data?.message ||
@@ -272,20 +265,24 @@ export default function ProfileEditScreen({ navigation }) {
         weeklyGoal?.trim() === "" ? undefined : Number(weeklyGoal);
 
       const payload = {
-        // nickname 제외 ✅
+        // nickname 제외 ✅ (닉네임은 onChangeNickname 경로)
         residence: residence?.trim() || undefined,
-        profileImageUrl: profileImageUrl?.trim() || undefined,
-        weeklyGoalDistance:
+        // 서버 스펙: snake_case 사용
+        profile_image_url: profileImageUrl?.trim() || undefined,
+        ...(profileImageKey ? { profile_image_key: profileImageKey } : {}),
+        weekly_goal_distance:
           typeof weeklyGoalNumber === "number" &&
           !Number.isNaN(weeklyGoalNumber)
             ? weeklyGoalNumber
             : undefined,
       };
 
-      await api.put("/v1/users/me", payload);
+      await client.put("/v1/users/me", payload);
       Alert.alert("완료", "프로필이 수정되었습니다.");
       await loadMe();
-    } catch (e) {
+      // 저장 후 이전 화면으로 복귀하면 focus에서 재조회
+      navigation?.goBack?.();
+    } catch (e: any) {
       console.warn(e);
       const msg =
         e?.response?.data?.message ||

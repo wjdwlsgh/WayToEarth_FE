@@ -11,48 +11,41 @@ import {
   Image,
   Alert,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
+import {
+  getMyProfile,
+  getMySummary,
+  type UserProfile,
+  type UserSummary,
+} from "../utils/api/users";
+import { useFocusEffect } from "@react-navigation/native";
 
-const API_BASE = "http://waytoearth.duckdns.org:8080";
-
-// ProfileEditScreen 과 동일한 axios 인스턴스 & 인터셉터
-const api = axios.create({
-  baseURL: API_BASE,
-  timeout: 10000,
-});
-
-api.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem("jwtToken");
-  if (token) {
-    config.headers = {
-      ...(config.headers || {}),
-      Authorization: `Bearer ${token}`,
-    };
-  }
-  return config;
-});
-
-const number = (v, digits = 1) =>
+const number = (v: number | null | undefined, digits = 1) =>
   typeof v === "number" ? Number(v.toFixed(digits)) : 0;
 
-export default function ProfileScreen({ navigation }) {
-  const [me, setMe] = useState(null);
-  const [summary, setSummary] = useState(null);
+export default function ProfileScreen({
+  navigation,
+  route,
+}: {
+  navigation: any;
+  route: any;
+}) {
+  const [me, setMe] = useState<UserProfile | null>(null);
+  const [summary, setSummary] = useState<UserSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const retriedRef = React.useRef(false);
 
   const fetchData = useCallback(async () => {
     try {
       const [meRes, sumRes] = await Promise.all([
-        api.get("/v1/users/me"),
-        api.get("/v1/users/me/summary"),
+        getMyProfile(),
+        getMySummary(),
       ]);
-      setMe(meRes.data);
-      setSummary(sumRes.data);
-      console.log("✅ /v1/users/me 응답:", meRes.data);
-      console.log("✅ /v1/users/me/summary 응답:", sumRes.data);
-    } catch (err) {
+      setMe(meRes);
+      setSummary(sumRes);
+      console.log("✅ /v1/users/me 응답:", meRes);
+      console.log("✅ /v1/users/me/summary 응답:", sumRes);
+    } catch (err: any) {
       console.warn(err);
       Alert.alert(
         "오류",
@@ -68,22 +61,63 @@ export default function ProfileScreen({ navigation }) {
     fetchData();
   }, [fetchData]);
 
+  // 서버 저장 직후 늦게 반영되는 경우를 대비해 1회 재시도
+  useEffect(() => {
+    const noAvatar = !(
+      (me as any)?.profile_image_url ||
+      (me as any)?.profileImageUrl ||
+      route?.params?.avatarUrl
+    );
+    if (!loading && noAvatar && !retriedRef.current) {
+      retriedRef.current = true;
+      const t = setTimeout(() => fetchData(), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [loading, me, route?.params?.avatarUrl, fetchData]);
+
+  // 화면 재진입 시 재조회(프로필 수정 등 반영)
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchData();
   }, [fetchData]);
 
   // 필드 매핑(백엔드 snake/camel 혼용 대응)
-  const nickname = me?.nickname || me?.name || "사용자";
-  const profileUrl = me?.profile_image_url || me?.profileImageUrl || "";
+  const nickname = me?.nickname || (me as any)?.name || "사용자";
+  // 업로드 직후 편집 화면에서 전달한 최신 URL 우선 사용
+  const overrideFromRoute: string | undefined = route?.params?.avatarUrl;
+  const rawProfileUrl =
+    overrideFromRoute ||
+    me?.profile_image_url ||
+    (me as any)?.profileImageUrl ||
+    "";
+  // 캐시 무효화를 위한 키(있으면 사용)
+  const cacheKey =
+    (me as any)?.profile_image_key ||
+    (me as any)?.updated_at ||
+    (me as any)?.updatedAt ||
+    route?.params?.cacheBust ||
+    "";
+  // 서명된 URL(S3 presign 등)은 쿼리 추가 시 무효화될 수 있으므로
+  // 이미 '?'가 있는 경우에는 캐시 버스팅 파라미터를 붙이지 않는다.
+  const profileUrl = rawProfileUrl
+    ? rawProfileUrl.includes("?")
+      ? rawProfileUrl
+      : `${rawProfileUrl}?v=${encodeURIComponent(String(cacheKey || Date.now()))}`
+    : "";
   console.log("프로필 URL:", profileUrl);
 
   const totalDistance = useMemo(() => {
     const v =
       summary?.total_distance ??
-      summary?.totalDistance ??
+      (summary as any)?.totalDistance ??
       me?.total_distance ??
-      me?.totalDistance;
+      (me as any)?.totalDistance;
     return number(v, 1);
   }, [summary, me]);
 
@@ -92,11 +126,11 @@ export default function ProfileScreen({ navigation }) {
   }, [summary, me]);
 
   const ownedEmblems = useMemo(() => {
-    return summary?.emblem_count ?? me?.owned_emblem_count ?? 0;
+    return summary?.emblem_count ?? (me as any)?.owned_emblem_count ?? 0;
   }, [summary, me]);
 
   const completionRate = useMemo(() => {
-    const c = summary?.completion ?? summary?.completion_rate;
+    const c = (summary as any)?.completion ?? summary?.completion_rate;
     return typeof c === "number" ? Math.round(c * 100) : undefined;
   }, [summary]);
 
@@ -134,7 +168,11 @@ export default function ProfileScreen({ navigation }) {
       <View style={styles.profileCard}>
         <View style={styles.avatarWrap}>
           {profileUrl ? (
-            <Image source={{ uri: profileUrl }} style={styles.avatarImg} />
+            <Image
+              key={profileUrl}
+              source={{ uri: profileUrl }}
+              style={styles.avatarImg}
+            />
           ) : (
             <View style={styles.avatarFallback}>
               <Text style={styles.avatarEmoji}>👤</Text>
