@@ -8,6 +8,8 @@ import {
   Animated,
   Dimensions,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "../types/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -105,49 +107,62 @@ export default function Onboading() {
   const navigation = useNavigation<Navigation>();
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1200,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 8000,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
+    // 1) 자동 로그인 체크: 토큰이 있고 프로필 조회 성공이면 러닝 화면으로 즉시 이동
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem("jwtToken");
+        if (token) {
+          await getMyProfile();
+          navigation.reset({ index: 0, routes: [{ name: "LiveRunningScreen" }] });
+          return; // 바로 종료
+        }
+      } catch (e) {
+        // 토큰 없음/실패 시 아래 애니메이션 + Login 이동 로직 수행
+      }
+      // 토큰이 없거나 실패하면 기존 애니메이션 시퀀스와 함께 진행
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 3000,
+          duration: 1200,
           useNativeDriver: true,
         }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 3000,
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
           useNativeDriver: true,
         }),
-      ])
-    ).start();
+      ]).start();
 
-    // ✅ 3초 후 자동 이동
-    const timer = setTimeout(() => {
-      navigation.navigate("Login");
-    }, 3000);
+      Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 8000,
+          useNativeDriver: true,
+        })
+      ).start();
 
-    return () => clearTimeout(timer);
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(floatAnim, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(floatAnim, {
+            toValue: 0,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // ✅ 2초 후 로그인 화면으로 이동
+      const timer = setTimeout(() => {
+        navigation.navigate("Login");
+      }, 2000);
+      return () => clearTimeout(timer);
+    })();
   }, []);
 
   return (

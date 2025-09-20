@@ -1,7 +1,6 @@
 import React, { useMemo, useRef, useState, useCallback } from "react";
 import SafeLayout from "../components/Layout/SafeLayout";
 import {
-  SafeAreaView,
   StyleSheet,
   View,
   Text,
@@ -10,29 +9,32 @@ import {
   Animated,
   Easing,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import MapRoute from "../components/Running/MapRoute";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
 import { useLiveRunTracker } from "../hooks/useLiveRunTracker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import BottomNavigation from "../components/Layout/BottomNav";
+import { useBottomNav } from "../hooks/useBottomNav";
+import { apiComplete } from "../utils/api/running"; // ✅ 추가
+
 export default function LiveRunningScreen({ navigation }: { navigation: any }) {
+  const { activeTab, onTabPress } = useBottomNav("running");
   const t = useLiveRunTracker();
   const insets = useSafeAreaInsets();
-  const bottomSafe = Math.max(insets.bottom, 12); // 제스처/3버튼 모두 대비
-  const FAB_BASE = 40; // 기존 bottom: 40 대체
+  const bottomSafe = Math.max(insets.bottom, 12);
+  const FAB_BASE = 100;
 
-  // MapRoute 스냅샷 바인딩
   const snapshotFnRef = useRef<(() => Promise<string | null>) | undefined>(
     undefined
   );
   const isStoppingRef = useRef(false);
 
-  // ── 시작 메뉴 애니메이션: 단일 progress로 동기화
   const [menuOpen, setMenuOpen] = useState(false);
-  const progress = useRef(new Animated.Value(0)).current; // 0: 닫힘, 1: 열림
+  const progress = useRef(new Animated.Value(0)).current;
 
-  // ✅ 맵 준비 상태 추가
   const [mapReady, setMapReady] = useState(false);
 
   const fade = progress.interpolate({
@@ -68,7 +70,6 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
     outputRange: [0, 120],
   });
 
-  // ── 카운트다운
   const [countdownVisible, setCountdownVisible] = useState(false);
 
   const openMenu = () => {
@@ -94,16 +95,13 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
 
   const handleStartPress = () => (menuOpen ? closeMenu() : openMenu());
 
-  // ✅ 러닝 시작 핸들러 개선
   const handleRunningStart = useCallback(() => {
     closeMenu();
     setCountdownVisible(true);
   }, []);
 
-  // ✅ 카운트다운 완료 핸들러
   const handleCountdownDone = useCallback(() => {
     setCountdownVisible(false);
-    // 카운트다운 완료 후 즉시 러닝 시작
     requestAnimationFrame(() => {
       t.start();
     });
@@ -132,7 +130,6 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
 
   return (
     <SafeLayout withBottomInset>
-      {/* 지도 */}
       <MapRoute
         route={t.route}
         last={t.last}
@@ -142,13 +139,27 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
           snapshotFnRef.current = fn;
         }}
         useCurrentLocationOnMount
-        // ✅ 맵 준비 상태 콜백 추가
         onMapReady={() => setMapReady(true)}
       />
 
-      {/* ✅ 러닝 준비 중 오버레이 - 삭제됨 */}
+      {!(t.isRunning || t.isPaused || countdownVisible) && (
+        <View
+          style={{
+            position: "absolute",
+            right: 12,
+            top: insets.top + 8,
+            zIndex: 30,
+          }}
+        >
+          <Pressable
+            onPress={() => navigation.navigate("Profile")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="person-circle-outline" size={28} color="#111" />
+          </Pressable>
+        </View>
+      )}
 
-      {/* 러닝 중/일시정지일 때만 통계 카드 노출 */}
       {(t.isRunning || t.isPaused) && (
         <RunStatsCard
           distanceKm={t.distance}
@@ -159,64 +170,92 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
         />
       )}
 
-      {/* 일시정지 오버레이 */}
       {t.isPaused && (
-        <View style={styles.pauseOverlay} pointerEvents="none">
-          <Text style={styles.pauseTitle}>일시정지</Text>
-          <Text style={styles.pauseDesc}>
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255,255,255,0.15)",
+          }}
+        >
+          <Text style={{ fontSize: 22, fontWeight: "900", marginBottom: 8 }}>
+            일시정지
+          </Text>
+          <Text style={{ color: "#4b5563", marginTop: 2 }}>
             재생 ▶ 을 누르면 다시 시작됩니다.
           </Text>
-          <Text style={styles.pauseDesc}>
+          <Text style={{ color: "#4b5563", marginTop: 2 }}>
             종료하려면 ■ 버튼을 2초간 길게 누르세요.
           </Text>
         </View>
       )}
 
-      {/* 시작 메뉴 (러닝/가상 러닝) — 러닝 중이 아닐 때만 */}
       {!t.isRunning && (
         <>
           {menuOpen && (
             <Animated.View
               pointerEvents="none"
-              style={[styles.overlay, { opacity: fade }]}
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.06)",
+                opacity: fade as any,
+              }}
             />
           )}
 
-          {/* 중앙 하이라이트(연한 큰 원) */}
-          {/* <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.halo,
-              { opacity: haloOpacity, transform: [{ scale: haloScale }] },
-            ]}
-          /> */}
-
-          <View style={[styles.bottomWrap, { bottom: bottomSafe + FAB_BASE }]}>
-            {/* 왼쪽: 러닝 */}
+          <View
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              alignItems: "center",
+              justifyContent: "center",
+              bottom: bottomSafe + FAB_BASE,
+            }}
+          >
             <Animated.View
-              style={[
-                styles.smallFabWrap,
-                {
-                  opacity: smallOpacity,
-                  transform: [{ translateX: leftTx }, { scale: smallScale }],
-                },
-              ]}
+              style={{
+                position: "absolute",
+                bottom: 72,
+                opacity: smallOpacity as any,
+                transform: [
+                  { translateX: leftTx as any },
+                  { scale: smallScale as any },
+                ],
+              }}
               pointerEvents={menuOpen ? "auto" : "none"}
             >
               <Pressable
-                style={[
-                  styles.smallFab,
-                  // ✅ 훅이 준비되지 않았을 때 비활성화
-                  (!t.isReady || t.isInitializing) && styles.disabledFab,
-                ]}
                 onPress={handleRunningStart}
                 disabled={!t.isReady || t.isInitializing}
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 999,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor:
+                    !t.isReady || t.isInitializing
+                      ? "rgba(0,0,0,0.03)"
+                      : "rgba(0,0,0,0.08)",
+                }}
               >
                 <Text
-                  style={[
-                    styles.smallFabText,
-                    (!t.isReady || t.isInitializing) && styles.disabledText,
-                  ]}
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "800",
+                    color: !t.isReady || t.isInitializing ? "#9CA3AF" : "#111",
+                  }}
                 >
                   {!t.isReady
                     ? "준비중..."
@@ -227,40 +266,67 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
               </Pressable>
             </Animated.View>
 
-            {/* 오른쪽: 가상 러닝 */}
             <Animated.View
-              style={[
-                styles.smallFabWrap,
-                {
-                  opacity: smallOpacity,
-                  transform: [{ translateX: rightTx }, { scale: smallScale }],
-                },
-              ]}
+              style={{
+                position: "absolute",
+                bottom: 72,
+                opacity: smallOpacity as any,
+                transform: [
+                  { translateX: rightTx as any },
+                  { scale: smallScale as any },
+                ],
+              }}
               pointerEvents={menuOpen ? "auto" : "none"}
             >
               <Pressable
-                style={styles.smallFab}
                 onPress={() => {
                   closeMenu();
                   Alert.alert("가상 러닝", "가상 러닝 화면 연결 예정!");
-                  // navigation.navigate("VirtualRunning");
+                }}
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 999,
+                  backgroundColor: "rgba(0,0,0,0.08)",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <Text style={styles.smallFabText}>가상 러닝</Text>
+                <Text
+                  style={{ fontSize: 16, fontWeight: "800", color: "#111" }}
+                >
+                  가상 러닝
+                </Text>
               </Pressable>
             </Animated.View>
 
-            {/* 중앙: 시작(큰 파란 원) */}
-            <Animated.View style={{ transform: [{ scale: scaleMain }] }}>
-              <Pressable style={styles.mainFab} onPress={handleStartPress}>
-                <Text style={styles.mainFabText}>시작</Text>
+            <Animated.View style={{ transform: [{ scale: scaleMain as any }] }}>
+              <Pressable
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 999,
+                  backgroundColor: "#3B82F6",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.16,
+                  shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 8 },
+                }}
+                onPress={handleStartPress}
+              >
+                <Text
+                  style={{ fontSize: 22, fontWeight: "900", color: "#fff" }}
+                >
+                  시작
+                </Text>
               </Pressable>
             </Animated.View>
           </View>
         </>
       )}
 
-      {/* 러닝 중 컨트롤 */}
       {t.isRunning && (
         <RunPlayControls
           isRunning={t.isRunning}
@@ -273,22 +339,46 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
             if (isStoppingRef.current) return;
             isStoppingRef.current = true;
             try {
-              const snapshotUri = await takeSnapshotWithTimeout(
-                snapshotFnRef.current,
-                2500
-              );
-              const params = {
+              // 지도 스냅샷은 더 이상 공유 사진으로 사용하지 않음
+
+              const avgPaceSec =
+                t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
+                  ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
+                  : null;
+
+              const routePoints = t.route.map((p, i) => ({
+                latitude: p.latitude,
+                longitude: p.longitude,
+                sequence: i + 1,
+              }));
+
+              const { runId } = await apiComplete({
+                sessionId: t.sessionId as string,
+                distanceMeters: Math.round(t.distance * 1000),
+                durationSeconds: t.elapsedSec,
+                averagePaceSeconds: avgPaceSec,
+                calories: Math.round(t.kcal),
+                routePoints,
+                endedAt: Date.now(),
+                title: "오늘의 러닝",
+              });
+
+              t.stop();
+
+              navigation.navigate("RunSummary", {
+                runId,
+                defaultTitle: "오늘의 러닝",
                 distanceKm: t.distance,
                 paceLabel: t.paceLabel,
-                kcal: t.kcal,
-                elapsedLabel,
+                kcal: Math.round(t.kcal),
                 elapsedSec: t.elapsedSec,
+                elapsedLabel: `${Math.floor(t.elapsedSec/60)}:${String(t.elapsedSec%60).padStart(2,'0')}`,
                 routePath: t.route,
-                endedAt: new Date().toISOString(),
-                snapshotUri,
-              };
-              t.stop();
-              navigation?.navigate?.("RunSummary", params);
+                sessionId: (t.sessionId as string) ?? "",
+              });
+            } catch (e) {
+              console.error("러닝 완료/저장 실패:", e);
+              Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
             } finally {
               setTimeout(() => (isStoppingRef.current = false), 800);
             }
@@ -296,7 +386,10 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
         />
       )}
 
-      {/* ✅ 카운트다운 오버레이: 3-2-1 후 러닝 시작 */}
+      {!(t.isRunning || t.isPaused || countdownVisible) && (
+        <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      )}
+
       <CountdownOverlay
         visible={countdownVisible}
         seconds={3}
@@ -307,7 +400,6 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
 }
 
 const styles = StyleSheet.create({
-  // 시작 메뉴 레이어
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.06)",
@@ -348,7 +440,7 @@ const styles = StyleSheet.create({
   mainFabText: { fontSize: 22, fontWeight: "900", color: "#fff" },
   smallFabWrap: {
     position: "absolute",
-    bottom: 72, // 중앙 버튼과 같은 기준선
+    bottom: 72,
   },
   smallFab: {
     width: 100,
@@ -359,16 +451,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   smallFabText: { fontSize: 16, fontWeight: "800", color: "#111" },
-
-  // ✅ 비활성화 스타일 추가
   disabledFab: {
     backgroundColor: "rgba(0,0,0,0.03)",
   },
   disabledText: {
     color: "#9CA3AF",
   },
-
-  // 일시정지 오버레이
   pauseOverlay: {
     position: "absolute",
     left: 0,
@@ -381,4 +469,22 @@ const styles = StyleSheet.create({
   },
   pauseTitle: { fontSize: 22, fontWeight: "900", marginBottom: 8 },
   pauseDesc: { color: "#4b5563", marginTop: 2 },
+  topRight: {
+    position: "absolute",
+    right: 12,
+    zIndex: 30,
+  },
+  profileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
 });

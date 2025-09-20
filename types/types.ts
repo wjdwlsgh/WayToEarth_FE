@@ -15,13 +15,34 @@ export interface UserInfo {
   gender: "male" | "female" | null;
 }
 
+// running/types.ts
+export interface LatLng {
+  latitude: number;
+  longitude: number;
+}
+
+// types/emblem.ts
+export interface Achievement {
+  emblem_id: string;
+  name: string;
+  description: string;
+  image_url: string;
+  owned: boolean;
+  earned_at?: string;
+}
+
+export interface Summary {
+  owned: number;
+  total: number;
+  /** 0~1 값 (예: 0.42) */
+  completion_rate: number;
+}
+
+export type EmblemFilter = "전체" | "획득" | "미획득";
+
+// upstream 타입 확장도 포함
 declare module "expo-auth-session" {
-  // 기존 타입 확장
   export interface AuthSessionRedirectUriOptions {
-    /**
-     * Whether to use the Expo proxy redirect.
-     * This allows the redirect to go through `https://auth.expo.io`, which is useful for simulators.
-     */
     useProxy?: boolean;
     scheme?: string;
     path?: string;

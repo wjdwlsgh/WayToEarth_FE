@@ -1,61 +1,84 @@
-import { Alert } from "react-native";
+// hooks/useKakaoLogin.ts
+import { useCallback } from "react";
+import { Alert, Platform, NativeModules } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { kakaoLoginWithSDK } from "../utils/api/auth";
 import { useNavigation } from "@react-navigation/native";
-import * as WebBrowser from "expo-web-browser";
-import * as AuthSession from "expo-auth-session";
-import Constants from "expo-constants";
-import { kakaoLogin } from "../utils/api/auth";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "../navigation/types";
+
+type RNKakao = {
+  isKakaoTalkLoginAvailable?: () => Promise<boolean>;
+  isKakaoTalkInstalled?: () => Promise<boolean>;
+  login: () => Promise<{ accessToken: string }>;
+  loginWithKakaoAccount: () => Promise<{ accessToken: string }>;
+  logout: () => Promise<void>;
+  getKeyHash?: () => Promise<string>; // 👈 추가
+};
 
 export default function useKakaoLogin() {
-  type Navigation = NativeStackNavigationProp<RootStackParamList>;
-  const navigation = useNavigation<Navigation>();
+  const navigation = useNavigation<any>();
 
-  const kakaoRestApiKey = Constants.expoConfig?.extra?.kakaoRestApiKey ?? "";
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: "waytoearth",
-  });
-
-  console.log("✅ redirectUri:", redirectUri);
-
-  const handleKakaoLogin = async () => {
+  return useCallback(async () => {
     try {
-      const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${kakaoRestApiKey}&redirect_uri=${encodeURIComponent(
-        redirectUri
-      )}&response_type=code`;
+      const Kakao = NativeModules.RNKakaoLogins as RNKakao | undefined;
 
-      // ✅ 최신 방식 (expo-auth-session v6 대응)
-      const result = await WebBrowser.openAuthSessionAsync(
-        authUrl,
-        redirectUri
-      );
-      console.log(result);
-
-      if (result.type === "success" && result.url) {
-        const url = new URL(result.url);
-        const code = url.searchParams.get("code");
-
-        if (code) {
-          try {
-            const { jwtToken } = await kakaoLogin(code, redirectUri);
-            console.log("✅ JWT 토큰:", jwtToken);
-            Alert.alert("로그인 성공", "환영합니다!");
-            navigation.navigate("Register");
-          } catch (error) {
-            console.error("❌ 백엔드 요청 실패:", error);
-            Alert.alert("로그인 실패", "토큰 요청 중 문제가 발생했어요");
-          }
-        } else {
-          Alert.alert("로그인 실패", "인가 코드를 찾지 못했어요");
-        }
-      } else {
-        Alert.alert("로그인 실패", "사용자가 로그인을 취소했어요");
+      if (
+        !Kakao ||
+        typeof Kakao.login !== "function" ||
+        typeof Kakao.loginWithKakaoAccount !== "function"
+      ) {
+        throw new Error(
+          Platform.select({
+            android:
+              "Kakao SDK 네이티브 모듈을 불러오지 못했습니다. 개발 빌드(APK) 재설치 후 다시 실행하세요.",
+            ios: "Kakao SDK 네이티브 모듈이 로드되지 않았습니다. 개발 빌드에서 실행하세요.",
+            default: "지원되지 않는 플랫폼입니다.",
+          })!
+        );
       }
-    } catch (err) {
-      console.error("카카오 로그인 에러:", err);
-      Alert.alert("로그인 실패", "예기치 못한 오류가 발생했어요");
-    }
-  };
 
-  return handleKakaoLogin;
+      // ✅ 키해시 한 번 표시 (필요 없으면 주석 처리)
+      if (typeof Kakao.getKeyHash === "function") {
+        const hash = await Kakao.getKeyHash();
+        Alert.alert("Kakao KeyHash", hash); // 이 값을 카카오 콘솔에 등록
+        console.log("Kakao KeyHash:", hash);
+      }
+
+      // 설치/가용 여부
+      const talkAvailable =
+        (typeof Kakao.isKakaoTalkLoginAvailable === "function"
+          ? await Kakao.isKakaoTalkLoginAvailable()
+          : typeof Kakao.isKakaoTalkInstalled === "function"
+          ? await Kakao.isKakaoTalkInstalled()
+          : false) || false;
+
+      const { accessToken } = talkAvailable
+        ? await Kakao.login()
+        : await Kakao.loginWithKakaoAccount();
+
+      const { jwtToken, isOnboardingCompleted } = await kakaoLoginWithSDK(
+        accessToken
+      );
+
+      if (!jwtToken) throw new Error("서버에서 JWT 토큰을 받지 못했습니다.");
+
+      await AsyncStorage.setItem("jwtToken", String(jwtToken));
+
+      // ✅ 라우팅: 이미 회원가입 완료 → 러닝 화면, 미완료 → Register
+      if (isOnboardingCompleted) {
+        navigation.reset({ index: 0, routes: [{ name: "LiveRunningScreen" }] });
+      } else {
+        navigation.reset({ index: 0, routes: [{ name: "Register" }] });
+      }
+    } catch (e: any) {
+      console.log("Kakao login error →", e, e?.code, e?.message);
+      Alert.alert(
+        "카카오 로그인 실패",
+        [e?.code, e?.message || String(e)].filter(Boolean).join(" ")
+      );
+      try {
+        const Kakao = NativeModules.RNKakaoLogins as RNKakao | undefined;
+        await Kakao?.logout?.();
+      } catch {}
+    }
+  }, [navigation]);
 }

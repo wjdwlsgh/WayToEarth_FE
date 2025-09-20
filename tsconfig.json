@@ -2,10 +2,23 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "types": [
+      "nativewind/types"
+    ],
+    "skipLibCheck": true,
     "typeRoots": [
-      "./types", // 우리가 만들 커스텀 타입 폴더
-      "./node_modules/@types" // 기본 타입
+      "./types",
+      "./node_modules/@types"
     ]
   },
-  "include": ["src", "types"]
+  "include": [
+    "App.tsx",
+    "index.ts",
+    "app",
+    "src",
+    "Pages",
+    "components",
+    "types",
+    "nativewind-env.d.ts"
+  ] // ★ 경로 포함
 }
