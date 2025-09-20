@@ -4,8 +4,12 @@
     "strict": true,
     "types": [
       "nativewind/types"
-    ], // ★ 필수
-    "skipLibCheck": true
+    ],
+    "skipLibCheck": true,
+    "typeRoots": [
+      "./types",
+      "./node_modules/@types"
+    ]
   },
   "include": [
     "App.tsx",

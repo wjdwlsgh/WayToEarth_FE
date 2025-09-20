@@ -1,3 +1,5 @@
+import * as AuthSession from "expo-auth-session";
+
 // navigation/types.ts
 export type RootStackParamList = {
   Onboarding: undefined;
@@ -37,3 +39,12 @@ export interface Summary {
 }
 
 export type EmblemFilter = "전체" | "획득" | "미획득";
+
+// upstream 타입 확장도 포함
+declare module "expo-auth-session" {
+  export interface AuthSessionRedirectUriOptions {
+    useProxy?: boolean;
+    scheme?: string;
+    path?: string;
+  }
+}

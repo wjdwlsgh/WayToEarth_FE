@@ -7,7 +7,7 @@ import {
   StatusBar,
   StyleSheet,
   Dimensions,
-  Alert,
+  ActivityIndicator,
   NativeModules,
 } from "react-native";
 import KakaoLoginButton from "../components/KakaoLoginButton";
@@ -23,6 +23,8 @@ export default function WayToEarthOnboarding() {
   const handleKakaoLogin = useKakaoLogin();
   const navigation = useNavigation<any>();
   const [checking, setChecking] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [logText, setLogText] = useState("");
 
   // 🔑 Dev 환경에서 한 번만 카카오 키해시 표시 (카카오 콘솔에 등록용)
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function WayToEarthOnboarding() {
       }
     })();
 
-    // 개발 편의: 키해시 토스트(선택)
+    // 개발 편의: 키해시 로그(선택)
     (async () => {
       try {
         const hash = await (NativeModules as any)?.RNKakaoLogins?.getKeyHash?.();
@@ -73,7 +75,30 @@ export default function WayToEarthOnboarding() {
         </View>
 
         <View style={styles.buttonContainer}>
-          <KakaoLoginButton onPress={handleKakaoLogin} />
+          <KakaoLoginButton
+            onPress={async () => {
+              try {
+                if (__DEV__) console.log("🔥 [TEST] 카카오 로그인 버튼 클릭됨");
+                setLogText("카카오 로그인 중…");
+                setLoginLoading(true);
+                await handleKakaoLogin();
+                setLogText("");
+              } catch (e) {
+                setLogText("로그인 실패");
+              } finally {
+                setLoginLoading(false);
+              }
+            }}
+          />
+
+          {/* 상태 메시지 */}
+          <View style={{ alignItems: "center", marginTop: 20 }}>
+            {loginLoading ? (
+              <ActivityIndicator size="small" color="#4A90E2" />
+            ) : (
+              <Text style={{ color: "#666", fontSize: 12 }}>{logText}</Text>
+            )}
+          </View>
         </View>
           </>
         )}
