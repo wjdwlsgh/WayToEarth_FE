@@ -6,8 +6,9 @@ export type TabKey = "battle" | "crew" | "running" | "feed" | "record";
 const TAB_TO_ROUTE: Record<TabKey, string> = {
   battle: "Battle",
   crew: "Crew",
+  // 러닝 탭은 실제 러닝 화면으로 이동
   running: "LiveRunningScreen",
-  feed: "Feed2",
+  feed: "Feed",
   record: "Record",
 };
 
