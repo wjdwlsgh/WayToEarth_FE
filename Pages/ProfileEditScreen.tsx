@@ -316,62 +316,58 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* 상태바 (디자인용) */}
-      <View style={styles.statusBar}>
-        <View style={styles.statusFrame}>
-          <View style={styles.time}>
-            <Text style={styles.timeText}>9:41</Text>
-          </View>
-          <View style={styles.dynamicIsland} />
-          <View className="levels" style={styles.levels}>
-            <Image
-              source={require("../assets/cellular-connection0.png")}
-              style={styles.icon}
-            />
-            <Image
-              source={require("../assets/wifi0.png")}
-              style={styles.icon}
-            />
-            <Image
-              source={require("../assets/battery0.png")}
-              style={styles.icon}
-            />
-          </View>
-        </View>
-      </View>
 
-      {/* 모던한 헤더 */}
+      {/* 헤더 - ProfileScreen과 동일한 스타일 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation?.goBack?.()}>
           <Text style={styles.backButton}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>기본 정보 관리</Text>
+        <View style={{ width: 28 }} />
       </View>
 
       {/* 본문 */}
       <View style={styles.main}>
-        <Text style={styles.title}>프로필 정보를 수정하세요</Text>
-        <Text style={styles.subtitle}>
-          러닝을 시작하기 위한 기본 정보를 업데이트해주세요
+        {/* 페이지 제목 */}
+        <Text style={styles.pageTitle}>프로필 수정</Text>
+        <Text style={styles.pageSubtitle}>
+          러닝을 위한 기본 정보를 업데이트하세요
         </Text>
 
-        {/* 프로필 사진 */}
-        <View style={styles.profileImageContainer}>
-          <View style={styles.profileImage}>
+        {/* 프로필 카드 - ProfileScreen과 유사한 스타일 */}
+        <View style={styles.profileCard}>
+          <View style={styles.profileCardGradient} />
+
+          <View style={styles.avatarWrap}>
             {profileImageUrl ? (
               <Image
                 source={{ uri: profileImageUrl }}
-                style={{ width: 92, height: 92, borderRadius: 46 }}
+                style={styles.avatarImg}
               />
             ) : (
-              <Text style={styles.profileIcon}>🏃</Text>
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarEmoji}>🏃</Text>
+              </View>
             )}
+            <View style={styles.avatarBadge}>
+              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>✓</Text>
+            </View>
           </View>
-          <TouchableOpacity onPress={onChangePhoto} disabled={uploading}>
-            <Text style={[styles.changePhoto, uploading && { opacity: 0.6 }]}>
-              {uploading ? "업로드 중..." : "프로필 사진 변경"}
-            </Text>
-          </TouchableOpacity>
+
+          <View style={styles.profileInfo}>
+            <Text style={styles.cardNickname}>{nickname || "사용자"}</Text>
+            <Text style={styles.cardSubtitle}>프로필 정보를 수정하세요</Text>
+
+            <TouchableOpacity
+              onPress={onChangePhoto}
+              disabled={uploading}
+              style={styles.changePhotoBtn}
+            >
+              <Text style={styles.changePhotoBtnText}>
+                {uploading ? "업로드 중..." : "📷 사진 변경"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 닉네임 (별도 변경 버튼) */}
@@ -434,7 +430,7 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         </View>
 
         {/* 주간 목표 거리 */}
-        <View style={styles.formGroup}>
+        <View style={[styles.formGroup, styles.lastFormGroup]}>
           <Text style={styles.label}>주간 목표 거리 (km)</Text>
           <View style={styles.input}>
             <TextInput
@@ -446,21 +442,6 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
               keyboardType="number-pad"
               inputMode="numeric"
               maxLength={4}
-            />
-          </View>
-        </View>
-
-        {/* 프로필 이미지 URL (선택) */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>프로필 이미지 URL (선택)</Text>
-          <View style={styles.input}>
-            <TextInput
-              style={styles.textInput}
-              placeholder="https://…"
-              placeholderTextColor="rgba(68,68,68,0.27)"
-              value={profileImageUrl}
-              onChangeText={setProfileImageUrl}
-              autoCapitalize="none"
             />
           </View>
         </View>
@@ -485,6 +466,7 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         <TouchableOpacity
           style={styles.cancelButton}
           onPress={() => navigation?.goBack?.()}
+          activeOpacity={0.7}
         >
           <Text style={styles.cancelButtonText}>취소</Text>
         </TouchableOpacity>
@@ -510,46 +492,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // 상태바 제거하고 더 깔끔한 디자인으로
-  statusBar: {
-    backgroundColor: "#fff",
-    paddingTop: 21,
-    height: 51,
-    alignItems: "center",
-  },
-  statusFrame: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: 268,
-  },
-  time: { paddingHorizontal: 16 },
-  timeText: { fontSize: 17, fontWeight: "600", color: "#000" },
-  dynamicIsland: { width: 124, height: 10 },
-  levels: { flexDirection: "row", gap: 7, paddingHorizontal: 6 },
-  icon: { width: 20, height: 13, resizeMode: "contain" },
 
-  // 모던한 헤더
+  // ProfileScreen과 동일한 헤더 - 여유있게 조정
   header: {
+    height: 90,
+    backgroundColor: "#fff",
     flexDirection: "row",
     alignItems: "flex-end",
-    height: 90,
+    justifyContent: "space-between",
     paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 16,
-    backgroundColor: "#fff",
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   backButton: {
     fontSize: 20,
     color: "#6366f1",
     fontWeight: "700",
-    marginRight: 16,
   },
   headerTitle: {
     fontSize: 20,
@@ -561,70 +526,134 @@ const styles = StyleSheet.create({
   // 메인 콘텐츠
   main: {
     padding: 20,
-    paddingTop: 16,
     backgroundColor: "#f8fafc",
   },
-  title: {
-    fontSize: 24,
+
+  // 페이지 제목 (메인 콘텐츠 내부)
+  pageTitle: {
+    fontSize: 22,
     fontWeight: "800",
     color: "#1e293b",
     letterSpacing: -0.5,
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 15,
+  pageSubtitle: {
+    fontSize: 14,
     color: "#64748b",
-    lineHeight: 22,
-    marginBottom: 24,
+    lineHeight: 20,
+    marginBottom: 20,
   },
 
-  // 프로필 이미지
-  profileImageContainer: {
-    alignItems: "center",
+  // 프로필 카드 - ProfileScreen과 유사한 스타일
+  profileCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 24,
-  },
-  profileImage: {
-    backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(99, 102, 241, 0.1)",
+  },
+
+  profileCardGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    backgroundColor: "linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
+  },
+
+  avatarWrap: {
+    marginRight: 16,
+    position: "relative",
+  },
+  avatarImg: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#f1f5f9",
     borderWidth: 3,
+    borderColor: "rgba(99, 102, 241, 0.15)",
+  },
+  avatarFallback: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "rgba(99, 102, 241, 0.15)",
+  },
+  avatarEmoji: { fontSize: 32, color: "#fff" },
+
+  avatarBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#10b981",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
     borderColor: "#fff",
+  },
+
+  profileInfo: {
+    flex: 1,
+  },
+  cardNickname: {
+    color: "#1e293b",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  cardSubtitle: {
+    color: "#64748b",
+    fontSize: 13,
+    fontWeight: "500",
     marginBottom: 12,
   },
-  profileIcon: { fontSize: 30, color: "#fff" },
-  changePhoto: {
-    fontSize: 15,
-    color: "#6366f1",
-    fontWeight: "600",
-    paddingVertical: 8,
-    paddingHorizontal: 20,
+  changePhotoBtn: {
     backgroundColor: "rgba(99, 102, 241, 0.1)",
-    borderRadius: 20,
-    overflow: "hidden",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignSelf: "flex-start",
+  },
+  changePhotoBtnText: {
+    color: "#6366f1",
+    fontSize: 13,
+    fontWeight: "600",
   },
 
   // 폼 그룹
-  formGroup: { marginBottom: 20 },
+  formGroup: { marginBottom: 16 },
+  lastFormGroup: { marginBottom: 24 },
   label: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: "#1e293b",
-    marginBottom: 6,
+    marginBottom: 5,
     letterSpacing: -0.2,
   },
   input: {
     backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    height: 52,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
     justifyContent: "center",
     elevation: 1,
     shadowColor: "#000",
@@ -656,9 +685,9 @@ const styles = StyleSheet.create({
   },
   nickChangeBtn: {
     backgroundColor: "#6366f1",
-    borderRadius: 14,
-    height: 52,
-    paddingHorizontal: 18,
+    borderRadius: 12,
+    height: 48,
+    paddingHorizontal: 16,
     justifyContent: "center",
     alignItems: "center",
     elevation: 2,
@@ -693,12 +722,12 @@ const styles = StyleSheet.create({
   // 저장 버튼
   saveButton: {
     backgroundColor: "#6366f1",
-    borderRadius: 14,
-    height: 56,
+    borderRadius: 12,
+    height: 52,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
-    marginBottom: 16,
+    marginTop: 28,
+    marginBottom: 8,
     elevation: 3,
     shadowColor: "#6366f1",
     shadowOffset: { width: 0, height: 3 },
@@ -719,12 +748,15 @@ const styles = StyleSheet.create({
 
   // 취소 버튼
   cancelButton: {
-    backgroundColor: "transparent",
-    borderRadius: 16,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 12,
     height: 48,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 6,
+    marginBottom: 30,
+    borderWidth: 1,
+    borderColor: "rgba(100, 116, 139, 0.2)",
   },
   cancelButtonText: {
     color: "#64748b",
