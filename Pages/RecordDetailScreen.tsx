@@ -27,7 +27,7 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const SCREEN_H = Dimensions.get("window").height;
   const SHEET_EXPANDED_Y = 120; // 가장 위로 올렸을 때 위치
-  const SHEET_COLLAPSED_Y = Math.min(SCREEN_H - 320, SCREEN_H * 0.55);
+  const SHEET_COLLAPSED_Y = 400; // 기본 상태 - 지도 바로 아래
   const translateY = React.useRef(
     new Animated.Value(SHEET_COLLAPSED_Y)
   ).current;
@@ -209,8 +209,24 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 배경: 큰 이미지 또는 지도 */}
-      <View style={styles.heroWrap}>
+      {/* 배경: 큰 이미지 또는 지도 - 동적 크기 */}
+      <Animated.View style={[
+        styles.heroWrap,
+        {
+          transform: [{
+            translateY: translateY.interpolate({
+              inputRange: [SHEET_EXPANDED_Y, SHEET_COLLAPSED_Y],
+              outputRange: [0, 0],
+              extrapolate: 'clamp',
+            })
+          }],
+          height: translateY.interpolate({
+            inputRange: [SHEET_EXPANDED_Y, SHEET_COLLAPSED_Y],
+            outputRange: [320, 600],
+            extrapolate: 'clamp',
+          })
+        }
+      ]}>
         {headerImage ? (
           <Image source={{ uri: headerImage }} style={styles.heroImage} />
         ) : routeCoords.length ? (
@@ -226,20 +242,27 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           >
             <Polyline
               coordinates={routeCoords}
-              strokeColor="#2563eb"
+              strokeColor="#6366f1"
               strokeWidth={4}
             />
           </MapView>
         ) : (
-          <View style={[styles.heroImage, { backgroundColor: "#F3F4F6" }]} />
+          <View style={[styles.heroImage, {
+            backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            alignItems: "center",
+            justifyContent: "center",
+          }]}>
+            <Text style={{ fontSize: 48, color: "rgba(255,255,255,0.8)" }}>🏃‍♂️</Text>
+          </View>
         )}
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
         >
-          <Text style={styles.backIcon}>←</Text>
+          <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       {/* 드로어: 내용을 위에서 당겨 펼치는 시트 */}
       <Animated.View
@@ -249,34 +272,28 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             transform: [{ translateY }],
           },
         ]}
-        {...pan.panHandlers}
       >
         <View style={styles.sheetInner}>
           <View style={styles.sheetHandle} />
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.titleSection}>
+          <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
+            <View style={styles.titleSection} {...pan.panHandlers}>
               <Text style={styles.title}>
                 {recordDetail.title ||
                   formatTitleFromDate(recordDetail.startedAt)}
               </Text>
               <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                style={[
+                  styles.typeBadge,
+                  getRunningTypeBadgeStyle(recordDetail.runningType),
+                ]}
               >
-                <View
-                  style={[
-                    styles.typeBadge,
-                    getRunningTypeBadgeStyle(recordDetail.runningType),
-                  ]}
-                >
-                  <Text style={styles.typeBadgeText}>
-                    {getRunningTypeName(recordDetail.runningType)}
-                  </Text>
-                </View>
-                <Text style={styles.date}>
-                  총 시간 {formatDuration(durationSec)} ·{" "}
-                  {distanceKm.toFixed(2)} km
+                <Text style={styles.typeBadgeText}>
+                  {getRunningTypeName(recordDetail.runningType)}
                 </Text>
               </View>
+              <Text style={styles.date}>
+                총 시간 {formatDuration(durationSec)} · {distanceKm.toFixed(2)} km
+              </Text>
             </View>
 
             <View style={styles.statsContainer}>
@@ -301,8 +318,27 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               </View>
             </View>
 
+            {/* 추가 정보 섹션 */}
+            <View style={styles.additionalInfo}>
+              <Text style={styles.sectionTitle}>운동 상세</Text>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>칼로리</Text>
+                <Text style={styles.infoValue}>{recordDetail.calories || 0} kcal</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>시작 시간</Text>
+                <Text style={styles.infoValue}>{formatDate(recordDetail.startedAt)}</Text>
+              </View>
+              {recordDetail.endedAt && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>종료 시간</Text>
+                  <Text style={styles.infoValue}>{formatDate(recordDetail.endedAt)}</Text>
+                </View>
+              )}
+            </View>
+
             {/* 확장 섹션 자리 */}
-            <View style={{ height: 40 }} />
+            <View style={{ height: 60 }} />
           </ScrollView>
         </View>
       </Animated.View>
@@ -311,29 +347,37 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
   heroWrap: {
     width: "100%",
-    height: 280,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     overflow: "hidden",
-    marginBottom: 12,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   heroImage: {
     width: "100%",
-    height: 280,
+    height: "100%",
   },
   backBtn: {
     position: "absolute",
-    top: 16,
-    left: 16,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    top: 50,
+    left: 20,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  backIcon: { fontSize: 18, fontWeight: "700", color: "#111" },
+  backIcon: { fontSize: 20, fontWeight: "700", color: "#1e293b" },
   content: { flex: 1 },
   sheet: {
     position: "absolute",
@@ -347,56 +391,185 @@ const styles = StyleSheet.create({
   sheetInner: {
     flex: 1,
     backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     overflow: "hidden",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   sheetHandle: {
     alignSelf: "center",
     width: 48,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "#D1D5DB",
-    marginTop: 8,
-    marginBottom: 6,
+    backgroundColor: "#cbd5e1",
+    marginTop: 12,
+    marginBottom: 8,
   },
   titleSection: {
     backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
-  title: { fontSize: 24, fontWeight: "800", color: "#111827", marginBottom: 6 },
-  date: { fontSize: 14, color: "#6b7280" },
+  title: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#1e293b",
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  date: {
+    fontSize: 15,
+    color: "#64748b",
+    fontWeight: "500",
+  },
   typeBadge: {
     alignSelf: "flex-start",
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  typeBadgeText: { color: "#fff", fontWeight: "600" },
+  typeBadgeText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 12,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
   statsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: "rgba(99, 102, 241, 0.04)",
+    marginHorizontal: 20,
+    marginTop: 8,
+    borderRadius: 16,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
   mainStat: { alignItems: "center", flex: 1 },
-  mainStatValue: { fontSize: 28, fontWeight: "800", color: "#111827" },
-  mainStatUnit: { fontSize: 12, color: "#6b7280" },
-  mainStatLabel: { marginTop: 4, fontSize: 12, color: "#6b7280" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { marginTop: 8, color: "#6b7280" },
+  mainStatValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#1e293b",
+    letterSpacing: -0.4,
+  },
+  mainStatUnit: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  mainStatLabel: {
+    marginTop: 6,
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#64748b",
+    fontSize: 16,
+    fontWeight: "500",
+  },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 16,
+    padding: 32,
+    backgroundColor: "#f8fafc",
   },
-  errorText: { color: "#ef4444", marginBottom: 8 },
+  errorText: {
+    color: "#ef4444",
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  backButton: {
+    backgroundColor: "#6366f1",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: "#6366f1",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  backButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  additionalInfo: {
+    marginTop: 16,
+    marginHorizontal: 20,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 16,
+    letterSpacing: -0.3,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.06)",
+  },
+  infoLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1e293b",
+    letterSpacing: -0.1,
+  },
 });
 
 export default RecordDetailScreen;
