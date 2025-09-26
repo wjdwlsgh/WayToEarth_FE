@@ -155,17 +155,19 @@ export default function ProfileScreen({
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* 공통 헤더(크기/타이포 ProfileEdit와 맞춤) */}
+      {/* 모던한 헤더 */}
       <View style={styles.header}>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 28 }} />
         <Text style={styles.headerTitle}>내 정보</Text>
-        <View style={{ width: 24 }}>
-          <View style={styles.bellDot} />
+        <View style={styles.bellDot}>
+          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>•</Text>
         </View>
       </View>
 
-      {/* 상단 프로필 카드 (크기/폰트 조정) */}
+      {/* 그라데이션 프로필 카드 */}
       <View style={styles.profileCard}>
+        <View style={styles.profileCardGradient} />
+
         <View style={styles.avatarWrap}>
           {profileUrl ? (
             <Image
@@ -175,41 +177,56 @@ export default function ProfileScreen({
             />
           ) : (
             <View style={styles.avatarFallback}>
-              <Text style={styles.avatarEmoji}>👤</Text>
+              <Text style={styles.avatarEmoji}>🏃</Text>
+            </View>
+          )}
+          <View style={styles.avatarBadge}>
+            <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>✓</Text>
+          </View>
+        </View>
+
+        <View style={styles.profileInfo}>
+          <Text style={styles.nicknameText}>{nickname}</Text>
+
+          <View style={styles.metricsContainer}>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricsText}>{totalDistance}</Text>
+              <Text style={styles.metricsLabel}>KM</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricsText}>{totalCount}</Text>
+              <Text style={styles.metricsLabel}>RUNS</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricsText}>{ownedEmblems}</Text>
+              <Text style={styles.metricsLabel}>BADGES</Text>
+            </View>
+          </View>
+
+          {typeof completionRate === "number" && (
+            <View style={styles.completionBadge}>
+              <Text style={styles.completionText}>컬렉션 {completionRate}%</Text>
             </View>
           )}
         </View>
-
-        <View style={{ flex: 1 }}>
-          <Text style={styles.nicknameText}>{nickname}</Text>
-
-          {/* level 제거, 핵심 수치만 */}
-          <Text style={styles.metricsText}>
-            {`${totalDistance}km   ${totalCount}회   ${ownedEmblems}개`}
-          </Text>
-
-          <Text style={styles.metricsHint}>
-            총 거리 러닝 횟수 엠블럼
-            {typeof completionRate === "number"
-              ? `   ·   컬렉션 ${completionRate}%`
-              : ""}
-          </Text>
-        </View>
       </View>
 
-      {/* 리스트 섹션(크기/폰트 ProfileEditScreen과 정렬) */}
-      <View style={styles.card}>
-        <TouchableOpacity
-          style={{ flex: 1, justifyContent: "center" }}
-          onPress={() => navigation.navigate("ProfileEdit")}
-          activeOpacity={0.8}
-        >
+      {/* 모던한 카드 */}
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate("ProfileEdit")}
+        activeOpacity={0.8}
+      >
+        <View style={styles.cardIcon}>
+          <Text style={{ fontSize: 20 }}>⚙️</Text>
+        </View>
+        <View style={styles.cardContent}>
           <Text style={styles.cardTitle}>기본 정보 관리</Text>
           <Text style={styles.cardSub}>프로필, 닉네임, 개인정보 설정</Text>
-        </TouchableOpacity>
-      </View>
+        </View>
+        <Text style={styles.cardArrow}>›</Text>
+      </TouchableOpacity>
 
-      {/* ✅ 엠블럼 컬렉션: 탭 시 EmblemCollection 화면으로 이동 */}
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
@@ -217,39 +234,58 @@ export default function ProfileScreen({
           navigation.navigate("Emblem", {
             nickname,
             ownedEmblems,
-            completionRate, // 정수(%)이거나 undefined — 화면에서 보완 처리
+            completionRate,
           })
         }
       >
-        <Text style={styles.cardTitle}>엠블럼 컬렉션</Text>
-        <Text style={styles.cardSub}>
-          {typeof completionRate === "number"
-            ? `${ownedEmblems}개 보유 · 완성도 ${completionRate}%`
-            : `${ownedEmblems}개 보유`}
-        </Text>
+        <View style={styles.cardIcon}>
+          <Text style={{ fontSize: 20 }}>🏆</Text>
+        </View>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle}>엠블럼 컬렉션</Text>
+          <Text style={styles.cardSub}>
+            {typeof completionRate === "number"
+              ? `${ownedEmblems}개 보유 • 완성도 ${completionRate}%`
+              : `${ownedEmblems}개 보유`}
+          </Text>
+        </View>
+        <Text style={styles.cardArrow}>›</Text>
       </TouchableOpacity>
 
-      {/* 하단 네비 아이콘(간격/크기 조정) */}
-      <View style={styles.navRow}>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>📰</Text>
-          <Text style={styles.navLabel}>피드</Text>
-        </View>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>⚔️</Text>
-          <Text style={styles.navLabel}>대결</Text>
-        </View>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>📊</Text>
-          <Text style={styles.navLabel}>기록</Text>
-        </View>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>👥</Text>
-          <Text style={styles.navLabel}>크루</Text>
-        </View>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>🏃</Text>
-          <Text style={styles.navLabel}>러닝</Text>
+      {/* 모던한 네비게이션 그리드 */}
+      <View style={styles.navContainer}>
+        <Text style={styles.navTitle}>빠른 액세스</Text>
+        <View style={styles.navGrid}>
+          <View style={styles.navItem}>
+            <View style={styles.navIconContainer}>
+              <Text style={styles.navIcon}>📰</Text>
+            </View>
+            <Text style={styles.navLabel}>피드</Text>
+          </View>
+          <View style={styles.navItem}>
+            <View style={styles.navIconContainer}>
+              <Text style={styles.navIcon}>⚔️</Text>
+            </View>
+            <Text style={styles.navLabel}>대결</Text>
+          </View>
+          <View style={styles.navItem}>
+            <View style={styles.navIconContainer}>
+              <Text style={styles.navIcon}>📊</Text>
+            </View>
+            <Text style={styles.navLabel}>기록</Text>
+          </View>
+          <View style={styles.navItem}>
+            <View style={styles.navIconContainer}>
+              <Text style={styles.navIcon}>👥</Text>
+            </View>
+            <Text style={styles.navLabel}>크루</Text>
+          </View>
+          <View style={styles.navItem}>
+            <View style={styles.navIconContainer}>
+              <Text style={styles.navIcon}>🏃</Text>
+            </View>
+            <Text style={styles.navLabel}>러닝</Text>
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -259,111 +295,260 @@ export default function ProfileScreen({
 const CARD_RADIUS = 16;
 
 const styles = StyleSheet.create({
-  // ProfileEditScreen 과 스케일 맞춘 베이스
   container: {
-    backgroundColor: "#fff",
+    flex: 1,
+    backgroundColor: "#f8fafc",
     paddingBottom: 30,
-    paddingHorizontal: 16,
   },
 
-  // 헤더 (높이/타이포 동일)
+  // 모던한 헤더
   header: {
-    height: 70,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2dddd",
+    height: 90,
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1e293b",
+    letterSpacing: -0.3,
+  },
+  bellDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+
+  // 그라데이션 프로필 카드
+  profileCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 24,
+    marginTop: 20,
+    marginBottom: 16,
+    marginHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: -16,
-    paddingHorizontal: 16,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(99, 102, 241, 0.1)",
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
-  bellDot: {
+
+  profileCardGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: "linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
+  },
+
+  avatarWrap: {
+    marginRight: 20,
+    position: "relative",
+  },
+  avatarImg: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 4,
+    borderColor: "rgba(99, 102, 241, 0.15)",
+  },
+  avatarFallback: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 4,
+    borderColor: "rgba(99, 102, 241, 0.15)",
+  },
+  avatarEmoji: { fontSize: 36, color: "#fff" },
+
+  avatarBadge: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#000",
-    alignSelf: "flex-end",
-  },
-
-  // 프로필 카드
-  profileCard: {
-    backgroundColor: "#475569",
-    borderRadius: CARD_RADIUS,
-    padding: 16,
-    marginTop: 16,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatarWrap: {
-    marginRight: 16,
-  },
-  avatarImg: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#e8ecf0",
-  },
-  avatarFallback: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#e8ecf0",
+    backgroundColor: "#10b981",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
-  avatarEmoji: { fontSize: 32, color: "#666" },
 
+  profileInfo: {
+    flex: 1,
+  },
   nicknameText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
+    color: "#1e293b",
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 12,
+    letterSpacing: -0.4,
   },
-  metricsText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  metricsHint: {
-    marginTop: 6,
-    color: "#dedede",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-
-  // 공통 카드(리스트)
-  card: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: CARD_RADIUS,
-    height: 98,
-    paddingHorizontal: 20,
-    marginTop: 12,
-    justifyContent: "center",
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#000",
-  },
-  cardSub: {
-    marginTop: 6,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#808080",
-  },
-
-  // 하단 네비 (간격/크기 ProfileEditScreen 스케일 기준)
-  navRow: {
-    marginTop: 24,
+  metricsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 8,
+    marginBottom: 8,
   },
-  navItem: { alignItems: "center", width: 56 },
-  navIcon: { fontSize: 24 },
-  navLabel: { marginTop: 4, fontSize: 11, fontWeight: "600", color: "#000" },
+  metricItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  metricsText: {
+    color: "#6366f1",
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  metricsLabel: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  completionBadge: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
+    borderRadius: 12,
+    alignSelf: "flex-start",
+  },
+  completionText: {
+    color: "#6366f1",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+
+  // 모던한 카드
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    height: 88,
+    paddingHorizontal: 24,
+    marginTop: 12,
+    marginHorizontal: 16,
+    justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  cardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 4,
+    letterSpacing: -0.2,
+  },
+  cardSub: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#64748b",
+    letterSpacing: 0.1,
+  },
+  cardArrow: {
+    fontSize: 16,
+    color: "#94a3b8",
+    fontWeight: "600",
+  },
+
+  // 하단 네비게이션 그리드
+  navContainer: {
+    marginTop: 32,
+    marginHorizontal: 16,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+  },
+  navTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 16,
+    letterSpacing: -0.2,
+  },
+  navGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  navItem: {
+    alignItems: "center",
+    width: "18%",
+    marginBottom: 8,
+  },
+  navIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(99, 102, 241, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  navIcon: { fontSize: 22 },
+  navLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748b",
+    textAlign: "center",
+    letterSpacing: 0.2,
+  },
 });
