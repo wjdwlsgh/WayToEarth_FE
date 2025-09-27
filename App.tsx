@@ -30,6 +30,7 @@ import Record from "./Pages/RecordScreen";
 import RecordDetailScreen from "./Pages/RecordDetailScreen";
 import UserInfoInputScreen from "./Pages/UserInfoInputScreen";
 import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
+import ChatScreen from "./Pages/ChatScreen";
 
 const Stack = createStackNavigator();
 
@@ -76,6 +77,7 @@ export default function App() {
           component={RecordDetailScreen}
         />
         <Stack.Screen name="UserInfoInput" component={UserInfoInputScreen} />
+        <Stack.Screen name="Crew" component={ChatScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
