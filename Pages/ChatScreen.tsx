@@ -41,9 +41,11 @@ export default function ChatScreen({ navigation }: any) {
     hasMore,
     error: historyError,
     unreadCount,
+    crewInfo,
     loadInitialHistory,
     loadMoreMessages,
     loadUnreadCount,
+    loadCrewInfo,
     markMessageAsRead,
     markAllMessagesAsRead,
     deleteMessage,
@@ -95,6 +97,7 @@ export default function ChatScreen({ navigation }: any) {
     url: websocketUrl,
     token,
     onMessage: (newMessage) => {
+      console.log('[ChatScreen] 새 메시지 수신:', newMessage);
       addNewMessage(newMessage);
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -118,6 +121,20 @@ export default function ChatScreen({ navigation }: any) {
       loadInitialHistory();
     }
   }, [token, isHistoryLoading, messages.length, loadInitialHistory]);
+
+  // 디버깅용: 상태 모니터링
+  useEffect(() => {
+    console.log('[ChatScreen] 상태 업데이트:', {
+      unreadCount,
+      messagesCount: messages.length,
+      isHistoryLoading,
+      isConnected,
+      crewInfo: crewInfo ? {
+        name: crewInfo.name,
+        memberCount: crewInfo.memberCount
+      } : null
+    });
+  }, [unreadCount, messages.length, isHistoryLoading, isConnected, crewInfo]);
 
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
@@ -177,7 +194,9 @@ export default function ChatScreen({ navigation }: any) {
       {/* Chat Header */}
       <View style={styles.chatHeader}>
         <View style={styles.chatHeaderLeft}>
-          <Text style={styles.chatTitle}>크루 채팅</Text>
+          <Text style={styles.chatTitle}>
+            {crewInfo ? `${crewInfo.name} 채팅` : '크루 채팅'}
+          </Text>
           {unreadCount > 0 && (
             <View style={styles.unreadBadge}>
               <Text style={styles.unreadBadgeText}>
@@ -322,9 +341,10 @@ export default function ChatScreen({ navigation }: any) {
                         <Text style={styles.responseText}>{msg.message}</Text>
                         <View style={styles.messageFooter}>
                           <Text style={styles.responseTime}>{formatTime(msg.timestamp)}</Text>
-                          {msg.readByUsers !== undefined && (
+                          {msg.readByUsers !== undefined && msg.readByUsers > 0 && (
                             <Text style={styles.readCountText}>
                               읽음 {msg.readByUsers}
+                              {crewInfo && ` / ${crewInfo.memberCount - 1}`} {/* 본인 제외 */}
                             </Text>
                           )}
                         </View>

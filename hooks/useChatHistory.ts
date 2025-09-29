@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { chatAPI, ChatMessage as APIChatMessage } from '../utils/api/chat';
+import { chatAPI, ChatMessage as APIChatMessage, CrewInfo } from '../utils/api/chat';
 import { ChatMessage } from './useWebSocket';
 
 interface UseChatHistoryProps {
@@ -13,6 +13,7 @@ export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) =
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [crewInfo, setCrewInfo] = useState<CrewInfo | null>(null);
 
   // API 응답을 ChatMessage 형태로 변환
   const transformMessage = (apiMessage: APIChatMessage): ChatMessage => ({
@@ -43,8 +44,9 @@ export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) =
       setMessages(transformedMessages);
       setHasMore(historyData.length === 30); // 30개 가져왔으면 더 있을 가능성
 
-      // 읽지 않은 메시지 수도 함께 로드
+      // 읽지 않은 메시지 수와 크루 정보도 함께 로드
       loadUnreadCount();
+      loadCrewInfo();
     } catch (err) {
       console.error('채팅 히스토리 로드 실패:', err);
       setError('메시지 히스토리를 불러올 수 없습니다.');
@@ -88,6 +90,17 @@ export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) =
       setIsLoading(false);
     }
   }, [crewId, messages, isLoading, hasMore]);
+
+  // 크루 정보 로드
+  const loadCrewInfo = useCallback(async () => {
+    try {
+      const info = await chatAPI.getCrewInfo(crewId);
+      setCrewInfo(info);
+      console.log('크루 정보 로드 완료:', info);
+    } catch (err) {
+      console.error('크루 정보 로드 실패:', err);
+    }
+  }, [crewId]);
 
   // 읽지 않은 메시지 수 로드
   const loadUnreadCount = useCallback(async () => {
@@ -173,9 +186,11 @@ export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) =
     hasMore,
     error,
     unreadCount,
+    crewInfo,
     loadInitialHistory,
     loadMoreMessages,
     loadUnreadCount,
+    loadCrewInfo,
     markMessageAsRead,
     markAllMessagesAsRead,
     deleteMessage,

@@ -32,6 +32,23 @@ export interface NotificationSettings {
   soundEnabled: boolean;
 }
 
+export interface CrewMember {
+  memberId: number;
+  userId: number;
+  nickname: string;
+  profileImageUrl?: string;
+  role: 'LEADER' | 'MEMBER';
+  joinedAt: string;
+}
+
+export interface CrewInfo {
+  crewId: number;
+  name: string;
+  description: string;
+  memberCount: number;
+  members: CrewMember[];
+}
+
 export const chatAPI = {
   // 채팅 메시지 목록 조회 (페이지네이션)
   getMessages: async (params: ChatHistoryParams): Promise<ChatMessage[]> => {
@@ -92,5 +109,17 @@ export const chatAPI = {
   // 알림 설정 업데이트
   updateNotificationSettings: async (crewId: number, settings: NotificationSettings): Promise<void> => {
     await client.put(`/v1/crews/${crewId}/chat/notification-settings`, settings);
+  },
+
+  // 크루 정보 조회 (멤버 수 포함)
+  getCrewInfo: async (crewId: number): Promise<CrewInfo> => {
+    const response = await client.get(`/v1/crews/${crewId}`);
+    return response.data;
+  },
+
+  // 크루 멤버 목록 조회
+  getCrewMembers: async (crewId: number): Promise<CrewMember[]> => {
+    const response = await client.get(`/v1/crews/${crewId}/members`);
+    return response.data;
   },
 };
