@@ -53,7 +53,8 @@ export default function ChatScreen({ navigation }: any) {
     clearMessages
   } = useChatHistory({ crewId, currentUserId });
 
-  const websocketUrl = token ? `wss://api.waytoearth.cloud/ws/crew/${crewId}/chat` : null;
+  // 🔒 보안 개선: URL에 토큰을 포함하지 않음 (Authorization 헤더 사용)
+  const websocketUrl = `wss://api.waytoearth.cloud/ws/crew/${crewId}/chat`;
 
   // JWT 토큰 로드
   useEffect(() => {
@@ -94,7 +95,7 @@ export default function ChatScreen({ navigation }: any) {
   }, []);
 
   const { isConnected, connectionError, sendMessage: sendWsMessage, disconnect } = useWebSocket({
-    url: websocketUrl,
+    url: token ? websocketUrl : null, // 토큰이 있을 때만 연결 시도
     token,
     onMessage: (newMessage) => {
       console.log('[ChatScreen] 새 메시지 수신:', newMessage);
