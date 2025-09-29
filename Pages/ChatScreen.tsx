@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import BottomNavigation from "../components/Layout/BottomNav";
 import { useBottomNav } from "../hooks/useBottomNav";
 import { useWebSocket, ChatMessage } from "../hooks/useWebSocket";
+import { useChatHistory } from "../hooks/useChatHistory";
 
 // WebSocket polyfill 확인
 console.log('WebSocket 확인:');
@@ -26,11 +27,23 @@ const { width } = Dimensions.get("window");
 
 export default function ChatScreen({ navigation }: any) {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [crewId] = useState(1);
+  const [currentUserId] = useState(1); // TODO: 실제 사용자 ID로 변경
   const scrollViewRef = useRef<ScrollView>(null);
   const { activeTab, onTabPress } = useBottomNav("crew");
   const [token, setToken] = useState<string | null>(null);
+
+  // 채팅 히스토리 관리
+  const {
+    messages,
+    isLoading: isHistoryLoading,
+    hasMore,
+    error: historyError,
+    loadInitialHistory,
+    loadMoreMessages,
+    addNewMessage,
+    clearMessages
+  } = useChatHistory({ crewId, currentUserId });
 
   const websocketUrl = token ? `wss://api.waytoearth.cloud/ws/crew/${crewId}/chat` : null;
 
@@ -76,7 +89,7 @@ export default function ChatScreen({ navigation }: any) {
     url: websocketUrl,
     token,
     onMessage: (newMessage) => {
-      setMessages(prev => [...prev, newMessage]);
+      addNewMessage(newMessage);
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -92,13 +105,22 @@ export default function ChatScreen({ navigation }: any) {
     },
   });
 
+  // 토큰 로드 후 초기 히스토리 로드
+  useEffect(() => {
+    if (token && !isHistoryLoading && messages.length === 0) {
+      console.log('초기 채팅 히스토리 로드 시작');
+      loadInitialHistory();
+    }
+  }, [token, isHistoryLoading, messages.length, loadInitialHistory]);
+
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
       console.log('ChatScreen 언마운트 - WebSocket 정리');
       disconnect();
+      clearMessages();
     };
-  }, [disconnect]);
+  }, [disconnect, clearMessages]);
 
   const handleSend = () => {
     const messageText = message.trim();
@@ -156,6 +178,33 @@ export default function ChatScreen({ navigation }: any) {
         </View>
       )}
 
+      {/* History Loading */}
+      {isHistoryLoading && (
+        <View style={styles.historyLoadingContainer}>
+          <ActivityIndicator size="small" color="#3579d7" />
+          <Text style={styles.historyLoadingText}>메시지 불러오는 중...</Text>
+        </View>
+      )}
+
+      {/* History Error */}
+      {historyError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{historyError}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              if (messages.length === 0) {
+                loadInitialHistory();
+              } else {
+                loadMoreMessages();
+              }
+            }}
+          >
+            <Text style={styles.retryButtonText}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Main Chat Area */}
       <View style={styles.chatContainer}>
         <ScrollView
@@ -163,7 +212,39 @@ export default function ChatScreen({ navigation }: any) {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={(event) => {
+            const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+
+            // 스크롤이 최상단에 도달했고, 더 로드할 메시지가 있을 때
+            if (
+              contentOffset.y <= 50 && // 상단에서 50px 이내
+              hasMore &&
+              !isHistoryLoading &&
+              messages.length > 0
+            ) {
+              console.log('무한 스크롤: 이전 메시지 로드 시작');
+              loadMoreMessages();
+            }
+          }}
+          scrollEventThrottle={400}
         >
+          {/* Load More Indicator */}
+          {hasMore && messages.length > 0 && (
+            <View style={styles.loadMoreContainer}>
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={loadMoreMessages}
+                disabled={isHistoryLoading}
+              >
+                {isHistoryLoading ? (
+                  <ActivityIndicator size="small" color="#3579d7" />
+                ) : (
+                  <Text style={styles.loadMoreText}>이전 메시지 더보기</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
           {messages.length === 0 ? (
             <View style={styles.emptyChat}>
               <Text style={styles.emptyChatText}>채팅을 시작해보세요!</Text>
@@ -441,5 +522,74 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     textAlign: "center",
+  },
+
+  // History Loading
+  historyLoadingContainer: {
+    backgroundColor: "#f0f8ff",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  historyLoadingText: {
+    color: "#3579d7",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+
+  // Error Container
+  errorContainer: {
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#fecaca",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
+  },
+  retryButton: {
+    backgroundColor: "#dc2626",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  retryButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Load More
+  loadMoreContainer: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  loadMoreButton: {
+    backgroundColor: "#f8f9fa",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  loadMoreText: {
+    color: "#6b7280",
+    fontSize: 13,
+    fontWeight: "500",
   },
 });
