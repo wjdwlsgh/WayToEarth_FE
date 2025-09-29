@@ -8,6 +8,8 @@ export interface ChatMessage {
   senderName?: string;
   timestamp?: string;
   isOwn?: boolean;
+  readByUsers?: number;
+  isRead?: boolean;
 }
 
 interface UseWebSocketProps {

@@ -10,6 +10,7 @@ import {
   StatusBar,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BottomNavigation from "../components/Layout/BottomNav";
@@ -39,8 +40,13 @@ export default function ChatScreen({ navigation }: any) {
     isLoading: isHistoryLoading,
     hasMore,
     error: historyError,
+    unreadCount,
     loadInitialHistory,
     loadMoreMessages,
+    loadUnreadCount,
+    markMessageAsRead,
+    markAllMessagesAsRead,
+    deleteMessage,
     addNewMessage,
     clearMessages
   } = useChatHistory({ crewId, currentUserId });
@@ -168,6 +174,30 @@ export default function ChatScreen({ navigation }: any) {
         </View>
       </View>
 
+      {/* Chat Header */}
+      <View style={styles.chatHeader}>
+        <View style={styles.chatHeaderLeft}>
+          <Text style={styles.chatTitle}>크루 채팅</Text>
+          {unreadCount > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.chatHeaderRight}>
+          {unreadCount > 0 && (
+            <TouchableOpacity
+              style={styles.markAllReadButton}
+              onPress={markAllMessagesAsRead}
+            >
+              <Text style={styles.markAllReadText}>모두 읽음</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {/* Connection Status */}
       {!isConnected && (
         <View style={styles.connectionStatus}>
@@ -250,32 +280,82 @@ export default function ChatScreen({ navigation }: any) {
               <Text style={styles.emptyChatText}>채팅을 시작해보세요!</Text>
             </View>
           ) : (
-            messages.map((msg, index) => (
-              <View key={msg.id || index}>
-                {msg.messageType === 'SYSTEM' ? (
-                  <View style={styles.systemMessageContainer}>
-                    <Text style={styles.systemMessageText}>{msg.message}</Text>
-                  </View>
-                ) : msg.isOwn ? (
-                  // Own message (right side)
-                  <View style={styles.responseContainer}>
-                    <View style={styles.responseBackground}>
-                      <Text style={styles.responseText}>{msg.message}</Text>
-                      <Text style={styles.responseTime}>{formatTime(msg.timestamp)}</Text>
+            messages.map((msg, index) => {
+              const handleLongPress = () => {
+                if (msg.isOwn && msg.id) {
+                  Alert.alert(
+                    "메시지 삭제",
+                    "이 메시지를 삭제하시겠습니까?",
+                    [
+                      { text: "취소", style: "cancel" },
+                      {
+                        text: "삭제",
+                        style: "destructive",
+                        onPress: () => deleteMessage(parseInt(msg.id!))
+                      }
+                    ]
+                  );
+                }
+              };
+
+              const handlePress = () => {
+                // 다른 사용자의 메시지이고 읽지 않았으면 읽음 처리
+                if (!msg.isOwn && !msg.isRead && msg.id) {
+                  markMessageAsRead(parseInt(msg.id));
+                }
+              };
+
+              return (
+                <View key={msg.id || index}>
+                  {msg.messageType === 'SYSTEM' ? (
+                    <View style={styles.systemMessageContainer}>
+                      <Text style={styles.systemMessageText}>{msg.message}</Text>
                     </View>
-                  </View>
-                ) : (
-                  // Other's message (left side)
-                  <View style={styles.messageContainer}>
-                    <Text style={styles.messageLabel}>{msg.senderName}</Text>
-                    <View style={styles.messageBackgroundBorder}>
-                      <Text style={styles.messageText}>{msg.message}</Text>
-                      <Text style={styles.messageTime}>{formatTime(msg.timestamp)}</Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-            ))
+                  ) : msg.isOwn ? (
+                    // Own message (right side)
+                    <TouchableOpacity
+                      style={styles.responseContainer}
+                      onLongPress={handleLongPress}
+                      delayLongPress={500}
+                    >
+                      <View style={styles.responseBackground}>
+                        <Text style={styles.responseText}>{msg.message}</Text>
+                        <View style={styles.messageFooter}>
+                          <Text style={styles.responseTime}>{formatTime(msg.timestamp)}</Text>
+                          {msg.readByUsers !== undefined && (
+                            <Text style={styles.readCountText}>
+                              읽음 {msg.readByUsers}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    // Other's message (left side)
+                    <TouchableOpacity
+                      style={styles.messageContainer}
+                      onPress={handlePress}
+                    >
+                      <Text style={styles.messageLabel}>{msg.senderName}</Text>
+                      <View style={[
+                        styles.messageBackgroundBorder,
+                        !msg.isRead && styles.unreadMessageBorder
+                      ]}>
+                        <Text style={styles.messageText}>{msg.message}</Text>
+                        <View style={styles.messageFooter}>
+                          <Text style={styles.messageTime}>{formatTime(msg.timestamp)}</Text>
+                          {!msg.isRead && (
+                            <View style={styles.unreadIndicator}>
+                              <Text style={styles.unreadIndicatorText}>N</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })
           )}
         </ScrollView>
 
@@ -591,5 +671,87 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     fontSize: 13,
     fontWeight: "500",
+  },
+
+  // Chat Header
+  chatHeader: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  chatHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  chatHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chatTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  unreadBadge: {
+    backgroundColor: "#ef4444",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  unreadBadgeText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  markAllReadButton: {
+    backgroundColor: "#3579d7",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  markAllReadText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Message Footer
+  messageFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  readCountText: {
+    color: "#9ca3af",
+    fontSize: 10,
+    fontWeight: "400",
+  },
+
+  // Unread Messages
+  unreadMessageBorder: {
+    borderColor: "#3579d7",
+    borderWidth: 2,
+  },
+  unreadIndicator: {
+    backgroundColor: "#ef4444",
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadIndicatorText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "600",
   },
 });
