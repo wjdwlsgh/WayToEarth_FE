@@ -89,9 +89,74 @@ export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) =
     }
   }, [crewId, messages, isLoading, hasMore]);
 
+  // 읽지 않은 메시지 수 로드
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const result = await chatAPI.getUnreadCount(crewId);
+      setUnreadCount(result.unreadCount);
+    } catch (err) {
+      console.error('읽지 않은 메시지 수 로드 실패:', err);
+    }
+  }, [crewId]);
+
+  // 단일 메시지 읽음 처리
+  const markMessageAsRead = useCallback(async (messageId: number) => {
+    try {
+      await chatAPI.markMessageAsRead(crewId, messageId);
+
+      // 로컬 상태 업데이트
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId.toString()
+          ? { ...msg, isRead: true }
+          : msg
+      ));
+
+      // 읽지 않은 메시지 수 업데이트
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('메시지 읽음 처리 실패:', err);
+    }
+  }, [crewId]);
+
+  // 모든 메시지 읽음 처리
+  const markAllMessagesAsRead = useCallback(async () => {
+    if (messages.length === 0) return;
+
+    try {
+      const latestMessageId = parseInt(messages[messages.length - 1]?.id || '0');
+      if (latestMessageId > 0) {
+        await chatAPI.markAllMessagesAsReadAfter(crewId, latestMessageId);
+
+        // 로컬 상태 업데이트
+        setMessages(prev => prev.map(msg => ({ ...msg, isRead: true })));
+        setUnreadCount(0);
+      }
+    } catch (err) {
+      console.error('모든 메시지 읽음 처리 실패:', err);
+    }
+  }, [crewId, messages]);
+
+  // 메시지 삭제
+  const deleteMessage = useCallback(async (messageId: number) => {
+    try {
+      await chatAPI.deleteMessage(crewId, messageId);
+
+      // 로컬 상태에서 메시지 제거
+      setMessages(prev => prev.filter(msg => msg.id !== messageId.toString()));
+    } catch (err) {
+      console.error('메시지 삭제 실패:', err);
+      throw err; // UI에서 에러 처리할 수 있도록
+    }
+  }, [crewId]);
+
   // 새 메시지 추가 (WebSocket에서 받은 메시지)
   const addNewMessage = useCallback((message: ChatMessage) => {
     setMessages(prev => [...prev, message]);
+
+    // 다른 사용자가 보낸 메시지면 읽지 않은 메시지 수 증가
+    if (!message.isOwn) {
+      setUnreadCount(prev => prev + 1);
+    }
   }, []);
 
   // 메시지 초기화
@@ -99,6 +164,7 @@ export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) =
     setMessages([]);
     setHasMore(true);
     setError(null);
+    setUnreadCount(0);
   }, []);
 
   return {
@@ -106,8 +172,13 @@ export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) =
     isLoading,
     hasMore,
     error,
+    unreadCount,
     loadInitialHistory,
     loadMoreMessages,
+    loadUnreadCount,
+    markMessageAsRead,
+    markAllMessagesAsRead,
+    deleteMessage,
     addNewMessage,
     clearMessages,
     setMessages,
