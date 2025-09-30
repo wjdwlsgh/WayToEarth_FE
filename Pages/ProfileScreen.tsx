@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Platform,
+  SafeAreaView,
 } from "react-native";
 import {
   getMyProfile,
@@ -18,6 +20,9 @@ import {
   type UserSummary,
 } from "../utils/api/users";
 import { useFocusEffect } from "@react-navigation/native";
+import BottomNavigation from "../components/Layout/BottomNav";
+import { useBottomNav } from "../hooks/useBottomNav";
+import SafeLayout from "../components/Layout/SafeLayout";
 
 const number = (v: number | null | undefined, digits = 1) =>
   typeof v === "number" ? Number(v.toFixed(digits)) : 0;
@@ -57,11 +62,21 @@ export default function ProfileScreen({
     }
   }, []);
 
+  // 로딩 보호: 5초가 지나도 로딩이면 강제 해제하여 빈 화면 방지
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (!loading) return;
+    const t = setTimeout(() => {
+      try {
+        if (loading) {
+          console.warn("[Profile] loading timeout → force hide spinner");
+          setLoading(false);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
-  // 서버 저장 직후 늦게 반영되는 경우를 대비해 1회 재시도
+  // 서버 저장 직후 늦게 반영되는 경우 대비 1회 재시도
   useEffect(() => {
     const noAvatar = !(
       (me as any)?.profile_image_url ||
@@ -75,7 +90,7 @@ export default function ProfileScreen({
     }
   }, [loading, me, route?.params?.avatarUrl, fetchData]);
 
-  // 화면 재진입 시 재조회(프로필 수정 등 반영)
+  // 화면 재진입 시 재조회(프로필 수정 반영)
   useFocusEffect(
     useCallback(() => {
       fetchData();
@@ -87,30 +102,27 @@ export default function ProfileScreen({
     fetchData();
   }, [fetchData]);
 
-  // 필드 매핑(백엔드 snake/camel 혼용 대응)
+  // 필드 매핑
   const nickname = me?.nickname || (me as any)?.name || "사용자";
-  // 업로드 직후 편집 화면에서 전달한 최신 URL 우선 사용
   const overrideFromRoute: string | undefined = route?.params?.avatarUrl;
   const rawProfileUrl =
     overrideFromRoute ||
     me?.profile_image_url ||
     (me as any)?.profileImageUrl ||
     "";
-  // 캐시 무효화를 위한 키(있으면 사용)
   const cacheKey =
     (me as any)?.profile_image_key ||
     (me as any)?.updated_at ||
     (me as any)?.updatedAt ||
     route?.params?.cacheBust ||
     "";
-  // 서명된 URL(S3 presign 등)은 쿼리 추가 시 무효화될 수 있으므로
-  // 이미 '?'가 있는 경우에는 캐시 버스팅 파라미터를 붙이지 않는다.
   const profileUrl = rawProfileUrl
     ? rawProfileUrl.includes("?")
       ? rawProfileUrl
-      : `${rawProfileUrl}?v=${encodeURIComponent(String(cacheKey || Date.now()))}`
+      : `${rawProfileUrl}?v=${encodeURIComponent(
+          String(cacheKey || Date.now())
+        )}`
     : "";
-  console.log("프로필 URL:", profileUrl);
 
   const totalDistance = useMemo(() => {
     const v =
@@ -136,234 +148,303 @@ export default function ProfileScreen({
 
   if (loading) {
     return (
-      <View
-        style={[
-          styles.container,
-          { flex: 1, justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <ActivityIndicator />
-        <Text style={{ marginTop: 8 }}>불러오는 중…</Text>
-      </View>
+      <SafeLayout withBottomInset={false}>
+        <View style={[styles.container, styles.loadingContainer]}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>불러오는 중...</Text>
+        </View>
+      </SafeLayout>
     );
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* 공통 헤더(크기/타이포 ProfileEdit와 맞춤) */}
-      <View style={styles.header}>
-        <View style={{ width: 24 }} />
-        <Text style={styles.headerTitle}>내 정보</Text>
-        <View style={{ width: 24 }}>
-          <View style={styles.bellDot} />
-        </View>
-      </View>
-
-      {/* 상단 프로필 카드 (크기/폰트 조정) */}
-      <View style={styles.profileCard}>
-        <View style={styles.avatarWrap}>
-          {profileUrl ? (
-            <Image
-              key={profileUrl}
-              source={{ uri: profileUrl }}
-              style={styles.avatarImg}
-            />
-          ) : (
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarEmoji}>👤</Text>
-            </View>
-          )}
+    <SafeLayout withBottomInset={false}>
+      <View style={styles.container}>
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>마이페이지</Text>
+          <TouchableOpacity style={styles.shareButton}>
+            <Text style={styles.shareIcon}>↗</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={{ flex: 1 }}>
-          <Text style={styles.nicknameText}>{nickname}</Text>
-
-          {/* level 제거, 핵심 수치만 */}
-          <Text style={styles.metricsText}>
-            {`${totalDistance}km   ${totalCount}회   ${ownedEmblems}개`}
-          </Text>
-
-          <Text style={styles.metricsHint}>
-            총 거리 러닝 횟수 엠블럼
-            {typeof completionRate === "number"
-              ? `   ·   컬렉션 ${completionRate}%`
-              : ""}
-          </Text>
-        </View>
-      </View>
-
-      {/* 리스트 섹션(크기/폰트 ProfileEditScreen과 정렬) */}
-      <View style={styles.card}>
-        <TouchableOpacity
-          style={{ flex: 1, justifyContent: "center" }}
-          onPress={() => navigation.navigate("ProfileEdit")}
-          activeOpacity={0.8}
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          contentInsetAdjustmentBehavior={
+            Platform.OS === "ios" ? "automatic" : "never"
+          }
         >
-          <Text style={styles.cardTitle}>기본 정보 관리</Text>
-          <Text style={styles.cardSub}>프로필, 닉네임, 개인정보 설정</Text>
-        </TouchableOpacity>
-      </View>
+          {/* 프로필 섹션 */}
+          <View style={styles.profileSection}>
+            {/* 프로필 이미지 */}
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatarOuterRing}>
+                <View style={styles.avatarInnerRing}>
+                  {profileUrl ? (
+                    <Image
+                      key={profileUrl}
+                      source={{ uri: profileUrl }}
+                      style={styles.avatar}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.avatarPlaceholder}>
+                      <Text style={styles.avatarEmoji}>😊</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
 
-      {/* ✅ 엠블럼 컬렉션: 탭 시 EmblemCollection 화면으로 이동 */}
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.8}
-        onPress={() =>
-          navigation.navigate("Emblem", {
-            nickname,
-            ownedEmblems,
-            completionRate, // 정수(%)이거나 undefined — 화면에서 보완 처리
-          })
-        }
-      >
-        <Text style={styles.cardTitle}>엠블럼 컬렉션</Text>
-        <Text style={styles.cardSub}>
-          {typeof completionRate === "number"
-            ? `${ownedEmblems}개 보유 · 완성도 ${completionRate}%`
-            : `${ownedEmblems}개 보유`}
-        </Text>
-      </TouchableOpacity>
+            {/* 닉네임 */}
+            <Text style={styles.nickname}>{nickname}</Text>
+          </View>
 
-      {/* 하단 네비 아이콘(간격/크기 조정) */}
-      <View style={styles.navRow}>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>📰</Text>
-          <Text style={styles.navLabel}>피드</Text>
-        </View>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>⚔️</Text>
-          <Text style={styles.navLabel}>대결</Text>
-        </View>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>📊</Text>
-          <Text style={styles.navLabel}>기록</Text>
-        </View>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>👥</Text>
-          <Text style={styles.navLabel}>크루</Text>
-        </View>
-        <View style={styles.navItem}>
-          <Text style={styles.navIcon}>🏃</Text>
-          <Text style={styles.navLabel}>러닝</Text>
-        </View>
+          {/* 통계 카드 */}
+          <View style={styles.statsCard}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{totalDistance}</Text>
+              <Text style={styles.statLabel}>총 거리(km)</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, styles.orangeText]}>
+                {totalCount}
+              </Text>
+              <Text style={styles.statLabel}>러닝 횟수</Text>
+            </View>
+          </View>
+
+          {/* 엠블럼: 카드형 메뉴 (단일 카드) */}
+          <View style={styles.menuSection}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              activeOpacity={0.6}
+              onPress={() =>
+                navigation.navigate("Emblem", {
+                  nickname,
+                  ownedEmblems,
+                  completionRate,
+                })
+              }
+            >
+              <Text style={styles.menuTitle}>엠블럼 컬렉션</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.menuSpacer} />
+
+          {/* 기본 정보: 카드형 메뉴 (분리) */}
+          <View style={styles.menuSection}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              activeOpacity={0.6}
+              onPress={() => navigation.navigate("ProfileEdit")}
+            >
+              <Text style={styles.menuTitle}>기본 정보 관리</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 설정 메뉴 - 위 카드로 통합 */}
+
+          {/* 하단 여백 */}
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
+
+        {/* 하단 네비게이션 */}
+        <BottomNavWrapper defaultTab="profile" />
       </View>
-    </ScrollView>
+    </SafeLayout>
   );
 }
 
-const CARD_RADIUS = 16;
-
 const styles = StyleSheet.create({
-  // ProfileEditScreen 과 스케일 맞춘 베이스
   container: {
-    backgroundColor: "#fff",
-    paddingBottom: 30,
-    paddingHorizontal: 16,
+    flex: 1,
+    backgroundColor: "#F5F5F5",
   },
-
-  // 헤더 (높이/타이포 동일)
-  header: {
-    height: 70,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2dddd",
-    flexDirection: "row",
+  loadingContainer: {
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: -16,
-    paddingHorizontal: 16,
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
-  bellDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#000",
-    alignSelf: "flex-end",
-  },
-
-  // 프로필 카드
-  profileCard: {
-    backgroundColor: "#475569",
-    borderRadius: CARD_RADIUS,
-    padding: 16,
+  loadingText: {
     marginTop: 16,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatarWrap: {
-    marginRight: 16,
-  },
-  avatarImg: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#e8ecf0",
-  },
-  avatarFallback: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#e8ecf0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarEmoji: { fontSize: 32, color: "#666" },
-
-  nicknameText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  metricsText: {
-    color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
-  },
-  metricsHint: {
-    marginTop: 6,
-    color: "#dedede",
-    fontSize: 12,
-    fontWeight: "600",
+    color: "#666",
+    fontWeight: "500",
   },
 
-  // 공통 카드(리스트)
-  card: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: CARD_RADIUS,
-    height: 98,
+  // 헤더
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    marginTop: 12,
-    justifyContent: "center",
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingBottom: 20,
+    backgroundColor: "#F5F5F5",
   },
-  cardTitle: {
+  headerTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#000",
+    color: "#000000",
   },
-  cardSub: {
-    marginTop: 6,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#808080",
+  shareButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#E0E0E0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareIcon: {
+    fontSize: 16,
+    color: "#666666",
   },
 
-  // 하단 네비 (간격/크기 ProfileEditScreen 스케일 기준)
-  navRow: {
-    marginTop: 24,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
+  // 프로필 섹션
+  profileSection: {
+    alignItems: "center",
+    paddingTop: 20,
+    paddingBottom: 40,
   },
-  navItem: { alignItems: "center", width: 56 },
-  navIcon: { fontSize: 24 },
-  navLabel: { marginTop: 4, fontSize: 11, fontWeight: "600", color: "#000" },
+  avatarContainer: {
+    marginBottom: 20,
+  },
+  avatarOuterRing: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#E8E8E8",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInnerRing: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#D0D0D0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarEmoji: {
+    fontSize: 28,
+  },
+  nickname: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#000000",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#888888",
+    fontWeight: "400",
+  },
+
+  // 통계 카드
+  statsCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 30,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#000000",
+    marginBottom: 8,
+  },
+  orangeText: {
+    color: "#FF6B35",
+  },
+  statLabel: {
+    fontSize: 14,
+    color: "#888888",
+    fontWeight: "400",
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: "#F0F0F0",
+    marginHorizontal: 20,
+  },
+
+  // 뱃지 섹션
+  badgeSection: {},
+
+  // 메뉴 섹션
+  menuSection: {
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 20,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  menuSpacer: { height: 12 },
+  menuDivider: {
+    height: 1,
+    backgroundColor: "#F0F0F0",
+    marginLeft: 20,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    backgroundColor: "#FFFFFF",
+  },
+  menuTitle: {
+    fontSize: 16,
+    fontWeight: "400",
+    color: "#000000",
+  },
+  chevron: {
+    fontSize: 18,
+    color: "#C0C0C0",
+    fontWeight: "300",
+  },
+
+  // 하단 여백
+  bottomSpacing: {
+    height: 120,
+  },
 });
+
+// 별도 래퍼로 훅 사용(ScrollView 내부에서 안전하게 분리)
+function BottomNavWrapper({ defaultTab }: { defaultTab: any }) {
+  const { activeTab, onTabPress } = useBottomNav(defaultTab);
+  return <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />;
+}
