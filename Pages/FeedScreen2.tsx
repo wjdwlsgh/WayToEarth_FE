@@ -13,10 +13,12 @@ import {
   StatusBar,
   RefreshControl,
   ScrollView,
+  FlatList,
 } from "react-native";
 import BottomNavigation from "../components/Layout/BottomNav";
 import { useBottomNav } from "../hooks/useBottomNav";
 import { listFeeds, toggleFeedLike, FeedItem } from "../utils/api/feeds";
+import { getMyProfile } from "../utils/api/users";
 import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
@@ -26,13 +28,27 @@ export default function FeedScreen({ navigation, route }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [myNickname, setMyNickname] = useState<string | null>(null);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
 
   const { activeTab, onTabPress } = useBottomNav("feed");
 
   const fetchFeeds = useCallback(async () => {
     try {
       setError(null);
-      const data = await listFeeds(0, 4);
+      const [data, me] = await Promise.all([
+        listFeeds(0, 20),
+        getMyProfile().catch(() => null),
+      ]);
+      if (me) {
+        const nk = (me as any)?.nickname ?? null;
+        const url =
+          (me as any)?.profile_image_url ??
+          (me as any)?.profileImageUrl ??
+          null;
+        setMyNickname(nk);
+        setMyAvatarUrl(url);
+      }
       setFeeds(data);
     } catch (err) {
       console.error("피드 불러오기 실패:", err);
@@ -80,54 +96,99 @@ export default function FeedScreen({ navigation, route }: any) {
     }
   };
 
-  const FeedCard = ({
-    feed,
-    style,
-    imageStyle,
-    isMain = false,
+  const getProfileColor = (index: number) => {
+    const colors = [
+      "#6366F1", // 보라
+      "#10B981", // 초록
+      "#F59E0B", // 주황
+      "#EF4444", // 빨강
+      "#8B5CF6", // 자주
+      "#06B6D4", // 청록
+      "#84CC16", // 라임
+      "#F97316", // 오렌지
+    ];
+    return colors[index % colors.length];
+  };
+
+  const renderFeedItem = ({
+    item,
+    index,
   }: {
-    feed?: FeedItem;
-    style: any;
-    imageStyle: any;
-    isMain?: boolean;
+    item: FeedItem;
+    index: number;
   }) => {
-    if (!feed) return <View style={[style, styles.emptyCard]} />;
+    const displayName =
+      (item as any)?.nickname || (item as any)?.author?.nickname || "사용자";
+    const avatarUrl =
+      (item as any)?.profile_image_url ||
+      (item as any)?.profileImageUrl ||
+      (item as any)?.author?.profile_image_url ||
+      (item as any)?.author?.profileImageUrl ||
+      null;
+    const selfAvatar =
+      myNickname && displayName === myNickname && myAvatarUrl
+        ? myAvatarUrl
+        : null;
+    const finalUrl = avatarUrl || selfAvatar;
 
     return (
       <TouchableOpacity
-        style={style}
-        onPress={() => navigation.navigate("FeedDetail", { feed })}
-        activeOpacity={0.9}
+        style={styles.feedItem}
+        onPress={() => navigation.navigate("FeedDetail", { feed: item })}
+        activeOpacity={0.7}
       >
-        {feed.imageUrl ? (
-          <Image source={{ uri: feed.imageUrl }} style={imageStyle} />
-        ) : (
-          <View style={[imageStyle, styles.placeholderImage]} />
+        {/* 프로필 섹션 */}
+        <View style={styles.profileSection}>
+          {finalUrl ? (
+            <Image
+              source={{ uri: finalUrl }}
+              style={styles.profileAvatarImage}
+            />
+          ) : (
+            <View
+              style={[
+                styles.profileAvatar,
+                { backgroundColor: getProfileColor(index) },
+              ]}
+            >
+              <Text style={styles.profileInitial}>
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{displayName}</Text>
+            <Text style={styles.profileTime}>
+              {item.distance ? `${item.distance}km` : ""}
+            </Text>
+          </View>
+        </View>
+
+        {/* 컨텐츠 */}
+        <Text style={styles.feedContent} numberOfLines={4}>
+          {item.content || ""}
+        </Text>
+
+        {/* 이미지가 있는 경우 표시 */}
+        {item.imageUrl && (
+          <View style={styles.imageContainer}>
+            <Image source={{ uri: item.imageUrl }} style={styles.feedImage} />
+          </View>
         )}
 
-        <TouchableOpacity
-          style={styles.likeButton}
-          onPress={(e) => {
-            e.stopPropagation();
-            like(feed.id, feed.liked);
-          }}
-        >
-          <Text style={styles.likeCount}>{feed.likeCount || 0}</Text>
-          <View style={[styles.likeIcon, feed.liked && styles.likedIcon]} />
-        </TouchableOpacity>
-
-        <Text
-          style={isMain ? styles.feedContent : styles.feedContentSmall}
-          numberOfLines={2}
-        >
-          {feed.content || ""}
-        </Text>
-        <Text style={isMain ? styles.authorName : styles.authorNameSmall}>
-          {feed.nickname || ""}
-        </Text>
-        <Text style={isMain ? styles.distance : styles.distanceSmall}>
-          {feed.distance ? `${feed.distance}KM` : ""}
-        </Text>
+        {/* 액션 버튼들 */}
+        <View style={styles.actionSection}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              like(item.id, item.liked);
+            }}
+          >
+            <Text style={styles.actionIcon}>❤️</Text>
+            <Text style={styles.actionCount}>{item.likeCount || 0}</Text>
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -162,20 +223,18 @@ export default function FeedScreen({ navigation, route }: any) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <View style={styles.statusBarContainer}>
-        <View style={styles.statusBar}>
-          <Text style={styles.timeText}>9:41</Text>
-          <View style={styles.batteryIndicator} />
-        </View>
+
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>피드</Text>
       </View>
 
-      <View style={styles.titleContainer}>
-        <Text style={styles.titleText}>피드</Text>
-      </View>
-
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={styles.contentContainer}
+      {/* 피드 리스트 */}
+      <FlatList
+        data={feeds}
+        renderItem={renderFeedItem}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -184,38 +243,20 @@ export default function FeedScreen({ navigation, route }: any) {
             tintColor="#007AFF"
           />
         }
-      >
-        <View style={styles.feedsLayout}>
-          <FeedCard
-            feed={feeds[0]}
-            style={styles.mainFeedCard}
-            imageStyle={styles.mainFeedImage}
-            isMain
-          />
-          <FeedCard
-            feed={feeds[1]}
-            style={styles.secondaryFeedCard}
-            imageStyle={styles.secondaryFeedImage}
-          />
-          <FeedCard
-            feed={feeds[2]}
-            style={styles.thirdFeedCard}
-            imageStyle={styles.thirdFeedImage}
-          />
-          <FeedCard
-            feed={feeds[3]}
-            style={styles.fourthFeedCard}
-            imageStyle={styles.fourthFeedImage}
-          />
-        </View>
-      </ScrollView>
+        showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+      />
 
       <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
     </View>
   );
 }
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#ffffff" },
+  container: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
 
   // 로딩/에러
   loadingContainer: {
@@ -224,7 +265,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#ffffff",
   },
-  loadingText: { marginTop: 16, fontSize: 16, color: "#666" },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#666",
+  },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
@@ -244,215 +289,155 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
   },
-  retryButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
 
-  // 상단 상태바 UI
-  statusBarContainer: {
+  // 헤더
+  header: {
     backgroundColor: "#ffffff",
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 60, // 상태바 공간
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
   },
-  statusBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    height: 24,
-  },
-  timeText: { color: "#000000", fontSize: 17, fontWeight: "600" },
-  batteryIndicator: {
-    width: 24,
-    height: 12,
-    backgroundColor: "#000",
-    borderRadius: 2,
-    opacity: 0.8,
-  },
-
-  // 제목
-  titleContainer: { alignItems: "center", marginVertical: 20 },
-  titleText: { color: "#000000", fontSize: 20, fontWeight: "600" },
-
-  // 스크롤 및 컨텐츠
-  scrollContainer: { flex: 1 },
-  contentContainer: { paddingHorizontal: 16, paddingBottom: 10 },
-  feedsLayout: { height: 750, position: "relative" },
-
-  // 공통 피드 카드
-  emptyCard: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  placeholderImage: {
-    backgroundColor: "#ad8888",
-    width: "100%",
-    height: "100%",
-  },
-  likeButton: {
-    position: "absolute",
-    left: 8,
-    bottom: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.3)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  likeCount: {
-    color: "#ffffff",
-    fontSize: 10,
-    fontWeight: "500",
-    marginRight: 4,
-  },
-  likeIcon: { width: 10, height: 10, backgroundColor: "#fff", borderRadius: 4 },
-  likedIcon: { backgroundColor: "#ff4757" },
-
-  // 메인 카드
-  mainFeedCard: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    backgroundColor: "#ad8888",
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#000000",
-    width: 180,
-    height: 350,
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-    overflow: "hidden",
-  },
-  mainFeedImage: { width: "100%", height: "100%", resizeMode: "cover" },
-  feedContent: {
-    position: "absolute",
-    bottom: 40,
-    left: 12,
-    right: 12,
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "400",
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  authorName: {
-    position: "absolute",
-    top: 10,
-    left: 12,
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "500",
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  distance: {
-    position: "absolute",
-    bottom: 55,
-    left: 12,
-    color: "#ffffff",
+  headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    textShadowColor: "rgba(0,0,0,0.7)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    color: "#000000",
+    textAlign: "center",
+  },
+  headerTabs: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+  },
+  tab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderRadius: 20,
+    backgroundColor: "#f8f9fa",
+  },
+  activeTab: {
+    backgroundColor: "#6366F1",
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#666",
+  },
+  activeTabText: {
+    color: "#ffffff",
   },
 
-  // 보조 카드
-  feedContentSmall: {
-    position: "absolute",
-    bottom: 35,
-    left: 8,
-    right: 8,
-    color: "#ffffff",
-    fontSize: 10,
-    fontWeight: "400",
-    textShadowColor: "rgba(0,0,0,0.7)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+  // 리스트
+  listContainer: {
+    paddingBottom: 100,
   },
-  authorNameSmall: {
-    position: "absolute",
-    top: 8,
-    left: 8,
+  separator: {
+    height: 8,
+    backgroundColor: "#f8f9fa",
+  },
+
+  // 피드 아이템
+  feedItem: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+
+  // 프로필 섹션
+  profileSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  profileAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  profileAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#eee",
+    marginRight: 12,
+  },
+  profileInitial: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#000000",
+    marginBottom: 2,
+  },
+  profileTime: {
+    fontSize: 13,
+    color: "#666666",
+  },
+  statusBadge: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
     color: "#ffffff",
     fontSize: 12,
     fontWeight: "500",
-    textShadowColor: "rgba(0,0,0,0.7)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  distanceSmall: {
-    position: "absolute",
-    bottom: 45,
-    left: 8,
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "700",
-    textShadowColor: "rgba(0,0,0,0.7)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
   },
 
-  secondaryFeedCard: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    backgroundColor: "#000000",
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#000000",
-    width: 180,
-    height: 290,
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-    overflow: "hidden",
+  // 컨텐츠
+  feedContent: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#000000",
+    marginBottom: 12,
   },
-  secondaryFeedImage: { width: "100%", height: "100%", resizeMode: "cover" },
 
-  thirdFeedCard: {
-    position: "absolute",
-    right: 0,
-    top: 300,
-    backgroundColor: "#000000",
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#000000",
-    width: 180,
-    height: 380,
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+  // 이미지
+  imageContainer: {
+    marginBottom: 12,
+    borderRadius: 8,
     overflow: "hidden",
   },
-  thirdFeedImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  feedImage: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#f0f0f0",
+    resizeMode: "cover",
+  },
 
-  fourthFeedCard: {
-    position: "absolute",
-    left: 0,
-    top: 360,
-    bottom: 0,
-    backgroundColor: "#1f1f1f",
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#000000",
-    width: 180,
-    height: 365,
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-    overflow: "hidden",
+  // 액션 섹션
+  actionSection: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  fourthFeedImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 20,
+  },
+  actionIcon: {
+    fontSize: 16,
+    marginRight: 4,
+  },
+  actionCount: {
+    fontSize: 14,
+    color: "#666666",
+    fontWeight: "500",
+  },
 });
