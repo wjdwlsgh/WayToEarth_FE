@@ -163,9 +163,6 @@ export default function ProfileScreen({
         {/* 헤더 */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>마이페이지</Text>
-          <TouchableOpacity style={styles.shareButton}>
-            <Text style={styles.shareIcon}>↗</Text>
-          </TouchableOpacity>
         </View>
 
         <ScrollView
