@@ -8,6 +8,8 @@ export interface ChatMessage {
   senderName?: string;
   timestamp?: string;
   isOwn?: boolean;
+  readByUsers?: number;
+  isRead?: boolean;
 }
 
 interface UseWebSocketProps {
@@ -73,11 +75,26 @@ export const useWebSocket = ({
       console.log('토큰 길이:', token.length);
       console.log('토큰 앞부분:', token.substring(0, 20) + '...');
 
-  const wsUrlWithToken = `${url}?token=${token}`;
-console.log('WebSocket URL with token:', wsUrlWithToken);
+      // 🔒 보안 개선: Authorization 헤더 사용 (URL 쿼리 파라미터 대신)
+      // React Native에서 헤더 지원이 제한적일 수 있으므로 두 가지 방법 모두 시도
+      let socket;
 
-      // React Native WebSocket을 더 브라우저와 유사하게 만들기
-const socket = new WebSocket(wsUrlWithToken);
+      try {
+        // 방법 1: Authorization 헤더 사용 (권장)
+        socket = new WebSocket(url, [], {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        console.log('WebSocket 연결 - Authorization 헤더 사용');
+      } catch (headerError) {
+        console.log('Authorization 헤더 실패, Sec-WebSocket-Protocol 시도:', headerError);
+
+        // 방법 2: Sec-WebSocket-Protocol 사용 (백업)
+        const protocolToken = token.replace(/\./g, '_'); // 점(.)을 언더바로 치환
+        socket = new WebSocket(url, [`Bearer.${protocolToken}`]);
+        console.log('WebSocket 연결 - Sec-WebSocket-Protocol 사용');
+      }
 
       socket.onopen = () => {
         console.log('WebSocket 연결 성공');
@@ -119,8 +136,8 @@ const socket = new WebSocket(wsUrlWithToken);
         isConnectingRef.current = false;
         onDisconnect?.();
 
-        // 403 오류의 경우 재연결하지 않음 (인증 문제)
-        if (event.code !== 1000 && event.code !== 1006 && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        // 인증 오류(1002, 1008)나 정상 종료(1000)가 아닌 경우만 재연결 시도
+        if (event.code !== 1000 && event.code !== 1002 && event.code !== 1008 && reconnectAttemptsRef.current < maxReconnectAttempts) {
           const timeout = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 10000);
           console.log(`${timeout}ms 후 재연결 시도 (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
 
@@ -129,8 +146,10 @@ const socket = new WebSocket(wsUrlWithToken);
             connect();
           }, timeout);
         } else {
-          if (event.code === 1006) {
+          if (event.code === 1002 || event.code === 1008) {
             setConnectionError('인증에 실패했습니다. 다시 로그인해주세요.');
+          } else if (event.code === 1006) {
+            setConnectionError('연결이 예기치 않게 끊어졌습니다.');
           } else {
             setConnectionError(`연결이 끊어졌습니다 (코드: ${event.code})`);
           }

@@ -10,11 +10,13 @@ import {
   StatusBar,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BottomNavigation from "../components/Layout/BottomNav";
 import { useBottomNav } from "../hooks/useBottomNav";
 import { useWebSocket, ChatMessage } from "../hooks/useWebSocket";
+import { useChatHistory } from "../hooks/useChatHistory";
 
 // WebSocket polyfill 확인
 console.log('WebSocket 확인:');
@@ -26,13 +28,33 @@ const { width } = Dimensions.get("window");
 
 export default function ChatScreen({ navigation }: any) {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [crewId] = useState(1);
+  const [currentUserId] = useState(1); // TODO: 실제 사용자 ID로 변경
   const scrollViewRef = useRef<ScrollView>(null);
   const { activeTab, onTabPress } = useBottomNav("crew");
   const [token, setToken] = useState<string | null>(null);
 
-  const websocketUrl = token ? `wss://api.waytoearth.cloud/ws/crew/${crewId}/chat` : null;
+  // 채팅 히스토리 관리
+  const {
+    messages,
+    isLoading: isHistoryLoading,
+    hasMore,
+    error: historyError,
+    unreadCount,
+    crewInfo,
+    loadInitialHistory,
+    loadMoreMessages,
+    loadUnreadCount,
+    loadCrewInfo,
+    markMessageAsRead,
+    markAllMessagesAsRead,
+    deleteMessage,
+    addNewMessage,
+    clearMessages
+  } = useChatHistory({ crewId, currentUserId });
+
+  // 🔒 보안 개선: URL에 토큰을 포함하지 않음 (Authorization 헤더 사용)
+  const websocketUrl = `wss://api.waytoearth.cloud/ws/crew/${crewId}/chat`;
 
   // JWT 토큰 로드
   useEffect(() => {
@@ -73,10 +95,11 @@ export default function ChatScreen({ navigation }: any) {
   }, []);
 
   const { isConnected, connectionError, sendMessage: sendWsMessage, disconnect } = useWebSocket({
-    url: websocketUrl,
+    url: token ? websocketUrl : null, // 토큰이 있을 때만 연결 시도
     token,
     onMessage: (newMessage) => {
-      setMessages(prev => [...prev, newMessage]);
+      console.log('[ChatScreen] 새 메시지 수신:', newMessage);
+      addNewMessage(newMessage);
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -92,13 +115,36 @@ export default function ChatScreen({ navigation }: any) {
     },
   });
 
+  // 토큰 로드 후 초기 히스토리 로드
+  useEffect(() => {
+    if (token && !isHistoryLoading && messages.length === 0) {
+      console.log('초기 채팅 히스토리 로드 시작');
+      loadInitialHistory();
+    }
+  }, [token, isHistoryLoading, messages.length, loadInitialHistory]);
+
+  // 디버깅용: 상태 모니터링
+  useEffect(() => {
+    console.log('[ChatScreen] 상태 업데이트:', {
+      unreadCount,
+      messagesCount: messages.length,
+      isHistoryLoading,
+      isConnected,
+      crewInfo: crewInfo ? {
+        name: crewInfo.name,
+        memberCount: crewInfo.memberCount
+      } : null
+    });
+  }, [unreadCount, messages.length, isHistoryLoading, isConnected, crewInfo]);
+
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
       console.log('ChatScreen 언마운트 - WebSocket 정리');
       disconnect();
+      clearMessages();
     };
-  }, [disconnect]);
+  }, [disconnect, clearMessages]);
 
   const handleSend = () => {
     const messageText = message.trim();
@@ -146,6 +192,32 @@ export default function ChatScreen({ navigation }: any) {
         </View>
       </View>
 
+      {/* Chat Header */}
+      <View style={styles.chatHeader}>
+        <View style={styles.chatHeaderLeft}>
+          <Text style={styles.chatTitle}>
+            {crewInfo ? `${crewInfo.name} 채팅` : '크루 채팅'}
+          </Text>
+          {unreadCount > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.chatHeaderRight}>
+          {unreadCount > 0 && (
+            <TouchableOpacity
+              style={styles.markAllReadButton}
+              onPress={markAllMessagesAsRead}
+            >
+              <Text style={styles.markAllReadText}>모두 읽음</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {/* Connection Status */}
       {!isConnected && (
         <View style={styles.connectionStatus}>
@@ -156,6 +228,33 @@ export default function ChatScreen({ navigation }: any) {
         </View>
       )}
 
+      {/* History Loading */}
+      {isHistoryLoading && (
+        <View style={styles.historyLoadingContainer}>
+          <ActivityIndicator size="small" color="#3579d7" />
+          <Text style={styles.historyLoadingText}>메시지 불러오는 중...</Text>
+        </View>
+      )}
+
+      {/* History Error */}
+      {historyError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{historyError}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              if (messages.length === 0) {
+                loadInitialHistory();
+              } else {
+                loadMoreMessages();
+              }
+            }}
+          >
+            <Text style={styles.retryButtonText}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Main Chat Area */}
       <View style={styles.chatContainer}>
         <ScrollView
@@ -163,38 +262,121 @@ export default function ChatScreen({ navigation }: any) {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={(event) => {
+            const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+
+            // 스크롤이 최상단에 도달했고, 더 로드할 메시지가 있을 때
+            if (
+              contentOffset.y <= 50 && // 상단에서 50px 이내
+              hasMore &&
+              !isHistoryLoading &&
+              messages.length > 0
+            ) {
+              console.log('무한 스크롤: 이전 메시지 로드 시작');
+              loadMoreMessages();
+            }
+          }}
+          scrollEventThrottle={400}
         >
+          {/* Load More Indicator */}
+          {hasMore && messages.length > 0 && (
+            <View style={styles.loadMoreContainer}>
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={loadMoreMessages}
+                disabled={isHistoryLoading}
+              >
+                {isHistoryLoading ? (
+                  <ActivityIndicator size="small" color="#3579d7" />
+                ) : (
+                  <Text style={styles.loadMoreText}>이전 메시지 더보기</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
           {messages.length === 0 ? (
             <View style={styles.emptyChat}>
               <Text style={styles.emptyChatText}>채팅을 시작해보세요!</Text>
             </View>
           ) : (
-            messages.map((msg, index) => (
-              <View key={msg.id || index}>
-                {msg.messageType === 'SYSTEM' ? (
-                  <View style={styles.systemMessageContainer}>
-                    <Text style={styles.systemMessageText}>{msg.message}</Text>
-                  </View>
-                ) : msg.isOwn ? (
-                  // Own message (right side)
-                  <View style={styles.responseContainer}>
-                    <View style={styles.responseBackground}>
-                      <Text style={styles.responseText}>{msg.message}</Text>
-                      <Text style={styles.responseTime}>{formatTime(msg.timestamp)}</Text>
+            messages.map((msg, index) => {
+              const handleLongPress = () => {
+                if (msg.isOwn && msg.id) {
+                  Alert.alert(
+                    "메시지 삭제",
+                    "이 메시지를 삭제하시겠습니까?",
+                    [
+                      { text: "취소", style: "cancel" },
+                      {
+                        text: "삭제",
+                        style: "destructive",
+                        onPress: () => deleteMessage(parseInt(msg.id!))
+                      }
+                    ]
+                  );
+                }
+              };
+
+              const handlePress = () => {
+                // 다른 사용자의 메시지이고 읽지 않았으면 읽음 처리
+                if (!msg.isOwn && !msg.isRead && msg.id) {
+                  markMessageAsRead(parseInt(msg.id));
+                }
+              };
+
+              return (
+                <View key={msg.id || index}>
+                  {msg.messageType === 'SYSTEM' ? (
+                    <View style={styles.systemMessageContainer}>
+                      <Text style={styles.systemMessageText}>{msg.message}</Text>
                     </View>
-                  </View>
-                ) : (
-                  // Other's message (left side)
-                  <View style={styles.messageContainer}>
-                    <Text style={styles.messageLabel}>{msg.senderName}</Text>
-                    <View style={styles.messageBackgroundBorder}>
-                      <Text style={styles.messageText}>{msg.message}</Text>
-                      <Text style={styles.messageTime}>{formatTime(msg.timestamp)}</Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-            ))
+                  ) : msg.isOwn ? (
+                    // Own message (right side)
+                    <TouchableOpacity
+                      style={styles.responseContainer}
+                      onLongPress={handleLongPress}
+                      delayLongPress={500}
+                    >
+                      <View style={styles.responseBackground}>
+                        <Text style={styles.responseText}>{msg.message}</Text>
+                        <View style={styles.messageFooter}>
+                          <Text style={styles.responseTime}>{formatTime(msg.timestamp)}</Text>
+                          {msg.readByUsers !== undefined && msg.readByUsers > 0 && (
+                            <Text style={styles.readCountText}>
+                              읽음 {msg.readByUsers}
+                              {crewInfo && ` / ${crewInfo.memberCount - 1}`} {/* 본인 제외 */}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    // Other's message (left side)
+                    <TouchableOpacity
+                      style={styles.messageContainer}
+                      onPress={handlePress}
+                    >
+                      <Text style={styles.messageLabel}>{msg.senderName}</Text>
+                      <View style={[
+                        styles.messageBackgroundBorder,
+                        !msg.isRead && styles.unreadMessageBorder
+                      ]}>
+                        <Text style={styles.messageText}>{msg.message}</Text>
+                        <View style={styles.messageFooter}>
+                          <Text style={styles.messageTime}>{formatTime(msg.timestamp)}</Text>
+                          {!msg.isRead && (
+                            <View style={styles.unreadIndicator}>
+                              <Text style={styles.unreadIndicatorText}>N</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })
           )}
         </ScrollView>
 
@@ -441,5 +623,156 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     textAlign: "center",
+  },
+
+  // History Loading
+  historyLoadingContainer: {
+    backgroundColor: "#f0f8ff",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  historyLoadingText: {
+    color: "#3579d7",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+
+  // Error Container
+  errorContainer: {
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#fecaca",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
+  },
+  retryButton: {
+    backgroundColor: "#dc2626",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  retryButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Load More
+  loadMoreContainer: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  loadMoreButton: {
+    backgroundColor: "#f8f9fa",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  loadMoreText: {
+    color: "#6b7280",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+
+  // Chat Header
+  chatHeader: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  chatHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  chatHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chatTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  unreadBadge: {
+    backgroundColor: "#ef4444",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  unreadBadgeText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  markAllReadButton: {
+    backgroundColor: "#3579d7",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  markAllReadText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Message Footer
+  messageFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  readCountText: {
+    color: "#9ca3af",
+    fontSize: 10,
+    fontWeight: "400",
+  },
+
+  // Unread Messages
+  unreadMessageBorder: {
+    borderColor: "#3579d7",
+    borderWidth: 2,
+  },
+  unreadIndicator: {
+    backgroundColor: "#ef4444",
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadIndicatorText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "600",
   },
 });
