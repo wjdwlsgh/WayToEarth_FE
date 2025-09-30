@@ -9,7 +9,6 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import MapRoute from "../components/Running/MapRoute";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
@@ -142,23 +141,7 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
         onMapReady={() => setMapReady(true)}
       />
 
-      {!(t.isRunning || t.isPaused || countdownVisible) && (
-        <View
-          style={{
-            position: "absolute",
-            right: 12,
-            top: insets.top + 8,
-            zIndex: 30,
-          }}
-        >
-          <Pressable
-            onPress={() => navigation.navigate("Profile")}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="person-circle-outline" size={28} color="#111" />
-          </Pressable>
-        </View>
-      )}
+      {/* 상단 내정보 버튼 제거 (하단 공통 내비로 이동) */}
 
       {(t.isRunning || t.isPaused) && (
         <RunStatsCard
