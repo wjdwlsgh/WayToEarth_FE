@@ -18,12 +18,11 @@ import JourneyRouteListScreen from "./Pages/JourneyRouteListScreen";
 import JourneyRouteDetailScreen from "./Pages/JourneyRouteDetailScreen";
 import JourneyLoadingScreen from "./Pages/JourneyLoadingScreen";
 import JourneyGuideScreen from "./Pages/JourneyGuideScreen";
-import Feed from "./Pages/FeedScreen";
+import Feed from "./Pages/SendFeed";
 import Feed2 from "./Pages/FeedScreen2";
 import FeedDetail from "./Pages/FeedDetail";
 import Profile from "./Pages/ProfileScreen";
 import ProfileEdit from "./Pages/ProfileEditScreen";
-import ProfileScreen1 from "./Pages/ProfileScreen1";
 
 import Emblem from "./Pages/EmblemCollectionScreen";
 import Record from "./Pages/RecordScreen";
@@ -49,8 +48,14 @@ export default function App() {
         {/* 여정 러닝: 로딩/가이드/리스트/디테일 */}
         <Stack.Screen name="JourneyLoading" component={JourneyLoadingScreen} />
         <Stack.Screen name="JourneyGuide" component={JourneyGuideScreen} />
-        <Stack.Screen name="JourneyRouteList" component={JourneyRouteListScreen} />
-        <Stack.Screen name="JourneyRouteDetail" component={JourneyRouteDetailScreen} />
+        <Stack.Screen
+          name="JourneyRouteList"
+          component={JourneyRouteListScreen}
+        />
+        <Stack.Screen
+          name="JourneyRouteDetail"
+          component={JourneyRouteDetailScreen}
+        />
         <Stack.Screen name="RunningComplete" component={RunningComplete} />
         <Stack.Screen
           name="RunSummary"
@@ -68,7 +73,7 @@ export default function App() {
         <Stack.Screen name="Emblem" component={Emblem} />
         <Stack.Screen name="Profile" component={Profile} />
         <Stack.Screen name="ProfileEdit" component={ProfileEdit} />
-        <Stack.Screen name="ProfileScreen1" component={ProfileScreen1} />
+
         {/* 하단 탭 대상 라우트들 */}
         <Stack.Screen name="Record" component={Record} />
         <Stack.Screen

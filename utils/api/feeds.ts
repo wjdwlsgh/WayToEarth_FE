@@ -9,6 +9,14 @@ export type FeedItem = {
   liked: boolean;
   nickname?: string;
   distance?: number;
+  // author avatar (backend may use different keys)
+  profile_image_url?: string | null;
+  profileImageUrl?: string | null;
+  author?: {
+    nickname?: string;
+    profile_image_url?: string | null;
+    profileImageUrl?: string | null;
+  } | null;
 };
 
 export type CreateFeedPayload = {
