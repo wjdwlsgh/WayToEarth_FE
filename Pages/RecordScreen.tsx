@@ -7,17 +7,31 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  TextInput,
 } from "react-native";
 import { Dimensions } from "react-native";
-import { getWeeklyStats, listRunningRecords, getRunningRecordDetail } from "../utils/api/running";
+import {
+  getWeeklyStats,
+  listRunningRecords,
+  getRunningRecordDetail,
+} from "../utils/api/running";
+import { getMyProfile } from "../utils/api/users";
+import { client } from "../utils/api/client";
 import MapView, { Polyline } from "react-native-maps";
+import BottomNavigation from "../components/Layout/BottomNav";
+import { useBottomNav } from "../hooks/useBottomNav";
 
 export default function RecordScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [weekly, setWeekly] = useState<any | null>(null);
+  const [weeklyGoal, setWeeklyGoal] = useState<string>("");
+  const [savingGoal, setSavingGoal] = useState(false);
   const [records, setRecords] = useState<any[]>([]);
   const width = Dimensions.get("window").width;
-  const [previews, setPreviews] = useState<Record<number, { coords: { latitude: number; longitude: number }[] }>>({});
+  const [previews, setPreviews] = useState<
+    Record<number, { coords: { latitude: number; longitude: number }[] }>
+  >({});
+  const { activeTab, onTabPress } = useBottomNav("record");
 
   useEffect(() => {
     (async () => {
@@ -28,6 +42,12 @@ export default function RecordScreen({ navigation }: any) {
         ]);
         setWeekly(w ?? null);
         setRecords(Array.isArray(r) ? r : []);
+        // Load current weekly goal from profile
+        try {
+          const me = await getMyProfile();
+          const v = (me as any)?.weekly_goal_distance;
+          setWeeklyGoal(v != null && !Number.isNaN(Number(v)) ? String(v) : "");
+        } catch {}
       } catch (e) {
         console.warn(e);
       } finally {
@@ -40,14 +60,21 @@ export default function RecordScreen({ navigation }: any) {
   useEffect(() => {
     (async () => {
       try {
-        const ids = records.slice(0, 5).map((r: any) => r.id).filter(Boolean);
+        const ids = records
+          .slice(0, 5)
+          .map((r: any) => r.id)
+          .filter(Boolean);
         await Promise.all(
           ids.map(async (id) => {
             if (previews[id]) return;
             try {
               const d = await getRunningRecordDetail(id);
-              const pts = (d.routePoints || []).map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
-              if (pts.length) setPreviews((prev) => ({ ...prev, [id]: { coords: pts } }));
+              const pts = (d.routePoints || []).map((p) => ({
+                latitude: p.latitude,
+                longitude: p.longitude,
+              }));
+              if (pts.length)
+                setPreviews((prev) => ({ ...prev, [id]: { coords: pts } }));
             } catch {}
           })
         );
@@ -75,6 +102,22 @@ export default function RecordScreen({ navigation }: any) {
       </SafeAreaView>
     );
   }
+
+  const saveWeeklyGoal = async () => {
+    if (savingGoal) return;
+    try {
+      setSavingGoal(true);
+      const n = weeklyGoal?.trim() === "" ? undefined : Number(weeklyGoal);
+      await client.put("/v1/users/me", {
+        weekly_goal_distance:
+          typeof n === "number" && !Number.isNaN(n) ? n : undefined,
+      });
+    } catch (e) {
+      console.warn(e);
+    } finally {
+      setSavingGoal(false);
+    }
+  };
 
   const WeeklyChart = ({ weekly }: { weekly: any }) => {
     const dailyDistances: Array<{ day: string; distance: number }> =
@@ -175,10 +218,54 @@ export default function RecordScreen({ navigation }: any) {
   return (
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text style={s.h1}>주간 러닝</Text>
+        {/* 주간 목표 설정 */}
+        <View style={s.card}>
+          <Text style={s.h1}>주간 목표</Text>
+          <Text style={[s.dim, { marginTop: 4 }]}>주간 목표 거리 (km)</Text>
+          <View style={{ flexDirection: "row", marginTop: 8, gap: 8 }}>
+            <View style={[s.input, { flex: 1 }]}>
+              <TextInput
+                style={{ fontSize: 16, color: "#111", paddingVertical: 8 }}
+                placeholder="예) 25"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="number-pad"
+                inputMode="numeric"
+                maxLength={4}
+                value={weeklyGoal}
+                onChangeText={(v) =>
+                  setWeeklyGoal((v || "").replace(/[^\d]/g, ""))
+                }
+              />
+            </View>
+          </View>
+          <View style={{ alignItems: "flex-end", marginTop: 10 }}>
+            <TouchableOpacity
+              onPress={saveWeeklyGoal}
+              disabled={savingGoal}
+              style={{
+                backgroundColor: "#111827",
+                paddingHorizontal: 14,
+                height: 42,
+                borderRadius: 10,
+                justifyContent: "center",
+                alignItems: "center",
+                opacity: savingGoal ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700" }}>
+                {savingGoal ? "저장 중…" : "목표 저장"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Text style={[s.h1, { marginTop: 16 }]}>주간 러닝</Text>
         {weekly && (
           <Text style={{ color: "#111", marginTop: 4 }}>
-            이번 주 총 거리 <Text style={{ fontWeight: "800" }}>{(weekly.totalDistance ?? 0).toFixed(1)} km</Text>
+            이번 주 총 거리{" "}
+            <Text style={{ fontWeight: "800" }}>
+              {(weekly.totalDistance ?? 0).toFixed(1)} km
+            </Text>
           </Text>
         )}
         {weekly ? (
@@ -223,7 +310,16 @@ export default function RecordScreen({ navigation }: any) {
                 navigation.navigate("RecordDetailScreen", { recordId: r.id })
               }
             >
-              <View style={{ width: 72, height: 72, marginRight: 12, borderRadius: 12, overflow: "hidden", backgroundColor: "#F3F4F6" }}>
+              <View
+                style={{
+                  width: 72,
+                  height: 72,
+                  marginRight: 12,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  backgroundColor: "#F3F4F6",
+                }}
+              >
                 {previews[r.id]?.coords?.length ? (
                   <MapView
                     pointerEvents="none"
@@ -235,7 +331,11 @@ export default function RecordScreen({ navigation }: any) {
                       longitudeDelta: 0.01,
                     }}
                   >
-                    <Polyline coordinates={previews[r.id].coords} strokeColor="#2563eb" strokeWidth={3} />
+                    <Polyline
+                      coordinates={previews[r.id].coords}
+                      strokeColor="#2563eb"
+                      strokeWidth={3}
+                    />
                   </MapView>
                 ) : null}
               </View>
@@ -251,6 +351,7 @@ export default function RecordScreen({ navigation }: any) {
           ))
         )}
       </ScrollView>
+      <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
     </SafeAreaView>
   );
 }
@@ -284,4 +385,13 @@ const s = StyleSheet.create({
   },
   itemTitle: { fontWeight: "700", color: "#111" },
   itemSub: { color: "#6b7280", marginTop: 4 },
+  input: {
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    height: 48,
+    justifyContent: "center",
+    paddingHorizontal: 40,
+  },
 });
