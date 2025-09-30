@@ -140,23 +140,7 @@ const RunningComplete: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      {/* Status Bar */}
-      <View style={styles.statusBar}>
-        <Text style={styles.time}>9:41</Text>
-        <View style={styles.statusIcons}>
-          <View style={styles.signalBars}>
-            <View style={[styles.bar, { height: 4 }]} />
-            <View style={[styles.bar, { height: 6 }]} />
-            <View style={[styles.bar, { height: 8 }]} />
-            <View style={[styles.bar, { height: 10 }]} />
-          </View>
-          <Text style={styles.wifiIcon}>📶</Text>
-          <View style={styles.battery}>
-            <View style={styles.batteryLevel} />
-            <View style={styles.batteryTip} />
-          </View>
-        </View>
-      </View>
+      {/* 상단 모사 상태바 제거 */}
 
       {/* Main Content */}
       <View style={styles.mainContent}>
