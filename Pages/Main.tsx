@@ -92,7 +92,7 @@ export default function Main() {
 
   const goVirtualRun = () => {
     closeMenu();
-    nav.navigate("VirtualRunning"); // 필요 시 다른 화면
+    nav.navigate("JourneyLoading");
   };
 
   return (
@@ -128,7 +128,7 @@ export default function Main() {
           </Pressable>
         </Animated.View>
 
-        {/* 오른쪽: 가상 러닝 */}
+        {/* 오른쪽: 여정 러닝 */}
         <Animated.View
           style={[
             s.smallFab,
@@ -143,7 +143,7 @@ export default function Main() {
           ]}
         >
           <Pressable style={s.smallFabBtn} onPress={goVirtualRun}>
-            <Text style={s.smallFabText}>가상 러닝</Text>
+            <Text style={s.smallFabText}>여정 러닝</Text>
           </Pressable>
         </Animated.View>
 

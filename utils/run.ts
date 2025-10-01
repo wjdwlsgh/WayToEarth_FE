@@ -23,7 +23,8 @@ export const avgPaceSecPerKm = (distanceKm: number, elapsedSec: number) => {
   if (!isFinite(distanceKm) || distanceKm < 0.05) return Infinity;
   if (!isFinite(elapsedSec) || elapsedSec <= 0) return Infinity;
   const secPerKm = elapsedSec / distanceKm;
-  return Math.floor(secPerKm); // 반올림 대신 내림 → 과대 계산 방지
+  // 닉런과 유사한 표기: 초 단위 반올림
+  return Math.round(secPerKm);
 };
 
 // 라벨 변환
