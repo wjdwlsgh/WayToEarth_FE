@@ -5,7 +5,7 @@ export default function ArcMenu({
   open,
   radius = 96,
   leftLabel = "러닝",
-  rightLabel = "가상 러닝",
+  rightLabel = "여정 러닝",
   onLeftPress,
   onRightPress,
   containerStyle,

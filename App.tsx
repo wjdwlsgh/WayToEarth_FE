@@ -14,19 +14,11 @@ import Main from "./Pages/Main";
 import RunSummaryScreen from "./Pages/RunSummaryscreen";
 import LiveRunningScreen from "./Pages/LiveRunningScreen";
 import RunningComplete from "./Pages/RunningComplete";
-<<<<<<< HEAD
 import JourneyRouteListScreen from "./Pages/JourneyRouteListScreen";
 import JourneyRouteDetailScreen from "./Pages/JourneyRouteDetailScreen";
 import JourneyLoadingScreen from "./Pages/JourneyLoadingScreen";
 import JourneyGuideScreen from "./Pages/JourneyGuideScreen";
 import Feed from "./Pages/SendFeed";
-=======
-import JourneyRouteListScreen from "./Pages/JourneyRouteListScreen";
-import JourneyRouteDetailScreen from "./Pages/JourneyRouteDetailScreen";
-import JourneyLoadingScreen from "./Pages/JourneyLoadingScreen";
-import JourneyGuideScreen from "./Pages/JourneyGuideScreen";
-import Feed from "./Pages/SendFeed";
->>>>>>> bacc21e (refactor(feed): replace legacy FeedScreen with SendFeed and tidy routes)
 import Feed2 from "./Pages/FeedScreen2";
 import FeedDetail from "./Pages/FeedDetail";
 import Profile from "./Pages/ProfileScreen";
