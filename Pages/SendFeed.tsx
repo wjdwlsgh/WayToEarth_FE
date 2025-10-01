@@ -136,7 +136,9 @@ export default function FeedComposeScreen({ route, navigation }: any) {
                     onPress={() => setPhotoUrl(null)}
                     style={[s.btn, s.ghost, { flex: 1 }]}
                   >
-                    <Text style={[s.btnText, { color: "#111" }]}>사진 제거</Text>
+                    <Text style={[s.btnText, { color: "#111" }]}>
+                      사진 제거
+                    </Text>
                   </Pressable>
                 </View>
               </>

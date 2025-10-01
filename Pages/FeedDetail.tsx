@@ -80,15 +80,7 @@ export default function FeedDetail({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 상단 상태바 */}
-      <View style={styles.statusBar}>
-        <Text style={styles.time}>9:41</Text>
-        <View style={styles.levels}>
-          <Text>📶</Text>
-          <Text>📡</Text>
-          <Text>🔋</Text>
-        </View>
-      </View>
+      {/* 상단 모사 상태바 제거 */}
 
       {/* 피드 카드 */}
       <ScrollView contentContainerStyle={styles.feedArea}>
