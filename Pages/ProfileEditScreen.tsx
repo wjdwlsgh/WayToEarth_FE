@@ -41,7 +41,6 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
   const [nicknameChecking, setNicknameChecking] = useState(false);
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [nicknameSaving, setNicknameSaving] = useState(false); // ✅ 닉네임만 저장 상태
-  const [showSuccessMessage, setShowSuccessMessage] = useState<string | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 초기값 로드
@@ -92,7 +91,9 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
     debounceTimer.current = setTimeout(async () => {
       try {
         const res = await checkNickname(trimmed);
-        setNicknameError(res.isDuplicate ? "이미 사용 중인 닉네임입니다." : null);
+        setNicknameError(
+          res.isDuplicate ? "이미 사용 중인 닉네임입니다." : null
+        );
       } catch {
         // API 실패 시 저장을 막지 않도록 오류표시는 하지 않음
         setNicknameError(null);
@@ -161,7 +162,8 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         Alert.alert("오류", "파일을 찾을 수 없거나 폴더입니다.");
         return;
       }
-      const size = typeof (info as any).size === "number" ? (info as any).size : 0;
+      const size =
+        typeof (info as any).size === "number" ? (info as any).size : 0;
       const contentType = guessMime(fileName);
 
       if (size <= 0) {
@@ -188,7 +190,10 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         data?.signedUrl ??
         data?.uploadUrl;
       const downloadUrl =
-        data?.download_url ?? data?.public_url ?? data?.downloadUrl ?? data?.publicUrl;
+        data?.download_url ??
+        data?.public_url ??
+        data?.downloadUrl ??
+        data?.publicUrl;
       const key = data?.key ?? data?.file_key ?? data?.fileKey;
 
       if (!signedUrl || !downloadUrl) {
@@ -218,11 +223,13 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
       });
       setProfileImageUrl(downloadUrl);
       if (key) setProfileImageKey(key);
-      setShowSuccessMessage("프로필 사진이 변경되었습니다");
-      setTimeout(() => setShowSuccessMessage(null), 3000);
+      Alert.alert("완료", "프로필 사진이 변경되었습니다.");
       // 내정보 화면이 즉시 반영되도록 파라미터로 최신 URL 전달
       try {
-        navigation.navigate("Profile", { avatarUrl: downloadUrl, cacheBust: Date.now() });
+        navigation.navigate("Profile", {
+          avatarUrl: downloadUrl,
+          cacheBust: Date.now(),
+        });
       } catch {}
     } catch (e: any) {
       console.warn(e);
@@ -245,8 +252,7 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
       await client.put("/v1/users/me", { nickname: trimmed });
       setOriginalNickname(trimmed); // ✅ 원본 갱신
       setNicknameError(null);
-      setShowSuccessMessage("닉네임이 변경되었습니다");
-      setTimeout(() => setShowSuccessMessage(null), 3000);
+      Alert.alert("완료", "닉네임이 변경되었습니다.");
     } catch (e: any) {
       console.warn(e);
       const msg =
@@ -281,13 +287,10 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
       };
 
       await client.put("/v1/users/me", payload);
-      setShowSuccessMessage("프로필이 수정되었습니다");
+      Alert.alert("완료", "프로필이 수정되었습니다.");
       await loadMe();
       // 저장 후 이전 화면으로 복귀하면 focus에서 재조회
-      setTimeout(() => {
-        setShowSuccessMessage(null);
-        navigation?.goBack?.();
-      }, 1500);
+      navigation?.goBack?.();
     } catch (e: any) {
       console.warn(e);
       const msg =
@@ -316,79 +319,60 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-
-      {/* 헤더 - ProfileScreen과 동일한 스타일 */}
+      {/* 상단 제목 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation?.goBack?.()}>
-          <Text style={styles.backButton}>‹</Text>
+          <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>기본 정보 관리</Text>
-        <View style={{ width: 28 }} />
       </View>
 
       {/* 본문 */}
       <View style={styles.main}>
-        {/* 페이지 제목 */}
-        <Text style={styles.pageTitle}>프로필 수정</Text>
-        <Text style={styles.pageSubtitle}>
-          러닝을 위한 기본 정보를 업데이트하세요
+        <Text style={styles.title}>프로필 정보를 수정하세요!</Text>
+        <Text style={styles.subtitle}>
+          러닝을 시작하기 위한{"\n"}기본 정보를 업데이트해주세요
         </Text>
 
-        {/* 프로필 카드 - ProfileScreen과 유사한 스타일 */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileCardGradient} />
-
-          <View style={styles.avatarWrap}>
-            {profileImageUrl ? (
-              <Image
-                source={{ uri: profileImageUrl }}
-                style={styles.avatarImg}
-              />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarEmoji}>🏃</Text>
-              </View>
-            )}
-            <View style={styles.avatarBadge}>
-              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>✓</Text>
-            </View>
-          </View>
-
-          <View style={styles.profileInfo}>
-            <Text style={styles.cardNickname}>{nickname || "사용자"}</Text>
-            <Text style={styles.cardSubtitle}>프로필 정보를 수정하세요</Text>
-
-            <TouchableOpacity
-              onPress={onChangePhoto}
-              disabled={uploading}
-              style={styles.changePhotoBtn}
-            >
-              <Text style={styles.changePhotoBtnText}>
-                {uploading ? "업로드 중..." : "📷 사진 변경"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        {/* 프로필 사진 */}
+        <View style={styles.profileImage}>
+          {profileImageUrl ? (
+            <Image
+              source={{ uri: profileImageUrl }}
+              style={{ width: 100, height: 100, borderRadius: 50 }}
+            />
+          ) : (
+            <Text style={styles.profileIcon}>👤</Text>
+          )}
         </View>
+        <TouchableOpacity onPress={onChangePhoto} disabled={uploading}>
+          <Text style={[styles.changePhoto, uploading && { opacity: 0.6 }]}>
+            {uploading ? "업로드 중…" : "프로필 사진 변경"}
+          </Text>
+        </TouchableOpacity>
 
         {/* 닉네임 (별도 변경 버튼) */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>닉네임</Text>
-          <View style={styles.nicknameRow}>
-            <View style={[styles.input, styles.nicknameInput]}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <TextInput
-                  style={[styles.textInput, { flex: 1 }]}
-                  placeholder="닉네임을 입력하세요"
-                  placeholderTextColor="#94a3b8"
-                  value={nickname}
-                  onChangeText={setNickname}
-                  autoCapitalize="none"
-                  maxLength={20}
-                />
-                {nicknameChecking && (
-                  <ActivityIndicator style={{ marginLeft: 8 }} color="#6366f1" />
-                )}
-              </View>
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <View
+              style={[
+                styles.input,
+                { flex: 1, flexDirection: "row", alignItems: "center" },
+              ]}
+            >
+              <TextInput
+                style={[styles.textInput, { flex: 1 }]}
+                placeholder="닉네임을 입력하세요"
+                placeholderTextColor="rgba(68,68,68,0.27)"
+                value={nickname}
+                onChangeText={setNickname}
+                autoCapitalize="none"
+                maxLength={20}
+              />
+              {nicknameChecking && (
+                <ActivityIndicator style={{ marginLeft: 8 }} />
+              )}
             </View>
 
             <TouchableOpacity
@@ -396,22 +380,20 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
               disabled={!canChangeNickname}
               style={[
                 styles.nickChangeBtn,
-                !canChangeNickname && { opacity: 0.5 },
+                { opacity: canChangeNickname ? 1 : 0.5 },
               ]}
             >
               {nicknameSaving ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.nickChangeBtnText}>변경</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          {nicknameError && (
-            <Text style={styles.errorText}>{nicknameError}</Text>
-          )}
-          {!nicknameError && nickname.trim() && nickname.trim() !== originalNickname && !nicknameChecking && (
-            <Text style={styles.successText}>사용 가능한 닉네임입니다</Text>
+          {/* 입력 오른쪽 배지 제거, 필요 시 하단 안내만 */}
+          {!!nicknameError && (
+            <Text style={{ color: "#d00", marginTop: 6 }}>{nicknameError}</Text>
           )}
         </View>
 
@@ -430,7 +412,7 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         </View>
 
         {/* 주간 목표 거리 */}
-        <View style={[styles.formGroup, styles.lastFormGroup]}>
+        <View style={styles.formGroup}>
           <Text style={styles.label}>주간 목표 거리 (km)</Text>
           <View style={styles.input}>
             <TextInput
@@ -448,353 +430,109 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
 
         {/* 저장 버튼 (닉네임 제외) */}
         <TouchableOpacity
-          style={[
-            styles.saveButton,
-            !canSaveProfile && styles.saveButtonDisabled,
-          ]}
+          style={[styles.saveButton, { opacity: canSaveProfile ? 1 : 0.5 }]}
           disabled={!canSaveProfile}
           onPress={onSaveProfile}
         >
           {saving || uploading ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.saveButtonText}>변경사항 저장</Text>
           )}
         </TouchableOpacity>
-
-        {/* 취소 버튼 */}
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => navigation?.goBack?.()}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.cancelButtonText}>취소</Text>
-        </TouchableOpacity>
       </View>
-
-      {/* 성공 메시지 토스트 */}
-      {showSuccessMessage && (
-        <View style={styles.successToast}>
-          <View style={styles.successToastContent}>
-            <Text style={styles.successToastIcon}>✅</Text>
-            <Text style={styles.successToastText}>{showSuccessMessage}</Text>
-          </View>
-        </View>
-      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#f8fafc",
-    paddingBottom: 30,
-    flex: 1,
-  },
-
-
-  // ProfileScreen과 동일한 헤더 - 여유있게 조정
-  header: {
-    height: 90,
+  container: { backgroundColor: "#fff", paddingBottom: 30 },
+  statusBar: {
     backgroundColor: "#fff",
+    paddingTop: 21,
+    height: 51,
+    alignItems: "center",
+  },
+  statusFrame: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    width: 268,
   },
-  backButton: {
-    fontSize: 20,
-    color: "#6366f1",
-    fontWeight: "700",
+  time: { paddingHorizontal: 16 },
+  timeText: { fontSize: 17, fontWeight: "600", color: "#000" },
+  dynamicIsland: { width: 124, height: 10 },
+  levels: { flexDirection: "row", gap: 7, paddingHorizontal: 6 },
+  icon: { width: 20, height: 13, resizeMode: "contain" },
+
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 70,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2dddd",
   },
+  backButton: { fontSize: 24, color: "#333" },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1e293b",
-    letterSpacing: -0.3,
-  },
-
-  // 메인 콘텐츠
-  main: {
-    padding: 20,
-    backgroundColor: "#f8fafc",
-  },
-
-  // 페이지 제목 (메인 콘텐츠 내부)
-  pageTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1e293b",
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  pageSubtitle: {
-    fontSize: 14,
-    color: "#64748b",
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-
-  // 프로필 카드 - ProfileScreen과 유사한 스타일
-  profileCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(99, 102, 241, 0.1)",
-  },
-
-  profileCardGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 4,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    backgroundColor: "linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
-  },
-
-  avatarWrap: {
-    marginRight: 16,
-    position: "relative",
-  },
-  avatarImg: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#f1f5f9",
-    borderWidth: 3,
-    borderColor: "rgba(99, 102, 241, 0.15)",
-  },
-  avatarFallback: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "rgba(99, 102, 241, 0.15)",
-  },
-  avatarEmoji: { fontSize: 32, color: "#fff" },
-
-  avatarBadge: {
-    position: "absolute",
-    bottom: 4,
-    right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#10b981",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-
-  profileInfo: {
-    flex: 1,
-  },
-  cardNickname: {
-    color: "#1e293b",
     fontSize: 18,
     fontWeight: "700",
-    marginBottom: 4,
-    letterSpacing: -0.3,
-  },
-  cardSubtitle: {
-    color: "#64748b",
-    fontSize: 13,
-    fontWeight: "500",
-    marginBottom: 12,
-  },
-  changePhotoBtn: {
-    backgroundColor: "rgba(99, 102, 241, 0.1)",
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    alignSelf: "flex-start",
-  },
-  changePhotoBtnText: {
-    color: "#6366f1",
-    fontSize: 13,
-    fontWeight: "600",
+    marginLeft: 20,
+    color: "#333",
   },
 
-  // 폼 그룹
-  formGroup: { marginBottom: 16 },
-  lastFormGroup: { marginBottom: 24 },
-  label: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 5,
-    letterSpacing: -0.2,
+  main: { padding: 20 },
+  title: { fontSize: 21, fontWeight: "700", color: "#333" },
+  subtitle: { fontSize: 14, color: "#666", marginTop: 5, lineHeight: 20 },
+
+  profileImage: {
+    backgroundColor: "#e8ecf0",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginTop: 30,
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
+  profileIcon: { fontSize: 28, color: "#666" },
+  changePhoto: {
+    fontSize: 14,
+    color: "#4A6CF7",
+    textDecorationLine: "underline",
+    textAlign: "center",
+    marginTop: 10,
+  },
+
+  formGroup: { marginTop: 20 },
+  label: { fontSize: 14, fontWeight: "500", color: "#333", marginBottom: 5 },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: "#e8ecf0",
     borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 48,
-    justifyContent: "center",
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.06)",
-  },
-  inputFocused: {
-    borderColor: "#6366f1",
-    borderWidth: 2,
-  },
-  textInput: {
-    fontSize: 16,
-    color: "#1e293b",
-    paddingVertical: 8,
-    fontWeight: "500",
-  },
-
-  // 닉네임 변경 버튼 - 더 모던한 디자인
-  nicknameRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-end",
-  },
-  nicknameInput: {
-    flex: 1,
-  },
-  nickChangeBtn: {
-    backgroundColor: "#6366f1",
-    borderRadius: 12,
-    height: 48,
-    paddingHorizontal: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 2,
-    shadowColor: "#6366f1",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-  },
-  nickChangeBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-
-  // 에러 메시지
-  errorText: {
-    color: "#ef4444",
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 8,
-    paddingLeft: 4,
-  },
-  successText: {
-    color: "#10b981",
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 8,
-    paddingLeft: 4,
-  },
-
-  // 저장 버튼
-  saveButton: {
-    backgroundColor: "#6366f1",
-    borderRadius: 12,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 28,
-    marginBottom: 8,
-    elevation: 3,
-    shadowColor: "#6366f1",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  saveButtonDisabled: {
-    backgroundColor: "#94a3b8",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-
-  // 취소 버튼
-  cancelButton: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 12,
-    height: 48,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 6,
-    marginBottom: 30,
-    borderWidth: 1,
-    borderColor: "rgba(100, 116, 139, 0.2)",
-  },
-  cancelButtonText: {
-    color: "#64748b",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  // 성공 토스트
-  successToast: {
-    position: "absolute",
-    bottom: 100,
-    left: 20,
-    right: 20,
-    zIndex: 1000,
-  },
-  successToastContent: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    flexDirection: "row",
+    height: 54,
+    justifyContent: "center",
+  },
+  textInput: { fontSize: 16, color: "#222", paddingVertical: 8 },
+
+  // 닉네임 변경 버튼
+  nickChangeBtn: {
+    backgroundColor: "#070708",
+    borderRadius: 12,
+    height: 54,
+    paddingHorizontal: 16,
+    justifyContent: "center",
     alignItems: "center",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
   },
-  successToastIcon: {
-    fontSize: 20,
-    marginRight: 12,
+  nickChangeBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+
+  saveButton: {
+    backgroundColor: "#070708",
+    borderRadius: 12,
+    height: 60,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 30,
   },
-  successToastText: {
-    color: "#1e293b",
-    fontSize: 16,
-    fontWeight: "600",
-    letterSpacing: -0.2,
-  },
+  saveButtonText: { color: "#fff", fontSize: 18, fontWeight: "600" },
 });
