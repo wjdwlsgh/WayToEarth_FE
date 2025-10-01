@@ -9,7 +9,6 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import MapRoute from "../components/Running/MapRoute";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
@@ -20,7 +19,8 @@ import BottomNavigation from "../components/Layout/BottomNav";
 import { useBottomNav } from "../hooks/useBottomNav";
 import { apiComplete } from "../utils/api/running"; // ✅ 추가
 
-export default function LiveRunningScreen({ navigation }: { navigation: any }) {
+export default function LiveRunningScreen({ navigation, route }: { navigation: any; route?: any }) {
+  const targetDistanceKm = (route?.params?.targetDistanceKm as number | undefined) ?? undefined;
   const { activeTab, onTabPress } = useBottomNav("running");
   const t = useLiveRunTracker();
   const insets = useSafeAreaInsets();
@@ -128,6 +128,53 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
     }
   };
 
+  const completeRun = useCallback(async () => {
+    if (isStoppingRef.current) return;
+    isStoppingRef.current = true;
+    try {
+      const avgPaceSec =
+        t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
+          ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
+          : null;
+      const routePoints = t.route.map((p, i) => ({ latitude: p.latitude, longitude: p.longitude, sequence: i + 1 }));
+      const { runId } = await apiComplete({
+        sessionId: t.sessionId as string,
+        distanceMeters: Math.round(t.distance * 1000),
+        durationSeconds: t.elapsedSec,
+        averagePaceSeconds: avgPaceSec,
+        calories: Math.round(t.kcal),
+        routePoints,
+        endedAt: Date.now(),
+        title: "오늘의 러닝",
+      });
+      t.stop();
+      navigation.navigate("RunSummary", {
+        runId,
+        defaultTitle: "오늘의 러닝",
+        distanceKm: t.distance,
+        paceLabel: t.paceLabel,
+        kcal: Math.round(t.kcal),
+        elapsedSec: t.elapsedSec,
+        elapsedLabel: `${Math.floor(t.elapsedSec / 60)}:${String(t.elapsedSec % 60).padStart(2, "0")}`,
+        routePath: t.route,
+        sessionId: (t.sessionId as string) ?? "",
+      });
+    } catch (e) {
+      console.error("러닝 완료/저장 실패:", e);
+      Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
+    } finally {
+      setTimeout(() => (isStoppingRef.current = false), 800);
+    }
+  }, [navigation, t]);
+
+  React.useEffect(() => {
+    if (!targetDistanceKm) return;
+    if (!t.isRunning) return;
+    if (t.distance >= targetDistanceKm) {
+      completeRun();
+    }
+  }, [t.distance, t.isRunning, targetDistanceKm, completeRun]);
+
   return (
     <SafeLayout withBottomInset>
       <MapRoute
@@ -142,23 +189,7 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
         onMapReady={() => setMapReady(true)}
       />
 
-      {!(t.isRunning || t.isPaused || countdownVisible) && (
-        <View
-          style={{
-            position: "absolute",
-            right: 12,
-            top: insets.top + 8,
-            zIndex: 30,
-          }}
-        >
-          <Pressable
-            onPress={() => navigation.navigate("Profile")}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="person-circle-outline" size={28} color="#111" />
-          </Pressable>
-        </View>
-      )}
+      {/* 상단 내정보 버튼 제거 (하단 공통 내비로 이동) */}
 
       {(t.isRunning || t.isPaused) && (
         <RunStatsCard
@@ -281,7 +312,7 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
               <Pressable
                 onPress={() => {
                   closeMenu();
-                  Alert.alert("가상 러닝", "가상 러닝 화면 연결 예정!");
+                  navigation.navigate("JourneyLoading");
                 }}
                 style={{
                   width: 100,
@@ -292,10 +323,8 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
                   justifyContent: "center",
                 }}
               >
-                <Text
-                  style={{ fontSize: 16, fontWeight: "800", color: "#111" }}
-                >
-                  가상 러닝
+                <Text style={{ fontSize: 16, fontWeight: "800", color: "#111" }}>
+                  여정 러닝
                 </Text>
               </Pressable>
             </Animated.View>
@@ -335,54 +364,7 @@ export default function LiveRunningScreen({ navigation }: { navigation: any }) {
           onPause={() => t.pause()}
           onResume={() => t.resume()}
           onStopTap={() => Alert.alert("종료하려면 길게 누르세요")}
-          onStopLong={async () => {
-            if (isStoppingRef.current) return;
-            isStoppingRef.current = true;
-            try {
-              // 지도 스냅샷은 더 이상 공유 사진으로 사용하지 않음
-
-              const avgPaceSec =
-                t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
-                  ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
-                  : null;
-
-              const routePoints = t.route.map((p, i) => ({
-                latitude: p.latitude,
-                longitude: p.longitude,
-                sequence: i + 1,
-              }));
-
-              const { runId } = await apiComplete({
-                sessionId: t.sessionId as string,
-                distanceMeters: Math.round(t.distance * 1000),
-                durationSeconds: t.elapsedSec,
-                averagePaceSeconds: avgPaceSec,
-                calories: Math.round(t.kcal),
-                routePoints,
-                endedAt: Date.now(),
-                title: "오늘의 러닝",
-              });
-
-              t.stop();
-
-              navigation.navigate("RunSummary", {
-                runId,
-                defaultTitle: "오늘의 러닝",
-                distanceKm: t.distance,
-                paceLabel: t.paceLabel,
-                kcal: Math.round(t.kcal),
-                elapsedSec: t.elapsedSec,
-                elapsedLabel: `${Math.floor(t.elapsedSec/60)}:${String(t.elapsedSec%60).padStart(2,'0')}`,
-                routePath: t.route,
-                sessionId: (t.sessionId as string) ?? "",
-              });
-            } catch (e) {
-              console.error("러닝 완료/저장 실패:", e);
-              Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
-            } finally {
-              setTimeout(() => (isStoppingRef.current = false), 800);
-            }
-          }}
+          onStopLong={completeRun}
         />
       )}
 
