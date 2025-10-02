@@ -15,13 +15,10 @@ import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
 import { useLiveRunTracker } from "../hooks/useLiveRunTracker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import BottomNavigation from "../components/Layout/BottomNav";
-import { useBottomNav } from "../hooks/useBottomNav";
 import { apiComplete } from "../utils/api/running"; // ✅ 추가
 
 export default function LiveRunningScreen({ navigation, route }: { navigation: any; route?: any }) {
   const targetDistanceKm = (route?.params?.targetDistanceKm as number | undefined) ?? undefined;
-  const { activeTab, onTabPress } = useBottomNav("running");
   const t = useLiveRunTracker();
   const insets = useSafeAreaInsets();
   const bottomSafe = Math.max(insets.bottom, 12);
@@ -368,9 +365,7 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         />
       )}
 
-      {!(t.isRunning || t.isPaused || countdownVisible) && (
-        <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
-      )}
+      {/* 탭 내비게이터 사용으로 하단 바는 전역에서 렌더링됨 */}
 
       <CountdownOverlay
         visible={countdownVisible}

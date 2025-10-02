@@ -74,7 +74,7 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
           style={styles.startButton}
           onPress={() => {
             const targetDistanceKm = parseFloat(String(data?.distance ?? '0')) || 0;
-            navigation?.navigate?.('LiveRunningScreen', { targetDistanceKm });
+            navigation?.navigate?.('MainTabs', { screen: 'LiveRunningScreen', params: { targetDistanceKm } });
           }}
         >
           <Text style={styles.startButtonText}>여정 계속하기</Text>
@@ -109,7 +109,7 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
             onPress={() => {
               setShowLandmarks(false);
               const targetDistanceKm = parseFloat(String(data?.distance ?? '0')) || 0;
-              navigation?.navigate?.('LiveRunningScreen', { targetDistanceKm });
+              navigation?.navigate?.('MainTabs', { screen: 'LiveRunningScreen', params: { targetDistanceKm } });
             }}
           >
             <Text style={styles.modalStartButtonText}>여정 계속하기</Text>

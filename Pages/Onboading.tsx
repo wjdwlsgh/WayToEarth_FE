@@ -113,7 +113,10 @@ export default function Onboading() {
         const token = await AsyncStorage.getItem("jwtToken");
         if (token) {
           await getMyProfile();
-          navigation.reset({ index: 0, routes: [{ name: "LiveRunningScreen" }] });
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "MainTabs", params: { screen: "LiveRunningScreen" } }],
+          });
           return; // 바로 종료
         }
       } catch (e) {

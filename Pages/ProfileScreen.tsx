@@ -20,8 +20,6 @@ import {
   type UserSummary,
 } from "../utils/api/users";
 import { useFocusEffect } from "@react-navigation/native";
-import BottomNavigation from "../components/Layout/BottomNav";
-import { useBottomNav } from "../hooks/useBottomNav";
 import SafeLayout from "../components/Layout/SafeLayout";
 
 const number = (v: number | null | undefined, digits = 1) =>
@@ -255,7 +253,7 @@ export default function ProfileScreen({
         </ScrollView>
 
         {/* 하단 네비게이션 */}
-        <BottomNavWrapper defaultTab="profile" />
+        {/* 탭 내비게이터 사용으로 하단 바는 전역에서 렌더링됨 */}
       </View>
     </SafeLayout>
   );
@@ -435,13 +433,5 @@ const styles = StyleSheet.create({
   },
 
   // 하단 여백
-  bottomSpacing: {
-    height: 120,
-  },
+  bottomSpacing: { height: 120 },
 });
-
-// 별도 래퍼로 훅 사용(ScrollView 내부에서 안전하게 분리)
-function BottomNavWrapper({ defaultTab }: { defaultTab: any }) {
-  const { activeTab, onTabPress } = useBottomNav(defaultTab);
-  return <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />;
-}

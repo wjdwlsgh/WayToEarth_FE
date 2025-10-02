@@ -4,6 +4,7 @@ WebBrowser.maybeCompleteAuthSession();
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "./types/types";
 import "./global.css";
 
@@ -29,8 +30,28 @@ import Record from "./Pages/RecordScreen";
 import RecordDetailScreen from "./Pages/RecordDetailScreen";
 import UserInfoInputScreen from "./Pages/UserInfoInputScreen";
 import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
+import CrewScreen from "./Pages/CrewScreen";
+import CrewDetailScreen from "./Pages/CrewDetailScreen";
+import TabBarAdapter from "./components/Layout/TabBarAdapter";
 
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      tabBar={(props) => <TabBarAdapter {...props} />}
+      screenOptions={{ headerShown: false }}
+      initialRouteName="LiveRunningScreen"
+    >
+      <Tab.Screen name="Profile" component={Profile} />
+      <Tab.Screen name="Crew" component={CrewScreen} />
+      <Tab.Screen name="LiveRunningScreen" component={LiveRunningScreen} />
+      <Tab.Screen name="Feed" component={Feed2} />
+      <Tab.Screen name="Record" component={Record} />
+    </Tab.Navigator>
+  );
+}
 
 export default function App() {
   return (
@@ -44,7 +65,7 @@ export default function App() {
         <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="LoginSuccess" component={LoginSuccessScreen} />
         <Stack.Screen name="Main" component={Main} />
-        <Stack.Screen name="LiveRunningScreen" component={LiveRunningScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
         {/* 여정 러닝: 로딩/가이드/리스트/디테일 */}
         <Stack.Screen name="JourneyLoading" component={JourneyLoadingScreen} />
         <Stack.Screen name="JourneyGuide" component={JourneyGuideScreen} />
@@ -62,7 +83,7 @@ export default function App() {
           component={RunSummaryScreen}
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="Feed" component={Feed2} />
+        {/* Feed/Profile/Record/Crew/LiveRunningScreen는 MainTabs로 이동 */}
         <Stack.Screen name="FeedDetail" component={FeedDetail} />
         {/* 공유 작성 화면(FeedCompose) 등록: RunSummary에서 사용 */}
         <Stack.Screen
@@ -71,11 +92,10 @@ export default function App() {
           options={{ title: "공유하기" }}
         />
         <Stack.Screen name="Emblem" component={Emblem} />
-        <Stack.Screen name="Profile" component={Profile} />
         <Stack.Screen name="ProfileEdit" component={ProfileEdit} />
+        <Stack.Screen name="CrewDetail" component={CrewDetailScreen} />
 
-        {/* 하단 탭 대상 라우트들 */}
-        <Stack.Screen name="Record" component={Record} />
+        {/* 하단 탭 대상 라우트들은 MainTabs 내부 */}
         <Stack.Screen
           name="RecordDetailScreen"
           component={RecordDetailScreen}
