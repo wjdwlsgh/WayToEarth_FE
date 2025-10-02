@@ -173,7 +173,7 @@ export type RunningRecordItem = {
   durationSeconds?: number;
   calories?: number;
   startedAt?: string;
-  runningType?: "SINGLE" | "VIRTUAL" | "GROUP" | string;
+  runningType?: "SINGLE" | "JOURNEY" | "GROUP" | string;
 };
 
 export async function listRunningRecords(
