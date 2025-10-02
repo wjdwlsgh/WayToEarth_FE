@@ -26,7 +26,9 @@ export async function apiStart(payload: {
     sessionId: payload.sessionId,
     runningType: payload.runningType ?? "SINGLE",
   };
+  console.log("[API] 러닝 세션 시작 요청:", body);
   const { data } = await client.post("/v1/running/start", body);
+  console.log("[API] 러닝 세션 시작 응답:", data);
   return data as { sessionId?: string } & Record<string, any>;
 }
 
