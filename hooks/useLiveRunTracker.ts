@@ -164,6 +164,12 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
     if (msEnough || kmEnough) {
       try {
         const paceSec = avgPaceSecPerKm(distanceRef.current, elapsedSec);
+        console.log("[RunTracker] 주기 업데이트 전송:", {
+          sessionId: sid,
+          distanceKm: distanceRef.current.toFixed(3),
+          durationSec: elapsedSec,
+          sequence: seqRef.current,
+        });
         await apiUpdate({
           sessionId: sid,
           distanceMeters: Math.round(distanceRef.current * 1000),
@@ -179,7 +185,9 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
         });
         lastUpdateAtRef.current = now;
         lastUpdateDistanceRef.current = distanceRef.current;
-      } catch {
+        console.log("[RunTracker] 주기 업데이트 성공");
+      } catch (e) {
+        console.error("[RunTracker] 주기 업데이트 실패:", e);
         // 조용히 무시(다음 주기 때 재시도)
       }
     }
@@ -251,6 +259,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
         try {
           // 1. 로컬 세션 ID 생성
           const localSessionId = `session_${Date.now()}`;
+          console.log("[RunTracker] 세션 생성 시도:", { localSessionId, runningType });
 
           // 2. 백엔드에 세션 시작 알림
           const sess = await apiStart({
@@ -261,11 +270,16 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
           sessionIdRef.current = sess.sessionId ?? localSessionId;
           lastUpdateAtRef.current = 0;
           lastUpdateDistanceRef.current = 0;
-          console.log("[RunTracker] 세션 시작:", sessionIdRef.current);
+          console.log("[RunTracker] 세션 시작 완료:", {
+            sessionId: sessionIdRef.current,
+            response: sess
+          });
         } catch (e) {
-          console.error("세션 생성 실패:", e);
+          console.error("[RunTracker] 세션 생성 실패:", e);
+          console.error("[RunTracker] 에러 상세:", JSON.stringify(e, null, 2));
           // 백엔드 실패 시에도 로컬 세션으로 계속
           sessionIdRef.current = `local_${Date.now()}`;
+          console.log("[RunTracker] 로컬 세션으로 폴백:", sessionIdRef.current);
         }
       })();
 
