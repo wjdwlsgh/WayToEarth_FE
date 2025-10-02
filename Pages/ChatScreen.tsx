@@ -54,7 +54,7 @@ export default function ChatScreen({ navigation }: any) {
   } = useChatHistory({ crewId, currentUserId });
 
   // 🔒 보안 개선: URL에 토큰을 포함하지 않음 (Authorization 헤더 사용)
-  const websocketUrl = `wss://api.waytoearth.cloud/ws/crew/${crewId}/chat`;
+  const websocketUrl = `ws://192.168.0.7:8080/ws/crew/${crewId}/chat`;
 
   // JWT 토큰 로드
   useEffect(() => {

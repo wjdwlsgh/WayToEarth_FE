@@ -309,7 +309,8 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
               <Pressable
                 onPress={() => {
                   closeMenu();
-                  navigation.navigate("JourneyLoading");
+                  // 여정 리스트 화면으로 이동
+                  navigation.navigate("JourneyRouteList");
                 }}
                 style={{
                   width: 100,

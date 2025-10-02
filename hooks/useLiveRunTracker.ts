@@ -14,7 +14,7 @@ const UPDATE_MIN_KM = 0.05; // 50m 이동
 // 두 점 사이 거리(m)
 const toMeters = (a: LatLng, b: LatLng) => distanceKm(a, b) * 1000;
 
-export function useLiveRunTracker() {
+export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") {
   // ── 상태
   const [route, setRoute] = useState<LatLng[]>([]);
   const [distance, setDistance] = useState(0); // km
@@ -164,6 +164,12 @@ export function useLiveRunTracker() {
     if (msEnough || kmEnough) {
       try {
         const paceSec = avgPaceSecPerKm(distanceRef.current, elapsedSec);
+        console.log("[RunTracker] 주기 업데이트 전송:", {
+          sessionId: sid,
+          distanceKm: distanceRef.current.toFixed(3),
+          durationSec: elapsedSec,
+          sequence: seqRef.current,
+        });
         await apiUpdate({
           sessionId: sid,
           distanceMeters: Math.round(distanceRef.current * 1000),
@@ -179,7 +185,9 @@ export function useLiveRunTracker() {
         });
         lastUpdateAtRef.current = now;
         lastUpdateDistanceRef.current = distanceRef.current;
-      } catch {
+        console.log("[RunTracker] 주기 업데이트 성공");
+      } catch (e) {
+        console.error("[RunTracker] 주기 업데이트 실패:", e);
         // 조용히 무시(다음 주기 때 재시도)
       }
     }
@@ -246,16 +254,32 @@ export function useLiveRunTracker() {
       setIsRunning(true);
       startElapsed();
 
-      // 세션 생성(백엔드 미구현 시 로컬 세션 사용)
+      // 세션 생성 (백엔드 API 호출)
       (async () => {
         try {
-          const sess = await apiStartSession({ runningType: "SINGLE" });
-          sessionIdRef.current = sess.sessionId ?? `local_${Date.now()}`;
+          // 1. 로컬 세션 ID 생성
+          const localSessionId = `session_${Date.now()}`;
+          console.log("[RunTracker] 세션 생성 시도:", { localSessionId, runningType });
+
+          // 2. 백엔드에 세션 시작 알림
+          const sess = await apiStart({
+            sessionId: localSessionId,
+            runningType: runningType
+          });
+
+          sessionIdRef.current = sess.sessionId ?? localSessionId;
           lastUpdateAtRef.current = 0;
           lastUpdateDistanceRef.current = 0;
+          console.log("[RunTracker] 세션 시작 완료:", {
+            sessionId: sessionIdRef.current,
+            response: sess
+          });
         } catch (e) {
-          console.warn("세션 생성 실패:", e);
+          console.error("[RunTracker] 세션 생성 실패:", e);
+          console.error("[RunTracker] 에러 상세:", JSON.stringify(e, null, 2));
+          // 백엔드 실패 시에도 로컬 세션으로 계속
           sessionIdRef.current = `local_${Date.now()}`;
+          console.log("[RunTracker] 로컬 세션으로 폴백:", sessionIdRef.current);
         }
       })();
 
