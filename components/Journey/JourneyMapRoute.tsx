@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import MapView, {
   Marker,
   Polyline,
@@ -43,22 +43,65 @@ export default function JourneyMapRoute({
 }: Props) {
   const mapRef = useRef<MapView>(null);
   const [mapReady, setMapReady] = useState(false);
+  const hasFittedRef = useRef(false);
 
-  // 초기 지도 중심 설정 (여정 시작 지점)
-  const initialCenter: RNLatLng =
-    journeyRoute[0] || { latitude: 37.5665, longitude: 126.978 };
+  // 초기 지도 중심 설정 (여정 시작 지점) - useMemo로 캐싱
+  const initialCenter: RNLatLng = useMemo(
+    () => journeyRoute[0] || { latitude: 37.5665, longitude: 126.978 },
+    [journeyRoute]
+  );
 
-  // 지도 준비 완료 시 전체 경로가 보이도록 fitToCoordinates
+  // 초기 영역 계산 - useMemo로 캐싱
+  const initialRegion = useMemo(() => {
+    if (journeyRoute.length === 0) {
+      return {
+        latitude: 37.5665,
+        longitude: 126.978,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      };
+    }
+
+    // 경로의 경계 계산
+    let minLat = journeyRoute[0].latitude;
+    let maxLat = journeyRoute[0].latitude;
+    let minLng = journeyRoute[0].longitude;
+    let maxLng = journeyRoute[0].longitude;
+
+    journeyRoute.forEach(point => {
+      minLat = Math.min(minLat, point.latitude);
+      maxLat = Math.max(maxLat, point.latitude);
+      minLng = Math.min(minLng, point.longitude);
+      maxLng = Math.max(maxLng, point.longitude);
+    });
+
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+    const latDelta = (maxLat - minLat) * 1.3; // 여백 추가
+    const lngDelta = (maxLng - minLng) * 1.3;
+
+    return {
+      latitude: centerLat,
+      longitude: centerLng,
+      latitudeDelta: Math.max(latDelta, 0.01),
+      longitudeDelta: Math.max(lngDelta, 0.01),
+    };
+  }, [journeyRoute]);
+
+  // 지도 준비 완료 시 한 번만 fitToCoordinates 실행
   useEffect(() => {
-    if (!mapReady || journeyRoute.length === 0) return;
+    if (!mapReady || journeyRoute.length === 0 || hasFittedRef.current) return;
 
+    hasFittedRef.current = true;
+
+    // 애니메이션 없이 즉시 fit (더 빠름)
     setTimeout(() => {
       mapRef.current?.fitToCoordinates(journeyRoute as RNLatLng[], {
         edgePadding: { top: 120, right: 80, bottom: 200, left: 80 },
-        animated: true,
+        animated: false, // 애니메이션 비활성화로 속도 향상
       });
-    }, 300);
-  }, [mapReady, journeyRoute]);
+    }, 100); // 300ms → 100ms로 단축
+  }, [mapReady]);
 
   // 스냅샷 바인딩
   useEffect(() => {
@@ -86,34 +129,35 @@ export default function JourneyMapRoute({
     onMapReady?.();
   };
 
-  // 진행률에 따라 완료된 경로 구간 계산
-  const completedRouteLength = Math.floor(
-    (journeyRoute.length * progressPercent) / 100
-  );
-  const completedRoute = journeyRoute.slice(0, Math.max(1, completedRouteLength));
-  const remainingRoute = journeyRoute.slice(Math.max(0, completedRouteLength - 1));
+  // 진행률에 따라 완료된 경로 구간 계산 - useMemo로 캐싱
+  const { completedRoute, remainingRoute } = useMemo(() => {
+    const completedRouteLength = Math.floor(
+      (journeyRoute.length * progressPercent) / 100
+    );
+    const completed = journeyRoute.slice(0, Math.max(1, completedRouteLength));
+    const remaining = journeyRoute.slice(Math.max(0, completedRouteLength - 1));
 
-  console.log("[JourneyMapRoute] 전체 경로:", journeyRoute.length);
-  console.log("[JourneyMapRoute] 완료 경로:", completedRoute.length);
-  console.log("[JourneyMapRoute] 남은 경로:", remainingRoute.length);
-  console.log("[JourneyMapRoute] 랜드마크:", landmarks.length);
+    return { completedRoute: completed, remainingRoute: remaining };
+  }, [journeyRoute, progressPercent]);
 
   return (
     <MapView
       ref={mapRef}
       style={styles.map}
-      initialRegion={{
-        latitude: initialCenter.latitude,
-        longitude: initialCenter.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      }}
-      showsUserLocation
-      showsMyLocationButton
+      initialRegion={initialRegion}
+      showsUserLocation={false}
+      showsMyLocationButton={true}
       onMapReady={handleMapReady}
-      loadingEnabled
-      loadingIndicatorColor="#6366F1"
-      loadingBackgroundColor="#f9fafb"
+      loadingEnabled={false}
+      pitchEnabled={true}
+      rotateEnabled={true}
+      scrollEnabled={true}
+      zoomEnabled={true}
+      toolbarEnabled={false}
+      moveOnMarkerPress={false}
+      // 성능 최적화 옵션
+      maxZoomLevel={20}
+      minZoomLevel={10}
     >
       {/* 완료된 여정 경로 (초록색) */}
       {completedRoute.length > 1 && (
