@@ -170,7 +170,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         progressPercent={t.progressPercent}
       />
 
-      {/* 여정 진행률 카드 (러닝 중이 아닐 때만 표시) */}
+      {/* 러닝 중이 아닐 때: 여정 진행률 카드 */}
       {!t.isRunning && !t.isPaused && (
         <JourneyProgressCard
           progressPercent={t.progressPercent}
@@ -187,15 +187,44 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         />
       )}
 
-      {/* 러닝 통계 카드 (러닝 중일 때) */}
+      {/* 러닝 중일 때: 러닝 통계 + 간소화된 진행률 */}
       {(t.isRunning || t.isPaused) && (
-        <RunStatsCard
-          distanceKm={t.distance}
-          paceLabel={t.paceLabel}
-          kcal={t.kcal}
-          speedKmh={t.speedKmh}
-          elapsedSec={t.elapsedSec}
-        />
+        <>
+          <RunStatsCard
+            distanceKm={t.distance}
+            paceLabel={t.paceLabel}
+            kcal={t.kcal}
+            speedKmh={t.speedKmh}
+            elapsedSec={t.elapsedSec}
+          />
+
+          {/* 간소화된 진행률 표시 */}
+          <View style={styles.compactProgressCard}>
+            <View style={styles.compactHeader}>
+              <Text style={styles.compactTitle}>여정 진행</Text>
+              <Text style={styles.compactPercent}>
+                {t.progressPercent.toFixed(1)}%
+              </Text>
+            </View>
+            <View style={styles.compactProgressBar}>
+              <View
+                style={[
+                  styles.compactProgressFill,
+                  { width: `${Math.min(100, t.progressPercent)}%` },
+                ]}
+              />
+            </View>
+            {t.nextLandmark && (
+              <Text style={styles.compactNextLandmark}>
+                다음: {t.nextLandmark.name} (
+                {(t.nextLandmark.distanceM / 1000 - t.progressM / 1000).toFixed(
+                  1
+                )}{" "}
+                km)
+              </Text>
+            )}
+          </View>
+        </>
       )}
 
       {/* 일시정지 오버레이 */}
@@ -307,5 +336,51 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#fff",
     textAlign: "center",
+  },
+  compactProgressCard: {
+    position: "absolute",
+    top: 180,
+    left: 16,
+    right: 16,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  compactHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  compactTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
+  compactPercent: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#6366F1",
+  },
+  compactProgressBar: {
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  compactProgressFill: {
+    height: "100%",
+    backgroundColor: "#10B981",
+    borderRadius: 3,
+  },
+  compactNextLandmark: {
+    fontSize: 12,
+    color: "#4B5563",
   },
 });

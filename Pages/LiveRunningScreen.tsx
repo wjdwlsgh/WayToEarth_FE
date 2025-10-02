@@ -312,61 +312,8 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
               <Pressable
                 onPress={() => {
                   closeMenu();
-                  // 테스트용 여정 데이터 (실제로는 여정 선택 화면에서 받아올 데이터)
-                  navigation.navigate("JourneyRunningScreen", {
-                    journeyId: "1",
-                    journeyTitle: "한국의 고궁탐방",
-                    totalDistanceKm: 42.5,
-                    landmarks: [
-                      {
-                        id: "1-1",
-                        name: "경복궁",
-                        distance: "8.5km 지점",
-                        distanceM: 8500,
-                        position: { latitude: 37.5796, longitude: 126.9770 },
-                      },
-                      {
-                        id: "1-2",
-                        name: "창덕궁",
-                        distance: "15.2km 지점",
-                        distanceM: 15200,
-                        position: { latitude: 37.5794, longitude: 126.9910 },
-                      },
-                      {
-                        id: "1-3",
-                        name: "창경궁",
-                        distance: "23.1km 지점",
-                        distanceM: 23100,
-                        position: { latitude: 37.5788, longitude: 126.9950 },
-                      },
-                      {
-                        id: "1-4",
-                        name: "종묘",
-                        distance: "31.5km 지점",
-                        distanceM: 31500,
-                        position: { latitude: 37.5742, longitude: 126.9944 },
-                      },
-                      {
-                        id: "1-5",
-                        name: "덕수궁",
-                        distance: "42.5km 지점",
-                        distanceM: 42500,
-                        position: { latitude: 37.5658, longitude: 126.9751 },
-                      },
-                    ],
-                    journeyRoute: [
-                      { latitude: 37.5796, longitude: 126.9770 },
-                      { latitude: 37.5794, longitude: 126.9850 },
-                      { latitude: 37.5794, longitude: 126.9910 },
-                      { latitude: 37.5790, longitude: 126.9930 },
-                      { latitude: 37.5788, longitude: 126.9950 },
-                      { latitude: 37.5770, longitude: 126.9950 },
-                      { latitude: 37.5742, longitude: 126.9944 },
-                      { latitude: 37.5700, longitude: 126.9900 },
-                      { latitude: 37.5670, longitude: 126.9820 },
-                      { latitude: 37.5658, longitude: 126.9751 },
-                    ],
-                  });
+                  // 여정 리스트 화면으로 이동
+                  navigation.navigate("JourneyRouteList");
                 }}
                 style={{
                   width: 100,
