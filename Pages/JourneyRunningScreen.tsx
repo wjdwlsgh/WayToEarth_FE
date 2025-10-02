@@ -69,19 +69,38 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
   const handleComplete = useCallback(async () => {
     try {
+      console.log("[JourneyRunning] 완료 처리 시작:", {
+        sessionId: t.sessionId,
+        distance: t.distance,
+        elapsedSec: t.elapsedSec,
+        routeLength: t.route.length,
+      });
+
       const avgPaceSec =
         t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
           ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
           : null;
 
+      const now = Math.floor(Date.now() / 1000);
       const routePoints = t.route.map((p, i) => ({
         latitude: p.latitude,
         longitude: p.longitude,
         sequence: i + 1,
+        t: now, // 타임스탬프 추가
       }));
 
+      console.log("[JourneyRunning] apiComplete 호출 직전:", {
+        sessionId: t.sessionId,
+        distanceMeters: Math.round(t.distance * 1000),
+        durationSeconds: t.elapsedSec,
+        averagePaceSeconds: avgPaceSec,
+        calories: Math.round(t.kcal),
+        routePointsCount: routePoints.length,
+        title: journeyTitle,
+      });
+
       // 러닝 완료 API 호출
-      const { runId } = await apiComplete({
+      const { runId, data } = await apiComplete({
         sessionId: t.sessionId as string,
         distanceMeters: Math.round(t.distance * 1000),
         durationSeconds: t.elapsedSec,
@@ -92,8 +111,12 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         title: journeyTitle,
       });
 
+      console.log("[JourneyRunning] apiComplete 응답:", { runId, data });
+
       // 여정 진행률 업데이트
       await t.completeJourneyRun();
+
+      console.log("[JourneyRunning] 완료 처리 성공, 요약 화면으로 이동");
 
       navigation.navigate("RunSummary", {
         runId,
@@ -109,7 +132,8 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         sessionId: (t.sessionId as string) ?? "",
       });
     } catch (e) {
-      console.error("여정 러닝 완료 실패:", e);
+      console.error("[JourneyRunning] 여정 러닝 완료 실패:", e);
+      console.error("[JourneyRunning] 에러 상세:", JSON.stringify(e, null, 2));
       Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
     }
   }, [navigation, t, journeyTitle]);
