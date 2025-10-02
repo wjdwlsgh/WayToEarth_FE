@@ -34,7 +34,10 @@ export default function WayToEarthOnboarding() {
         const token = await AsyncStorage.getItem("jwtToken");
         if (token) {
           await getMyProfile();
-          navigation.reset({ index: 0, routes: [{ name: "LiveRunningScreen" }] });
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "MainTabs", params: { screen: "LiveRunningScreen" } }],
+          });
           return;
         }
       } catch (e) {

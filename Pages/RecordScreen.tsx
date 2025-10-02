@@ -18,8 +18,6 @@ import {
 import { getMyProfile } from "../utils/api/users";
 import { client } from "../utils/api/client";
 import MapView, { Polyline } from "react-native-maps";
-import BottomNavigation from "../components/Layout/BottomNav";
-import { useBottomNav } from "../hooks/useBottomNav";
 
 export default function RecordScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
@@ -31,7 +29,6 @@ export default function RecordScreen({ navigation }: any) {
   const [previews, setPreviews] = useState<
     Record<number, { coords: { latitude: number; longitude: number }[] }>
   >({});
-  const { activeTab, onTabPress } = useBottomNav("record");
 
   useEffect(() => {
     (async () => {
@@ -351,7 +348,7 @@ export default function RecordScreen({ navigation }: any) {
           ))
         )}
       </ScrollView>
-      <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      {/* 탭 내비게이터 사용으로 하단 바는 전역에서 렌더링됨 */}
     </SafeAreaView>
   );
 }

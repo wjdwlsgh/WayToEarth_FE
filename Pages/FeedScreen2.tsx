@@ -12,11 +12,10 @@ import {
   Alert,
   StatusBar,
   RefreshControl,
-  ScrollView,
   FlatList,
 } from "react-native";
-import BottomNavigation from "../components/Layout/BottomNav";
-import { useBottomNav } from "../hooks/useBottomNav";
+import { Ionicons } from "@expo/vector-icons";
+import { avgPaceLabel } from "../utils/run";
 import { listFeeds, toggleFeedLike, FeedItem } from "../utils/api/feeds";
 import { getMyProfile } from "../utils/api/users";
 import { useFocusEffect } from "@react-navigation/native";
@@ -31,7 +30,6 @@ export default function FeedScreen({ navigation, route }: any) {
   const [myNickname, setMyNickname] = useState<string | null>(null);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
 
-  const { activeTab, onTabPress } = useBottomNav("feed");
 
   const fetchFeeds = useCallback(async () => {
     try {
@@ -131,23 +129,46 @@ export default function FeedScreen({ navigation, route }: any) {
         : null;
     const finalUrl = avatarUrl || selfAvatar;
 
+    // 러닝 지표 파생값
+    const distanceKm: number | undefined =
+      typeof (item as any)?.distance === "number"
+        ? (item as any).distance
+        : undefined;
+    const durationSec: number | undefined =
+      (item as any)?.duration ??
+      (item as any)?.durationSeconds ??
+      (item as any)?.total_duration_sec ??
+      (item as any)?.elapsedSec ??
+      (item as any)?.elapsedSeconds;
+    const paceLabel: string | undefined =
+      (item as any)?.averagePace ||
+      (distanceKm &&
+      durationSec &&
+      isFinite(distanceKm) &&
+      isFinite(durationSec)
+        ? avgPaceLabel(distanceKm, durationSec)
+        : undefined);
+
+    const fmtHMS = (sec?: number) => {
+      if (!isFinite(Number(sec)) || Number(sec) <= 0) return undefined;
+      const s = Math.floor(Number(sec));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = s % 60;
+      return `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+    };
+
     return (
-      <TouchableOpacity
-        style={styles.feedItem}
-        onPress={() => navigation.navigate("FeedDetail", { feed: item })}
-        activeOpacity={0.7}
-      >
-        {/* 프로필 섹션 */}
-        <View style={styles.profileSection}>
+      <View style={styles.postContainer}>
+        {/* Post Header */}
+        <View style={styles.postHeader}>
           {finalUrl ? (
-            <Image
-              source={{ uri: finalUrl }}
-              style={styles.profileAvatarImage}
-            />
+            <Image source={{ uri: finalUrl }} style={styles.headerAvatar} />
           ) : (
             <View
               style={[
-                styles.profileAvatar,
+                styles.headerAvatar,
+                styles.headerAvatarFallback,
                 { backgroundColor: getProfileColor(index) },
               ]}
             >
@@ -156,40 +177,72 @@ export default function FeedScreen({ navigation, route }: any) {
               </Text>
             </View>
           )}
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{displayName}</Text>
-            <Text style={styles.profileTime}>
-              {item.distance ? `${item.distance}km` : ""}
-            </Text>
-          </View>
+          <Text style={styles.headerUsername}>{displayName}</Text>
+          <View style={{ flex: 1 }} />
+          {/* 옵션 아이콘 제거: 좋아요 외 기능 비활성 */}
         </View>
 
-        {/* 컨텐츠 */}
-        <Text style={styles.feedContent} numberOfLines={4}>
-          {item.content || ""}
-        </Text>
+        {/* Media */}
+        {item.imageUrl ? (
+          <View style={styles.postImageWrap}>
+            <Image source={{ uri: item.imageUrl }} style={styles.postImage} />
 
-        {/* 이미지가 있는 경우 표시 */}
-        {item.imageUrl && (
-          <View style={styles.imageContainer}>
-            <Image source={{ uri: item.imageUrl }} style={styles.feedImage} />
+            {/* 중앙 메트릭만 표기 (이름/내용/태그 제거) */}
+            {!!distanceKm && (
+              <View style={styles.metricCenterWrap} pointerEvents="none">
+                <Text style={styles.metricDistanceText}>
+                  {Number(distanceKm).toFixed(2)}
+                  <Text style={styles.metricUnit}> km</Text>
+                </Text>
+                {(fmtHMS(durationSec) || paceLabel) && (
+                  <View style={styles.metricRow}>
+                    {fmtHMS(durationSec) && (
+                      <View style={styles.metricPill}>
+                        <Text style={styles.metricPillText}>
+                          {fmtHMS(durationSec)}
+                        </Text>
+                      </View>
+                    )}
+                    {paceLabel && (
+                      <View style={styles.metricPill}>
+                        <Text style={styles.metricPillText}>
+                          {paceLabel}/km
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
           </View>
-        )}
+        ) : null}
 
-        {/* 액션 버튼들 */}
-        <View style={styles.actionSection}>
+        {/* Action Bar */}
+        <View style={styles.actionBar}>
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              like(item.id, item.liked);
-            }}
+            style={styles.iconButton}
+            onPress={() => like(item.id, item.liked)}
+            accessibilityLabel={item.liked ? "좋아요 취소" : "좋아요"}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.actionIcon}>❤️</Text>
-            <Text style={styles.actionCount}>{item.likeCount || 0}</Text>
+            {item.liked ? (
+              <Ionicons name="heart" size={26} color="#e60023" />
+            ) : (
+              <Ionicons name="heart-outline" size={26} color="#111" />
+            )}
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+
+        {/* Likes */}
+        <Text style={styles.likesText}>좋아요 {item.likeCount || 0}개</Text>
+
+        {/* Caption: 아래에 작게 한 줄 */}
+        {!!(item.content && item.content.trim().length > 0) && (
+          <Text style={styles.captionSmall} numberOfLines={1}>
+            {item.content}
+          </Text>
+        )}
+      </View>
     );
   };
 
@@ -215,7 +268,7 @@ export default function FeedScreen({ navigation, route }: any) {
             <Text style={styles.retryButtonText}>다시 시도</Text>
           </TouchableOpacity>
         </View>
-        <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+        {/* 탭 내비게이터 사용으로 하단 바는 전역에서 렌더링됨 */}
       </View>
     );
   }
@@ -224,9 +277,9 @@ export default function FeedScreen({ navigation, route }: any) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>피드</Text>
+      {/* 상단 앱바 (Instagram 스타일) */}
+      <View style={styles.appBar}>
+        <Text style={styles.appBarTitle}>피드</Text>
       </View>
 
       {/* 피드 리스트 */}
@@ -235,6 +288,7 @@ export default function FeedScreen({ navigation, route }: any) {
         renderItem={renderFeedItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContainer}
+        ListHeaderComponent={undefined}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -247,7 +301,7 @@ export default function FeedScreen({ navigation, route }: any) {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
 
-      <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      {/* 탭 내비게이터 사용으로 하단 바는 전역에서 렌더링됨 */}
     </View>
   );
 }
@@ -295,43 +349,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // 헤더
-  header: {
-    backgroundColor: "#ffffff",
-    paddingTop: 60, // 상태바 공간
-    paddingBottom: 16,
+  // 상단 앱바
+  appBar: {
+    backgroundColor: "#fff",
+    paddingTop: 48,
+    paddingBottom: 10,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#eee",
   },
-  headerTitle: {
-    fontSize: 24,
+  appBarTitle: {
+    fontSize: 20,
     fontWeight: "700",
-    color: "#000000",
-    textAlign: "center",
+    color: "#111",
   },
-  headerTabs: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-  },
-  tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
-    backgroundColor: "#f8f9fa",
-  },
-  activeTab: {
-    backgroundColor: "#6366F1",
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#666",
-  },
-  activeTabText: {
-    color: "#ffffff",
-  },
+  // appBarActions 제거
 
   // 리스트
   listContainer: {
@@ -342,102 +374,128 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
   },
 
-  // 피드 아이템
-  feedItem: {
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
+  // Stories 제거
 
-  // 프로필 섹션
-  profileSection: {
+  // Post
+  postContainer: {
+    backgroundColor: "#fff",
+    paddingBottom: 8,
+  },
+  postHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  profileAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
+    backgroundColor: "#eee",
+  },
+  headerAvatarFallback: {
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
   },
-  profileAvatarImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#eee",
-    marginRight: 12,
+  headerUsername: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111",
   },
+  headerMore: {
+    fontSize: 18,
+    color: "#111",
+    paddingHorizontal: 8,
+  },
+  postImageWrap: {
+    width: width,
+    height: width,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#f0f0f0",
+  },
+  postImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  metricCenterWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metricDistanceText: {
+    color: "#fff",
+    fontSize: 40,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textShadowColor: "rgba(0,0,0,0.35)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  metricUnit: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  metricRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  metricPill: {
+    backgroundColor: "rgba(0,0,0,0.45)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  metricPillText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+  /* 하단 캡션/태그 오버레이 제거 */
+  actionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  // actionLeft 제거: 좋아요만 유지
+  iconButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  icon: {
+    fontSize: 22,
+  },
+  iconHeartActive: {
+    color: "#e60023",
+  },
+  likesText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111",
+    paddingHorizontal: 12,
+    paddingBottom: 4,
+  },
+  captionSmall: {
+    fontSize: 12,
+    color: "#666",
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  // viewCommentsText 제거
+  // timeText 제거
   profileInitial: {
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#000000",
-    marginBottom: 2,
-  },
-  profileTime: {
-    fontSize: 13,
-    color: "#666666",
-  },
-  statusBadge: {
-    backgroundColor: "#10B981",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "500",
-  },
-
-  // 컨텐츠
-  feedContent: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#000000",
-    marginBottom: 12,
-  },
-
-  // 이미지
-  imageContainer: {
-    marginBottom: 12,
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  feedImage: {
-    width: "100%",
-    height: 200,
-    backgroundColor: "#f0f0f0",
-    resizeMode: "cover",
-  },
-
-  // 액션 섹션
-  actionSection: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 20,
-  },
-  actionIcon: {
-    fontSize: 16,
-    marginRight: 4,
-  },
-  actionCount: {
-    fontSize: 14,
-    color: "#666666",
-    fontWeight: "500",
   },
 });
