@@ -73,8 +73,27 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
         <TouchableOpacity
           style={styles.startButton}
           onPress={() => {
-            const targetDistanceKm = parseFloat(String(data?.distance ?? '0')) || 0;
-            navigation?.navigate?.('LiveRunningScreen', { targetDistanceKm });
+            // 여정 러닝 화면으로 이동 (경로, 랜드마크 정보 포함)
+            navigation?.navigate?.('JourneyRunningScreen', {
+              journeyId: id,
+              journeyTitle: data?.title ?? '여정 러닝',
+              totalDistanceKm: parseFloat(String(data?.distance ?? '0').replace('Km', '')) || 42.5,
+              landmarks: (data?.landmarks || []).map((lm, idx) => ({
+                id: lm.id,
+                name: lm.name,
+                distance: lm.distance,
+                distanceM: parseFloat(lm.distance) * 1000 || (idx + 1) * 10000,
+                position: {
+                  latitude: 37.5665 + idx * 0.01,
+                  longitude: 126.978 + idx * 0.01,
+                },
+              })),
+              journeyRoute: [
+                { latitude: 37.5665, longitude: 126.978 },
+                { latitude: 37.5765, longitude: 126.988 },
+                { latitude: 37.5865, longitude: 126.998 },
+              ],
+            });
           }}
         >
           <Text style={styles.startButtonText}>여정 계속하기</Text>
@@ -108,8 +127,26 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
             style={styles.modalStartButton}
             onPress={() => {
               setShowLandmarks(false);
-              const targetDistanceKm = parseFloat(String(data?.distance ?? '0')) || 0;
-              navigation?.navigate?.('LiveRunningScreen', { targetDistanceKm });
+              navigation?.navigate?.('JourneyRunningScreen', {
+                journeyId: id,
+                journeyTitle: data?.title ?? '여정 러닝',
+                totalDistanceKm: parseFloat(String(data?.distance ?? '0').replace('Km', '')) || 42.5,
+                landmarks: (data?.landmarks || []).map((lm, idx) => ({
+                  id: lm.id,
+                  name: lm.name,
+                  distance: lm.distance,
+                  distanceM: parseFloat(lm.distance) * 1000 || (idx + 1) * 10000,
+                  position: {
+                    latitude: 37.5665 + idx * 0.01,
+                    longitude: 126.978 + idx * 0.01,
+                  },
+                })),
+                journeyRoute: [
+                  { latitude: 37.5665, longitude: 126.978 },
+                  { latitude: 37.5765, longitude: 126.988 },
+                  { latitude: 37.5865, longitude: 126.998 },
+                ],
+              });
             }}
           >
             <Text style={styles.modalStartButtonText}>여정 계속하기</Text>

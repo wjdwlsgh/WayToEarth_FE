@@ -18,6 +18,7 @@ import JourneyRouteListScreen from "./Pages/JourneyRouteListScreen";
 import JourneyRouteDetailScreen from "./Pages/JourneyRouteDetailScreen";
 import JourneyLoadingScreen from "./Pages/JourneyLoadingScreen";
 import JourneyGuideScreen from "./Pages/JourneyGuideScreen";
+import JourneyRunningScreen from "./Pages/JourneyRunningScreen";
 import Feed from "./Pages/SendFeed";
 import Feed2 from "./Pages/FeedScreen2";
 import FeedDetail from "./Pages/FeedDetail";
@@ -45,7 +46,7 @@ export default function App() {
         <Stack.Screen name="LoginSuccess" component={LoginSuccessScreen} />
         <Stack.Screen name="Main" component={Main} />
         <Stack.Screen name="LiveRunningScreen" component={LiveRunningScreen} />
-        {/* 여정 러닝: 로딩/가이드/리스트/디테일 */}
+        {/* 여정 러닝: 로딩/가이드/리스트/디테일/실행 */}
         <Stack.Screen name="JourneyLoading" component={JourneyLoadingScreen} />
         <Stack.Screen name="JourneyGuide" component={JourneyGuideScreen} />
         <Stack.Screen
@@ -55,6 +56,10 @@ export default function App() {
         <Stack.Screen
           name="JourneyRouteDetail"
           component={JourneyRouteDetailScreen}
+        />
+        <Stack.Screen
+          name="JourneyRunningScreen"
+          component={JourneyRunningScreen}
         />
         <Stack.Screen name="RunningComplete" component={RunningComplete} />
         <Stack.Screen

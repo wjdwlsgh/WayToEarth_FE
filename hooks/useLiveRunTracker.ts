@@ -14,7 +14,7 @@ const UPDATE_MIN_KM = 0.05; // 50m 이동
 // 두 점 사이 거리(m)
 const toMeters = (a: LatLng, b: LatLng) => distanceKm(a, b) * 1000;
 
-export function useLiveRunTracker() {
+export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") {
   // ── 상태
   const [route, setRoute] = useState<LatLng[]>([]);
   const [distance, setDistance] = useState(0); // km
@@ -246,15 +246,25 @@ export function useLiveRunTracker() {
       setIsRunning(true);
       startElapsed();
 
-      // 세션 생성(백엔드 미구현 시 로컬 세션 사용)
+      // 세션 생성 (백엔드 API 호출)
       (async () => {
         try {
-          const sess = await apiStartSession({ runningType: "SINGLE" });
-          sessionIdRef.current = sess.sessionId ?? `local_${Date.now()}`;
+          // 1. 로컬 세션 ID 생성
+          const localSessionId = `session_${Date.now()}`;
+
+          // 2. 백엔드에 세션 시작 알림
+          const sess = await apiStart({
+            sessionId: localSessionId,
+            runningType: runningType
+          });
+
+          sessionIdRef.current = sess.sessionId ?? localSessionId;
           lastUpdateAtRef.current = 0;
           lastUpdateDistanceRef.current = 0;
+          console.log("[RunTracker] 세션 시작:", sessionIdRef.current);
         } catch (e) {
-          console.warn("세션 생성 실패:", e);
+          console.error("세션 생성 실패:", e);
+          // 백엔드 실패 시에도 로컬 세션으로 계속
           sessionIdRef.current = `local_${Date.now()}`;
         }
       })();

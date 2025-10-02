@@ -44,9 +44,8 @@ export default function JourneyMapRoute({
   const mapRef = useRef<MapView>(null);
   const [mapReady, setMapReady] = useState(false);
 
-  // 초기 지도 중심 설정
+  // 초기 지도 중심 설정 (여정 시작 지점)
   const initialCenter: RNLatLng =
-    currentLocation ||
     journeyRoute[0] || { latitude: 37.5665, longitude: 126.978 };
 
   // 지도 준비 완료 시 전체 경로가 보이도록 fitToCoordinates
@@ -55,24 +54,11 @@ export default function JourneyMapRoute({
 
     setTimeout(() => {
       mapRef.current?.fitToCoordinates(journeyRoute as RNLatLng[], {
-        edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
+        edgePadding: { top: 120, right: 80, bottom: 200, left: 80 },
         animated: true,
       });
     }, 300);
   }, [mapReady, journeyRoute]);
-
-  // 현재 위치 추적 (러닝 중일 때만)
-  useEffect(() => {
-    if (!currentLocation || !mapReady) return;
-
-    mapRef.current?.animateCamera(
-      {
-        center: currentLocation as RNLatLng,
-        zoom: 16,
-      },
-      { duration: 500 }
-    );
-  }, [currentLocation, mapReady]);
 
   // 스냅샷 바인딩
   useEffect(() => {
@@ -106,6 +92,11 @@ export default function JourneyMapRoute({
   );
   const completedRoute = journeyRoute.slice(0, Math.max(1, completedRouteLength));
   const remainingRoute = journeyRoute.slice(Math.max(0, completedRouteLength - 1));
+
+  console.log("[JourneyMapRoute] 전체 경로:", journeyRoute.length);
+  console.log("[JourneyMapRoute] 완료 경로:", completedRoute.length);
+  console.log("[JourneyMapRoute] 남은 경로:", remainingRoute.length);
+  console.log("[JourneyMapRoute] 랜드마크:", landmarks.length);
 
   return (
     <MapView

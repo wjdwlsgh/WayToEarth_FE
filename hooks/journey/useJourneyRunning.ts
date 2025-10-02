@@ -31,7 +31,7 @@ export function useJourneyRunning({
   landmarks,
   journeyRoute,
 }: UseJourneyRunningProps) {
-  const runTracker = useLiveRunTracker();
+  const runTracker = useLiveRunTracker("JOURNEY"); // 여정 러닝은 JOURNEY 타입
 
   const [progressM, setProgressM] = useState(0);
   const [progressPercent, setProgressPercent] = useState(0);

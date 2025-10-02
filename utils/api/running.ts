@@ -2,7 +2,7 @@
 import { client } from "./client";
 import { RoutePoint } from "./types";
 
-type RunningType = "SINGLE" | "VIRTUAL";
+type RunningType = "SINGLE" | "JOURNEY";
 
 const isLocal = (sid?: string | null) =>
   typeof sid === "string" && sid.startsWith("local_");
@@ -92,9 +92,10 @@ export async function apiComplete(payload: {
   endedAt?: string | number;
   title?: string;
 }): Promise<{ runId: number | null; data?: CompletedRun }> {
-  // ⛔ 운영 전 반드시 제거: 로컬 세션이면 더미 runId 반환(버튼 활성화용)
+  // 로컬 세션(백엔드 실패 시)은 기록 저장 불가
   if (isLocal(payload.sessionId)) {
-    return { runId: 1, data: undefined };
+    console.warn("[API] 로컬 세션은 서버에 저장할 수 없습니다:", payload.sessionId);
+    return { runId: null, data: undefined };
   }
 
   // endedAt ISO 통일
@@ -125,6 +126,17 @@ export async function apiComplete(payload: {
     endedAt: endedAtIso,
     ...(payload.title ? { title: payload.title } : {}),
   };
+
+  console.log("[API] 러닝 완료 요청:", {
+    sessionId: body.sessionId,
+    distanceMeters: body.distanceMeters,
+    durationSeconds: body.durationSeconds,
+    averagePaceSeconds: body.averagePaceSeconds,
+    calories: body.calories,
+    routePointsCount: routePoints.length,
+    endedAt: body.endedAt,
+    title: body.title,
+  });
 
   const { data } = await client.post("/v1/running/complete", body);
 

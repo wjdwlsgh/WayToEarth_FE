@@ -120,13 +120,29 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     return `${m}:${s}`;
   }, [t.elapsedSec]);
 
+  // 디버깅: 여정 데이터 확인
+  console.log("[JourneyRunning] 여정 경로 개수:", journeyRoute.length);
+  console.log("[JourneyRunning] 랜드마크 개수:", landmarks.length);
+  console.log("[JourneyRunning] 사용자 경로 개수:", t.route.length);
+  console.log("[JourneyRunning] 진행률:", t.progressPercent.toFixed(1), "%");
+
+  // 진행률에 따른 여정 경로 상의 가상 위치 계산
+  const virtualLocation = useMemo(() => {
+    if (journeyRoute.length === 0) return null;
+
+    const index = Math.floor((journeyRoute.length - 1) * t.progressPercent / 100);
+    const clampedIndex = Math.max(0, Math.min(index, journeyRoute.length - 1));
+
+    return journeyRoute[clampedIndex];
+  }, [journeyRoute, t.progressPercent]);
+
   return (
     <SafeLayout withBottomInset>
       <JourneyMapRoute
         journeyRoute={journeyRoute}
         landmarks={t.landmarksWithReached}
-        userRoute={t.route}
-        currentLocation={t.last}
+        userRoute={[]} // 여정 러닝에서는 실제 GPS 경로 표시 안 함
+        currentLocation={virtualLocation}
         progressPercent={t.progressPercent}
       />
 
