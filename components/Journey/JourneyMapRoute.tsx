@@ -4,8 +4,9 @@ import MapView, {
   Polyline,
   LatLng as RNLatLng,
 } from "react-native-maps";
-import { StyleSheet, View, Text } from "react-native";
+import { StyleSheet, View, Text, Pressable } from "react-native";
 import type { LatLng } from "../../types/types";
+import * as Location from "expo-location";
 
 type JourneyLandmark = {
   id: string;
@@ -22,7 +23,7 @@ type Props = {
   landmarks: JourneyLandmark[];
   // 사용자 현재 러닝 경로
   userRoute: LatLng[];
-  // 현재 위치
+  // 현재 위치 (가상 위치)
   currentLocation: LatLng | null;
   // 진행률 (0~100)
   progressPercent: number;
@@ -44,6 +45,36 @@ export default function JourneyMapRoute({
   const mapRef = useRef<MapView>(null);
   const [mapReady, setMapReady] = useState(false);
   const hasFittedRef = useRef(false);
+
+  // 가상 위치(진행률 기반 마커)로 이동
+  const moveToVirtualLocation = () => {
+    if (!currentLocation) {
+      // 현재 위치가 없으면 여정 시작점으로 이동
+      if (journeyRoute.length > 0) {
+        mapRef.current?.animateToRegion(
+          {
+            latitude: journeyRoute[0].latitude,
+            longitude: journeyRoute[0].longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          },
+          500
+        );
+      }
+      return;
+    }
+
+    // 가상 위치(진행률 기반 마커)로 이동
+    mapRef.current?.animateToRegion(
+      {
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      },
+      500
+    );
+  };
 
   // 초기 지도 중심 설정 (여정 시작 지점) - useMemo로 캐싱
   const initialCenter: RNLatLng = useMemo(
@@ -141,24 +172,25 @@ export default function JourneyMapRoute({
   }, [journeyRoute, progressPercent]);
 
   return (
-    <MapView
-      ref={mapRef}
-      style={styles.map}
-      initialRegion={initialRegion}
-      showsUserLocation={false}
-      showsMyLocationButton={true}
-      onMapReady={handleMapReady}
-      loadingEnabled={false}
-      pitchEnabled={true}
-      rotateEnabled={true}
-      scrollEnabled={true}
-      zoomEnabled={true}
-      toolbarEnabled={false}
-      moveOnMarkerPress={false}
-      // 성능 최적화 옵션
-      maxZoomLevel={20}
-      minZoomLevel={10}
-    >
+    <View style={styles.container}>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        onMapReady={handleMapReady}
+        loadingEnabled={false}
+        pitchEnabled={true}
+        rotateEnabled={true}
+        scrollEnabled={true}
+        zoomEnabled={true}
+        toolbarEnabled={false}
+        moveOnMarkerPress={false}
+        // 성능 최적화 옵션
+        maxZoomLevel={20}
+        minZoomLevel={10}
+      >
       {/* 완료된 여정 경로 (초록색) */}
       {completedRoute.length > 1 && (
         <Polyline
@@ -230,12 +262,38 @@ export default function JourneyMapRoute({
           </View>
         </Marker>
       )}
-    </MapView>
+      </MapView>
+
+      {/* 커스텀 위치 버튼 (우측 상단) - 가상 위치로 이동 */}
+      <Pressable style={styles.gpsButton} onPress={moveToVirtualLocation}>
+        <Text style={styles.gpsIcon}>📍</Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   map: { flex: 1 },
+  gpsButton: {
+    position: "absolute",
+    top: 60,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  gpsIcon: {
+    fontSize: 24,
+  },
   landmarkMarker: {
     width: 40,
     height: 40,

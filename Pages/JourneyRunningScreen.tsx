@@ -229,13 +229,19 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
       {/* 일시정지 오버레이 */}
       {t.isPaused && (
-        <View pointerEvents="none" style={styles.pauseOverlay}>
-          <Text style={styles.pauseTitle}>일시정지</Text>
-          <Text style={styles.pauseDesc}>재생 ▶ 을 누르면 다시 시작됩니다.</Text>
-          <Text style={styles.pauseDesc}>
-            종료하려면 ■ 버튼을 2초간 길게 누르세요.
-          </Text>
-        </View>
+        <>
+          {/* 배경 흐림 효과 */}
+          <View pointerEvents="none" style={styles.pauseBlurOverlay} />
+
+          {/* 일시정지 텍스트 */}
+          <View pointerEvents="none" style={styles.pauseTextContainer}>
+            <Text style={styles.pauseTitle}>일시정지</Text>
+            <Text style={styles.pauseDesc}>재생 ▶ 을 누르면 다시 시작됩니다.</Text>
+            <Text style={styles.pauseDesc}>
+              종료하려면 ■ 버튼을 2초간 길게 누르세요.
+            </Text>
+          </View>
+        </>
       )}
 
       {/* 시작 버튼 (러닝 전) */}
@@ -289,7 +295,15 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 }
 
 const styles = StyleSheet.create({
-  pauseOverlay: {
+  pauseBlurOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  pauseTextContainer: {
     position: "absolute",
     left: 0,
     right: 0,
@@ -297,16 +311,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
   },
   pauseTitle: {
     fontSize: 22,
     fontWeight: "900",
     marginBottom: 8,
+    color: "#fff",
   },
   pauseDesc: {
-    color: "#4b5563",
+    color: "#fff",
     marginTop: 2,
+    fontSize: 14,
   },
   startButtonContainer: {
     position: "absolute",
@@ -339,7 +354,7 @@ const styles = StyleSheet.create({
   },
   compactProgressCard: {
     position: "absolute",
-    top: 180,
+    top: 120,
     left: 16,
     right: 16,
     backgroundColor: "#fff",
