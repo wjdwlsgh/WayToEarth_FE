@@ -41,28 +41,44 @@ export async function apiUpdate(payload: {
   currentPoint: RoutePoint & { sequence: number };
 }) {
   if (isLocal(payload.sessionId)) {
+    console.log("[API] 로컬 세션 업데이트 (mocked):", payload.sessionId);
     return { ack: true, mocked: true };
   }
   const body = {
     ...payload,
     averagePaceSeconds: payload.averagePaceSeconds ?? undefined, // null 회피
   };
+  console.log("[API] 러닝 업데이트 요청:", {
+    sessionId: body.sessionId,
+    distanceMeters: body.distanceMeters,
+    durationSeconds: body.durationSeconds,
+    sequence: body.currentPoint.sequence,
+  });
   const { data } = await client.post("/v1/running/update", body);
+  console.log("[API] 러닝 업데이트 응답:", data);
   // Swagger 예시: { success, data: { ack: true } }
   return data;
 }
 
 export async function apiPause(payload: { sessionId: string }) {
-  if (isLocal(payload.sessionId))
+  if (isLocal(payload.sessionId)) {
+    console.log("[API] 로컬 세션 일시정지 (mocked):", payload.sessionId);
     return { ack: true, status: "PAUSED", mocked: true };
+  }
+  console.log("[API] 러닝 일시정지 요청:", payload);
   const { data } = await client.post("/v1/running/pause", payload);
+  console.log("[API] 러닝 일시정지 응답:", data);
   return data;
 }
 
 export async function apiResume(payload: { sessionId: string }) {
-  if (isLocal(payload.sessionId))
+  if (isLocal(payload.sessionId)) {
+    console.log("[API] 로컬 세션 재개 (mocked):", payload.sessionId);
     return { ack: true, status: "RUNNING", mocked: true };
+  }
+  console.log("[API] 러닝 재개 요청:", payload);
   const { data } = await client.post("/v1/running/resume", payload);
+  console.log("[API] 러닝 재개 응답:", data);
   return data;
 }
 
