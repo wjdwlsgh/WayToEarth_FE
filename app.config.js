@@ -60,7 +60,6 @@ export default {
         {
           icon: "./assets/icon.png",
           color: "#10b981",
-          sounds: ["./assets/notification-sound.wav"],
         },
       ],
     ],
