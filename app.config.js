@@ -26,7 +26,11 @@ export default {
     },
 
     android: {
-      package: "com.waytoearth", // ✅ 이미 있어서 OK
+      package: "cloud.waytoearth", // ✅ Firebase와 일치하도록 수정
+      googleServicesFile: "./google-services.json", // ✅ Firebase 설정
+      permissions: [
+        "POST_NOTIFICATIONS", // Android 13+ 알림 권한
+      ],
       config: { googleMaps: { apiKey: process.env.ANDROID_MAPS_KEY } },
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
@@ -50,6 +54,14 @@ export default {
       [
         "@react-native-seoul/kakao-login",
         { kakaoAppKey: process.env.KAKAO_NATIVE_APP_KEY },
+      ],
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/icon.png",
+          color: "#10b981",
+          sounds: ["./assets/notification-sound.wav"],
+        },
       ],
     ],
 
