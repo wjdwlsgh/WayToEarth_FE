@@ -21,6 +21,8 @@ import {
 } from "../utils/api/users";
 import { useFocusEffect } from "@react-navigation/native";
 import SafeLayout from "../components/Layout/SafeLayout";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { deactivateToken } from "../utils/notifications";
 
 const number = (v: number | null | undefined, digits = 1) =>
   typeof v === "number" ? Number(v.toFixed(digits)) : 0;
@@ -99,6 +101,32 @@ export default function ProfileScreen({
     setRefreshing(true);
     fetchData();
   }, [fetchData]);
+
+  const handleLogout = useCallback(async () => {
+    Alert.alert("로그아웃", "정말 로그아웃 하시겠어요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "로그아웃",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // FCM 토큰 비활성화
+            await deactivateToken();
+            // JWT 토큰 삭제
+            await AsyncStorage.removeItem("jwtToken");
+            // 로그인 화면으로 이동
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }],
+            });
+          } catch (error) {
+            console.error("로그아웃 실패:", error);
+            Alert.alert("오류", "로그아웃 중 문제가 발생했습니다.");
+          }
+        },
+      },
+    ]);
+  }, [navigation]);
 
   // 필드 매핑
   const nickname = me?.nickname || (me as any)?.name || "사용자";
@@ -243,6 +271,19 @@ export default function ProfileScreen({
             >
               <Text style={styles.menuTitle}>기본 정보 관리</Text>
               <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.menuSpacer} />
+
+          {/* 로그아웃 */}
+          <View style={styles.menuSection}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              activeOpacity={0.6}
+              onPress={handleLogout}
+            >
+              <Text style={[styles.menuTitle, styles.logoutText]}>로그아웃</Text>
             </TouchableOpacity>
           </View>
 
@@ -425,6 +466,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "400",
     color: "#000000",
+  },
+  logoutText: {
+    color: "#FF3B30",
   },
   chevron: {
     fontSize: 18,

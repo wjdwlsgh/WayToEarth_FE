@@ -13,6 +13,10 @@ import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "../types/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import {
+  registerForPushNotificationsAsync,
+  sendTokenToServer,
+} from "../utils/notifications";
 
 const { width, height } = Dimensions.get("window");
 
@@ -113,6 +117,13 @@ export default function Onboading() {
         const token = await AsyncStorage.getItem("jwtToken");
         if (token) {
           await getMyProfile();
+
+          // FCM 토큰 등록
+          const fcmToken = await registerForPushNotificationsAsync();
+          if (fcmToken) {
+            await sendTokenToServer(fcmToken);
+          }
+
           navigation.reset({
             index: 0,
             routes: [{ name: "MainTabs", params: { screen: "LiveRunningScreen" } }],

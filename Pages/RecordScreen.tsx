@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from "react-native";
 import { Dimensions } from "react-native";
 import {
@@ -18,33 +19,45 @@ import {
 import { getMyProfile } from "../utils/api/users";
 import { client } from "../utils/api/client";
 import MapView, { Polyline } from "react-native-maps";
+import {
+  getAIFeedback,
+  createAIFeedback,
+  getFriendlyErrorMessage,
+  AIFeedback,
+} from "../utils/api/aiFeedback";
 
 export default function RecordScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [weekly, setWeekly] = useState<any | null>(null);
   const [weeklyGoal, setWeeklyGoal] = useState<string>("");
   const [savingGoal, setSavingGoal] = useState(false);
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [totalRunningCount, setTotalRunningCount] = useState<number>(0);
   const [records, setRecords] = useState<any[]>([]);
   const width = Dimensions.get("window").width;
   const [previews, setPreviews] = useState<
     Record<number, { coords: { latitude: number; longitude: number }[] }>
   >({});
+  const [aiFeedbacks, setAiFeedbacks] = useState<
+    Record<number, AIFeedback | null>
+  >({});
+  const [aiLoading, setAiLoading] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     (async () => {
       try {
-        const [w, r] = await Promise.all([
+        const [w, r, me] = await Promise.all([
           getWeeklyStats(),
           listRunningRecords(5),
+          getMyProfile(),
         ]);
         setWeekly(w ?? null);
         setRecords(Array.isArray(r) ? r : []);
-        // Load current weekly goal from profile
-        try {
-          const me = await getMyProfile();
-          const v = (me as any)?.weekly_goal_distance;
-          setWeeklyGoal(v != null && !Number.isNaN(Number(v)) ? String(v) : "");
-        } catch {}
+
+        // Load weekly goal and total running count from profile
+        const v = (me as any)?.weekly_goal_distance;
+        setWeeklyGoal(v != null && !Number.isNaN(Number(v)) ? String(v) : "");
+        setTotalRunningCount((me as any)?.total_running_count ?? 0);
       } catch (e) {
         console.warn(e);
       } finally {
@@ -79,6 +92,29 @@ export default function RecordScreen({ navigation }: any) {
     })();
   }, [records]);
 
+  // AI 피드백 조회 (GET으로 먼저 시도)
+  useEffect(() => {
+    (async () => {
+      try {
+        const ids = records.map((r: any) => r.id).filter(Boolean);
+        await Promise.all(
+          ids.map(async (id) => {
+            try {
+              const feedback = await getAIFeedback(id);
+              setAiFeedbacks((prev) => ({ ...prev, [id]: feedback }));
+            } catch (err: any) {
+              // 404는 정상 (아직 분석 안 됨)
+              if (err?.response?.status !== 404) {
+                console.warn(`AI feedback fetch error for ${id}:`, err);
+              }
+              setAiFeedbacks((prev) => ({ ...prev, [id]: null }));
+            }
+          })
+        );
+      } catch {}
+    })();
+  }, [records]);
+
   const formatDuration = (seconds?: number) => {
     if (!seconds || isNaN(seconds)) return "00:00:00";
     const h = Math.floor(seconds / 3600);
@@ -87,6 +123,20 @@ export default function RecordScreen({ navigation }: any) {
     return `${h.toString().padStart(2, "0")}:${m
       .toString()
       .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  // AI 분석 생성
+  const handleCreateAIAnalysis = async (recordId: number) => {
+    try {
+      setAiLoading((prev) => ({ ...prev, [recordId]: true }));
+      const feedback = await createAIFeedback(recordId);
+      setAiFeedbacks((prev) => ({ ...prev, [recordId]: feedback }));
+    } catch (err: any) {
+      const friendlyMsg = getFriendlyErrorMessage(err, records.length);
+      Alert.alert("AI 분석 실패", friendlyMsg);
+    } finally {
+      setAiLoading((prev) => ({ ...prev, [recordId]: false }));
+    }
   };
 
   if (loading) {
@@ -104,17 +154,36 @@ export default function RecordScreen({ navigation }: any) {
     if (savingGoal) return;
     try {
       setSavingGoal(true);
-      const n = weeklyGoal?.trim() === "" ? undefined : Number(weeklyGoal);
-      await client.put("/v1/users/me", {
+      const weeklyGoalNumber =
+        weeklyGoal?.trim() === "" ? undefined : Number(weeklyGoal);
+
+      const payload = {
         weekly_goal_distance:
-          typeof n === "number" && !Number.isNaN(n) ? n : undefined,
-      });
-    } catch (e) {
+          typeof weeklyGoalNumber === "number" &&
+          !Number.isNaN(weeklyGoalNumber)
+            ? weeklyGoalNumber
+            : undefined,
+      };
+
+      await client.put("/v1/users/me", payload);
+      Alert.alert("완료", "주간 목표가 저장되었습니다.");
+      setIsEditingGoal(false);
+    } catch (e: any) {
       console.warn(e);
+      const msg =
+        e?.response?.data?.message ||
+        e?.message ||
+        "주간 목표 저장에 실패했습니다.";
+      Alert.alert("오류", msg);
     } finally {
       setSavingGoal(false);
     }
   };
+
+  // 이번 주 러닝 횟수 계산
+  const weeklyRunCount = weekly?.dailyDistances?.filter(
+    (d: any) => (d?.distance ?? 0) > 0
+  ).length ?? 0;
 
   const WeeklyChart = ({ weekly }: { weekly: any }) => {
     const dailyDistances: Array<{ day: string; distance: number }> =
@@ -215,45 +284,120 @@ export default function RecordScreen({ navigation }: any) {
   return (
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        {/* 주간 목표 설정 */}
-        <View style={s.card}>
-          <Text style={s.h1}>주간 목표</Text>
-          <Text style={[s.dim, { marginTop: 4 }]}>주간 목표 거리 (km)</Text>
-          <View style={{ flexDirection: "row", marginTop: 8, gap: 8 }}>
-            <View style={[s.input, { flex: 1 }]}>
-              <TextInput
-                style={{ fontSize: 16, color: "#111", paddingVertical: 8 }}
-                placeholder="예) 25"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                inputMode="numeric"
-                maxLength={4}
-                value={weeklyGoal}
-                onChangeText={(v) =>
-                  setWeeklyGoal((v || "").replace(/[^\d]/g, ""))
-                }
-              />
-            </View>
-          </View>
-          <View style={{ alignItems: "flex-end", marginTop: 10 }}>
-            <TouchableOpacity
-              onPress={saveWeeklyGoal}
-              disabled={savingGoal}
-              style={{
-                backgroundColor: "#111827",
-                paddingHorizontal: 14,
-                height: 42,
-                borderRadius: 10,
-                justifyContent: "center",
-                alignItems: "center",
-                opacity: savingGoal ? 0.6 : 1,
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "700" }}>
-                {savingGoal ? "저장 중…" : "목표 저장"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        {/* 주간 목표 박스 */}
+        <View style={s.goalCard}>
+          {isEditingGoal ? (
+            <>
+              <View style={s.goalHeader}>
+                <Text style={s.goalTitle}>주간 목표 수정</Text>
+                <TouchableOpacity
+                  onPress={() => setIsEditingGoal(false)}
+                  style={s.editGoalButton}
+                >
+                  <Text style={s.editGoalButtonText}>취소</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ marginTop: 16 }}>
+                <Text style={s.goalLabel}>주간 목표 거리 (km)</Text>
+                <View style={{ flexDirection: "row", marginTop: 8, gap: 8 }}>
+                  <View style={[s.input, { flex: 1 }]}>
+                    <TextInput
+                      style={{ fontSize: 16, color: "#111", paddingVertical: 8 }}
+                      placeholder="예) 25"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={weeklyGoal}
+                      onChangeText={(v) =>
+                        setWeeklyGoal((v || "").replace(/[^\d]/g, ""))
+                      }
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={saveWeeklyGoal}
+                    disabled={savingGoal}
+                    style={[s.saveGoalButton, savingGoal && { opacity: 0.6 }]}
+                  >
+                    <Text style={s.saveGoalButtonText}>
+                      {savingGoal ? "저장 중" : "저장"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </>
+          ) : (
+            <>
+              {/* 헤더 */}
+              <View style={s.goalHeaderRow}>
+                <View style={s.goalTitleSection}>
+                  <Text style={s.goalSubtitle}>이번 주 목표</Text>
+                  <Text style={s.goalMainTitle}>
+                    {weeklyGoal ? `${weeklyGoal} km` : "목표 미설정"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsEditingGoal(true)}
+                  style={s.editIconButton}
+                >
+                  <Text style={s.editIconText}>수정</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 프로그레스 바 */}
+              <View style={s.progressSection}>
+                <View style={s.progressBar}>
+                  <View
+                    style={[
+                      s.progressFill,
+                      {
+                        width:
+                          weeklyGoal && Number(weeklyGoal) > 0
+                            ? `${Math.min(
+                                ((weekly?.totalDistance ?? 0) /
+                                  Number(weeklyGoal)) *
+                                  100,
+                                100
+                              )}%`
+                            : "0%",
+                      },
+                    ]}
+                  />
+                </View>
+                <View style={s.progressTextRow}>
+                  <Text style={s.progressCurrentText}>
+                    {(weekly?.totalDistance ?? 0).toFixed(1)} km
+                  </Text>
+                  {weeklyGoal && Number(weeklyGoal) > 0 && (
+                    <Text style={s.progressPercentText}>
+                      {Math.round(
+                        ((weekly?.totalDistance ?? 0) / Number(weeklyGoal)) *
+                          100
+                      )}
+                      %
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* 통계 */}
+              <View style={s.goalStatsRow}>
+                <View style={s.goalStatItem}>
+                  <View style={s.goalStatTextContainer}>
+                    <Text style={s.goalStatLabel}>총 러닝</Text>
+                    <Text style={s.goalStatValue}>{totalRunningCount}</Text>
+                  </View>
+                </View>
+                <View style={s.goalStatDivider} />
+                <View style={s.goalStatItem}>
+                  <View style={s.goalStatTextContainer}>
+                    <Text style={s.goalStatLabel}>이번 주</Text>
+                    <Text style={s.goalStatValue}>{weeklyRunCount}</Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         <Text style={[s.h1, { marginTop: 16 }]}>주간 러닝</Text>
@@ -295,57 +439,128 @@ export default function RecordScreen({ navigation }: any) {
 
         <Text style={[s.h1, { marginTop: 20 }]}>운동 기록</Text>
         {records.length === 0 ? (
-          <View style={[s.card, { alignItems: "center" }]}>
-            <Text style={s.dim}>최근 운동 기록이 없습니다</Text>
+          <View style={s.card}>
+            <Text style={[s.dim, { textAlign: "center", marginBottom: 16 }]}>
+              최근 운동 기록이 없습니다
+            </Text>
+            <View style={[s.aiInfoBox]}>
+              <Text style={s.aiInfoTitle}>🤖 AI 분석 기능</Text>
+              <Text style={s.aiInfoText}>
+                AI 분석은 5회 이상 러닝 완료 시 이용 가능해요.
+              </Text>
+              <Text style={[s.aiInfoText, { fontSize: 12, marginTop: 4 }]}>
+                정확한 분석을 위해 일정 수준의 러닝 기록이 필요합니다.
+              </Text>
+            </View>
           </View>
         ) : (
-          records.map((r) => (
-            <TouchableOpacity
-              key={r.id}
-              style={s.item}
-              onPress={() =>
-                navigation.navigate("RecordDetailScreen", { recordId: r.id })
-              }
-            >
-              <View
-                style={{
-                  width: 72,
-                  height: 72,
-                  marginRight: 12,
-                  borderRadius: 12,
-                  overflow: "hidden",
-                  backgroundColor: "#F3F4F6",
-                }}
-              >
-                {previews[r.id]?.coords?.length ? (
-                  <MapView
-                    pointerEvents="none"
-                    style={{ flex: 1 }}
-                    initialRegion={{
-                      latitude: previews[r.id].coords[0].latitude,
-                      longitude: previews[r.id].coords[0].longitude,
-                      latitudeDelta: 0.01,
-                      longitudeDelta: 0.01,
+          records.map((r) => {
+            const hasFeedback = aiFeedbacks[r.id];
+            const isAiLoading = aiLoading[r.id];
+            const canUseAI = records.length >= 5;
+
+            return (
+              <View key={r.id} style={s.item}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                  onPress={() =>
+                    navigation.navigate("RecordDetailScreen", {
+                      recordId: r.id,
+                    })
+                  }
+                >
+                  <View
+                    style={{
+                      width: 72,
+                      height: 72,
+                      marginRight: 12,
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      backgroundColor: "#F3F4F6",
                     }}
                   >
-                    <Polyline
-                      coordinates={previews[r.id].coords}
-                      strokeColor="#2563eb"
-                      strokeWidth={3}
-                    />
-                  </MapView>
-                ) : null}
+                    {previews[r.id]?.coords?.length ? (
+                      <MapView
+                        pointerEvents="none"
+                        style={{ flex: 1 }}
+                        initialRegion={{
+                          latitude: previews[r.id].coords[0].latitude,
+                          longitude: previews[r.id].coords[0].longitude,
+                          latitudeDelta: 0.01,
+                          longitudeDelta: 0.01,
+                        }}
+                      >
+                        <Polyline
+                          coordinates={previews[r.id].coords}
+                          strokeColor="#2563eb"
+                          strokeWidth={3}
+                        />
+                      </MapView>
+                    ) : null}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.itemTitle}>{r.title || "러닝 기록"}</Text>
+                    <Text style={s.itemSub}>
+                      {(r.distanceKm ?? 0).toFixed(2)}km ·{" "}
+                      {formatDuration(r.durationSeconds)} · {r.calories ?? 0}
+                      kcal
+                    </Text>
+                  </View>
+                  <Text style={{ color: "#9CA3AF" }}>〉</Text>
+                </TouchableOpacity>
+
+                {/* AI 피드백 섹션 */}
+                {hasFeedback ? (
+                  <View style={s.aiFeedbackBox}>
+                    <Text style={s.aiFeedbackLabel}>🤖 AI 코치의 피드백</Text>
+                    <Text style={s.aiFeedbackText} numberOfLines={2}>
+                      {hasFeedback.feedbackContent}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        navigation.navigate("AIFeedbackScreen", {
+                          runningRecordId: r.id,
+                          completedCount: records.length,
+                        })
+                      }
+                    >
+                      <Text style={s.aiFeedbackMore}>자세히 보기 →</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[
+                      s.aiAnalyzeButton,
+                      !canUseAI && s.aiAnalyzeButtonDisabled,
+                    ]}
+                    disabled={!canUseAI || isAiLoading}
+                    onPress={() => handleCreateAIAnalysis(r.id)}
+                  >
+                    {isAiLoading ? (
+                      <>
+                        <ActivityIndicator size="small" color="#fff" />
+                        <Text style={s.aiAnalyzeButtonText}>
+                          AI가 분석 중...
+                        </Text>
+                      </>
+                    ) : canUseAI ? (
+                      <Text style={s.aiAnalyzeButtonText}>
+                        🤖 AI 분석하기
+                      </Text>
+                    ) : (
+                      <Text style={s.aiAnalyzeButtonText}>
+                        AI 분석은 {5 - records.length}회 더 러닝하면 이용
+                        가능해요!
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.itemTitle}>{r.title || "러닝 기록"}</Text>
-                <Text style={s.itemSub}>
-                  {(r.distanceKm ?? 0).toFixed(2)}km ·{" "}
-                  {formatDuration(r.durationSeconds)} · {r.calories ?? 0}kcal
-                </Text>
-              </View>
-              <Text style={{ color: "#9CA3AF" }}>〉</Text>
-            </TouchableOpacity>
-          ))
+            );
+          })
         )}
       </ScrollView>
       {/* 탭 내비게이터 사용으로 하단 바는 전역에서 렌더링됨 */}
@@ -376,8 +591,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
     gap: 12,
   },
   itemTitle: { fontWeight: "700", color: "#111" },
@@ -390,5 +603,206 @@ const s = StyleSheet.create({
     height: 48,
     justifyContent: "center",
     paddingHorizontal: 40,
+  },
+  aiFeedbackBox: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  aiFeedbackLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 6,
+  },
+  aiFeedbackText: {
+    fontSize: 13,
+    color: "#4B5563",
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  aiFeedbackMore: {
+    fontSize: 12,
+    color: "#2563EB",
+    fontWeight: "600",
+  },
+  aiAnalyzeButton: {
+    backgroundColor: "#111827",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  aiAnalyzeButtonDisabled: {
+    backgroundColor: "#9CA3AF",
+  },
+  aiAnalyzeButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  aiInfoBox: {
+    backgroundColor: "#F0F9FF",
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  aiInfoTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E3A8A",
+    marginBottom: 8,
+  },
+  aiInfoText: {
+    fontSize: 13,
+    color: "#1E40AF",
+    lineHeight: 18,
+  },
+  goalCard: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 8,
+  },
+  goalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  goalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111",
+  },
+  goalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  goalTitleSection: {
+    gap: 4,
+  },
+  goalSubtitle: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontWeight: "600",
+  },
+  goalMainTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111",
+    letterSpacing: -0.3,
+  },
+  editIconButton: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  editIconText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  editGoalButton: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  editGoalButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  goalLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  saveGoalButton: {
+    backgroundColor: "#111827",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  saveGoalButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  goalStatsRow: {
+    flexDirection: "row",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    gap: 0,
+  },
+  goalStatItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  goalStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "#E5E7EB",
+  },
+  goalStatTextContainer: {
+    alignItems: "center",
+  },
+  goalStatValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111",
+    lineHeight: 22,
+  },
+  goalStatLabel: {
+    fontSize: 10,
+    color: "#9CA3AF",
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  progressSection: {
+    gap: 8,
+  },
+  progressBar: {
+    height: 10,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 5,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#10b981",
+    borderRadius: 5,
+  },
+  progressTextRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  progressCurrentText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  progressPercentText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#10b981",
   },
 });
