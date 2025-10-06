@@ -40,6 +40,9 @@ import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
 // import CrewScreen from "./Pages/CrewScreen";
 import CrewDetailScreen from "./Pages/CrewDetailScreen";
 import TabBarAdapter from "./components/Layout/TabBarAdapter";
+import LandmarkGuestbookScreen from "./Pages/LandmarkGuestbookScreen";
+import MyGuestbookScreen from "./Pages/MyGuestbookScreen";
+import GuestbookScreen from "./Pages/GuestbookScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -135,6 +138,23 @@ export default function App() {
           component={AIFeedbackScreen}
         />
         <Stack.Screen name="UserInfoInput" component={UserInfoInputScreen} />
+
+        {/* 방명록 화면들 */}
+        <Stack.Screen
+          name="GuestbookScreen"
+          component={GuestbookScreen}
+          options={{ title: "방명록 피드" }}
+        />
+        <Stack.Screen
+          name="LandmarkGuestbookScreen"
+          component={LandmarkGuestbookScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="MyGuestbookScreen"
+          component={MyGuestbookScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
