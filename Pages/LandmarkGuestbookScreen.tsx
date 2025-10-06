@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Image,
 } from "react-native";
 import {
   getGuestbooksByLandmark,
@@ -18,7 +17,6 @@ import {
 import type {
   GuestbookResponse,
   PageableResponse,
-  LandmarkSummary,
 } from "../types/guestbook";
 
 interface LandmarkGuestbookScreenProps {
@@ -109,28 +107,63 @@ export default function LandmarkGuestbookScreen({
     return date.toLocaleDateString("ko-KR");
   };
 
+  const formatDate = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}.${month}.${day}`;
+  };
+
   const renderGuestbookItem = ({
     item,
+    index,
   }: {
     item: GuestbookResponse;
+    index: number;
   }) => (
     <View style={styles.guestbookItem}>
-      {/* 작성자 정보 */}
-      <View style={styles.userInfo}>
-        <Image
-          source={{ uri: item.user.profileImageUrl }}
-          style={styles.profileImage}
-        />
-        <View style={styles.userDetails}>
-          <Text style={styles.nickname}>{item.user.nickname}</Text>
-          <Text style={styles.timestamp}>
-            {formatRelativeTime(item.createdAt)}
-          </Text>
-        </View>
+      {/* 번호 배지 */}
+      <View style={styles.numberBadge}>
+        <Text style={styles.numberText}>{guestbooks.length - index}</Text>
       </View>
+
+      {/* 사용자 정보 */}
+      <View style={styles.userInfo}>
+        <Text style={styles.nickname}>{item.user.nickname}</Text>
+        <Text style={styles.location}>from {item.landmark.cityName}</Text>
+      </View>
+
+      {/* 날짜 */}
+      <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
 
       {/* 메시지 */}
       <Text style={styles.message}>{item.message}</Text>
+
+      {/* 하단 장식선 */}
+      <View style={styles.decorativeLines}>
+        <View style={styles.decorativeLine} />
+        <View style={styles.decorativeLine} />
+        <View style={styles.decorativeLine} />
+      </View>
+    </View>
+  );
+
+  const renderHeader = () => (
+    <View style={styles.headerCard}>
+      {/* 왼쪽 장식 패널 */}
+      <View style={styles.decorativePanel}>
+        <View style={styles.decorativePanelLine} />
+        <View style={styles.decorativePanelLine} />
+        <View style={styles.decorativePanelLine} />
+      </View>
+
+      {/* 정보 영역 */}
+      <View style={styles.headerContent}>
+        <Text style={styles.headerEmoji}>🏯 {landmarkName || "랜드마크"}</Text>
+        <Text style={styles.headerSubtitle}>여행자들의 발자취</Text>
+        <Text style={styles.headerCount}>총 {guestbooks.length}개의 기록</Text>
+      </View>
     </View>
   );
 
@@ -138,7 +171,7 @@ export default function LandmarkGuestbookScreen({
     if (loading && page === 0) {
       return (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#000" />
+          <ActivityIndicator size="large" color="#8b4513" />
           <Text style={styles.loadingText}>방명록을 불러오는 중...</Text>
         </View>
       );
@@ -174,7 +207,7 @@ export default function LandmarkGuestbookScreen({
 
     return (
       <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color="#000" />
+        <ActivityIndicator size="small" color="#8b4513" />
         <Text style={styles.footerText}>더 불러오는 중...</Text>
       </View>
     );
@@ -190,16 +223,7 @@ export default function LandmarkGuestbookScreen({
         >
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {landmarkName || "랜드마크"} 방명록
-          </Text>
-          {guestbooks.length > 0 && (
-            <Text style={styles.headerSubtitle}>
-              {guestbooks.length}개의 방명록
-            </Text>
-          )}
-        </View>
+        <Text style={styles.headerTitle}>{landmarkName || "랜드마크"} 방명록</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -208,6 +232,7 @@ export default function LandmarkGuestbookScreen({
         data={guestbooks}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderGuestbookItem}
+        ListHeaderComponent={guestbooks.length > 0 ? renderHeader : null}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderFooter}
         onEndReached={handleLoadMore}
@@ -216,7 +241,7 @@ export default function LandmarkGuestbookScreen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#000"
+            tintColor="#8b4513"
           />
         }
         contentContainerStyle={
@@ -230,50 +255,100 @@ export default function LandmarkGuestbookScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#f5f3f0",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e9ecef",
+    backgroundColor: "#f5f3f0",
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    height: 80,
   },
   backButton: {
     width: 40,
     height: 40,
-    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: "#fff",
     alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   backButtonText: {
-    fontSize: 28,
-    color: "#000",
-  },
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: "center",
+    fontSize: 18,
+    color: "#8b4513",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#000",
-    marginBottom: 2,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: "#6b7280",
+    color: "#8b4513",
+    flex: 1,
+    textAlign: "center",
   },
   headerSpacer: {
     width: 40,
   },
-  emptyListContainer: {
-    flexGrow: 1,
+  headerCard: {
+    backgroundColor: "#8b4513",
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 20,
+    height: 130,
+    flexDirection: "row",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  decorativePanel: {
+    width: 60,
+    backgroundColor: "#654321",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 9,
+  },
+  decorativePanelLine: {
+    width: 30,
+    height: 2,
+    backgroundColor: "#d4af37",
+  },
+  headerContent: {
+    flex: 1,
+    backgroundColor: "#f4f1e8",
+    padding: 20,
+    justifyContent: "space-between",
+  },
+  headerEmoji: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#8b4513",
+    lineHeight: 32,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "#a0522d",
+    marginTop: 4,
+  },
+  headerCount: {
+    fontSize: 12,
+    color: "#8b4513",
+    fontStyle: "italic",
+    textAlign: "right",
+    marginTop: 8,
   },
   listContent: {
-    paddingVertical: 8,
+    paddingBottom: 20,
+  },
+  emptyListContainer: {
+    flexGrow: 1,
   },
   centerContainer: {
     flex: 1,
@@ -284,7 +359,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#6b7280",
+    color: "#a0522d",
     marginTop: 12,
   },
   errorIcon: {
@@ -294,13 +369,13 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#000",
+    color: "#8b4513",
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 24,
   },
   retryButton: {
-    backgroundColor: "#000",
+    backgroundColor: "#8b4513",
     borderRadius: 25,
     paddingHorizontal: 32,
     paddingVertical: 14,
@@ -317,57 +392,87 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#000",
+    color: "#8b4513",
     textAlign: "center",
     marginBottom: 8,
   },
   emptySubText: {
     fontSize: 14,
-    color: "#6b7280",
+    color: "#a0522d",
     textAlign: "center",
     lineHeight: 20,
   },
   guestbookItem: {
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: "#fffef7",
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#d4af37",
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    minHeight: 176,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 2,
   },
-  userInfo: {
-    flexDirection: "row",
+  numberBadge: {
+    position: "absolute",
+    left: 24,
+    top: 24,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#8b4513",
     alignItems: "center",
+    justifyContent: "center",
+  },
+  numberText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  userInfo: {
+    marginLeft: 44,
     marginBottom: 12,
   },
-  profileImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#e9ecef",
-  },
-  userDetails: {
-    marginLeft: 12,
-    flex: 1,
-  },
   nickname: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
-    color: "#000",
-    marginBottom: 2,
+    color: "#8b4513",
+    marginBottom: 4,
   },
-  timestamp: {
+  location: {
     fontSize: 12,
-    color: "#6b7280",
+    color: "#a0522d",
+    fontStyle: "italic",
+  },
+  dateText: {
+    position: "absolute",
+    right: 24,
+    top: 24,
+    fontSize: 12,
+    color: "#8b4513",
   },
   message: {
     fontSize: 15,
-    color: "#212529",
-    lineHeight: 22,
+    color: "#5d4037",
+    lineHeight: 22.5,
+    marginTop: 8,
+  },
+  decorativeLines: {
+    position: "absolute",
+    right: 24,
+    bottom: 16,
+    gap: 3,
+    alignItems: "flex-end",
+  },
+  decorativeLine: {
+    width: 40,
+    height: 1,
+    backgroundColor: "#e0e0e0",
   },
   footerLoader: {
     paddingVertical: 20,
@@ -375,7 +480,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: "#6b7280",
+    color: "#a0522d",
     marginTop: 8,
   },
 });
