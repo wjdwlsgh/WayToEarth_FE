@@ -1,4 +1,4 @@
-// Pages/GuestbookScreen.tsx
+// Pages/MyGuestbookScreen.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -12,52 +12,53 @@ import {
   Image,
 } from "react-native";
 import {
-  getRecentGuestbooks,
+  getMyGuestbooks,
   getGuestbookErrorMessage,
 } from "../utils/api/guestbook";
-import type {
-  GuestbookResponse,
-  PageableResponse,
-} from "../types/guestbook";
+import type { GuestbookResponse } from "../types/guestbook";
+
+interface MyGuestbookScreenProps {
+  route: {
+    params: {
+      userId: number;
+    };
+  };
+  navigation: any;
+}
 
 /**
- * 방명록 피드 화면
- * - 최근 작성된 공개 방명록 목록 표시 (모든 랜드마크)
- * - 무한 스크롤 페이징
+ * 내 방명록 목록 화면
+ * - 내가 작성한 모든 방명록 표시 (공개/비공개 모두)
+ * - 페이징 없음 (전체 목록)
  * - Pull to Refresh
- * - 인스타그램 피드 스타일
+ * - 공개/비공개 배지 표시
  */
-export default function GuestbookScreen({ navigation }: { navigation?: any }) {
+export default function MyGuestbookScreen({
+  route,
+  navigation,
+}: MyGuestbookScreenProps) {
+  const { userId } = route.params;
+
   const [guestbooks, setGuestbooks] = useState<GuestbookResponse[]>([]);
-  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadGuestbooks();
-  }, [page]);
+  }, []);
 
   const loadGuestbooks = async () => {
-    if (loading || !hasMore) return;
+    if (loading) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const response: PageableResponse<GuestbookResponse> =
-        await getRecentGuestbooks(page, 20);
-
-      if (page === 0) {
-        setGuestbooks(response.content);
-      } else {
-        setGuestbooks((prev) => [...prev, ...response.content]);
-      }
-
-      setHasMore(!response.last);
+      const response = await getMyGuestbooks(userId);
+      setGuestbooks(response);
     } catch (err: any) {
-      console.error("[Guestbook] 조회 실패:", err);
+      console.error("[MyGuestbook] 조회 실패:", err);
       setError(getGuestbookErrorMessage(err));
     } finally {
       setLoading(false);
@@ -67,88 +68,38 @@ export default function GuestbookScreen({ navigation }: { navigation?: any }) {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    setPage(0);
-    setHasMore(true);
-    setGuestbooks([]);
     loadGuestbooks();
-  };
-
-  const handleLoadMore = () => {
-    if (!loading && hasMore) {
-      setPage((prev) => prev + 1);
-    }
-  };
-
-  const formatRelativeTime = (timestamp: string): string => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "방금 전";
-    if (diffMins < 60) return `${diffMins}분 전`;
-    if (diffHours < 24) return `${diffHours}시간 전`;
-    if (diffDays < 7) return `${diffDays}일 전`;
-    return date.toLocaleDateString("ko-KR");
   };
 
   const handleItemPress = (item: GuestbookResponse) => {
     // 랜드마크별 방명록 화면으로 이동
-    navigation?.navigate("LandmarkGuestbookScreen", {
+    navigation.navigate("LandmarkGuestbookScreen", {
       landmarkId: item.landmark.id,
       landmarkName: item.landmark.name,
     });
   };
 
+  const formatDate = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
   const renderGuestbookItem = ({
     item,
+    index,
   }: {
     item: GuestbookResponse;
+    index: number;
   }) => (
     <TouchableOpacity
       style={styles.guestbookItem}
       onPress={() => handleItemPress(item)}
-      activeOpacity={0.8}
+      activeOpacity={0.7}
     >
-      {/* 사용자 정보 헤더 */}
-      <View style={styles.userHeader}>
-        <View style={styles.userInfo}>
-          <Image
-            source={{ uri: item.user.profileImageUrl }}
-            style={styles.profileImage}
-          />
-          <View style={styles.userDetails}>
-            <Text style={styles.nickname}>{item.user.nickname}</Text>
-            <Text style={styles.timestamp}>
-              {formatRelativeTime(item.createdAt)}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* 랜드마크 정보 배지 */}
-      <View style={styles.landmarkBadge}>
-        <View style={styles.landmarkBadgeLeft}>
-          <View style={styles.decorativeDot} />
-          <View style={styles.decorativeDot} />
-          <View style={styles.decorativeDot} />
-        </View>
-        <View style={styles.landmarkBadgeContent}>
-          <Text style={styles.landmarkIcon}>📍</Text>
-          <Text style={styles.landmarkName} numberOfLines={1}>
-            {item.landmark.name}
-          </Text>
-          <Text style={styles.landmarkLocation}>
-            {item.landmark.cityName}, {item.landmark.countryCode}
-          </Text>
-        </View>
-      </View>
-
-      {/* 메시지 */}
-      <Text style={styles.message}>{item.message}</Text>
-
       {/* 랜드마크 이미지 */}
       {item.landmark.imageUrl ? (
         <Image
@@ -161,11 +112,56 @@ export default function GuestbookScreen({ navigation }: { navigation?: any }) {
         </View>
       )}
 
-      {/* 하단 장식선 */}
-      <View style={styles.decorativeLines}>
-        <View style={styles.decorativeLine} />
-        <View style={styles.decorativeLine} />
-        <View style={styles.decorativeLine} />
+      {/* 내용 */}
+      <View style={styles.itemContent}>
+        {/* 번호 배지 */}
+        <View style={styles.numberBadge}>
+          <Text style={styles.numberText}>{guestbooks.length - index}</Text>
+        </View>
+
+        {/* 랜드마크 정보 */}
+        <View style={styles.landmarkInfo}>
+          <Text style={styles.landmarkName} numberOfLines={1}>
+            🏯 {item.landmark.name}
+          </Text>
+          <Text style={styles.landmarkLocation}>
+            {item.landmark.cityName}, {item.landmark.countryCode}
+          </Text>
+        </View>
+
+        {/* 메시지 */}
+        <Text style={styles.message} numberOfLines={3}>
+          {item.message}
+        </Text>
+
+        {/* 하단 메타 정보 */}
+        <View style={styles.meta}>
+          <Text style={styles.timestamp}>{formatDate(item.createdAt)}</Text>
+
+          {/* 공개/비공개 배지 */}
+          <View
+            style={[
+              styles.badge,
+              item.isPublic ? styles.badgePublic : styles.badgePrivate,
+            ]}
+          >
+            <Text
+              style={[
+                styles.badgeText,
+                item.isPublic ? styles.badgeTextPublic : styles.badgeTextPrivate,
+              ]}
+            >
+              {item.isPublic ? "공개" : "비공개"}
+            </Text>
+          </View>
+        </View>
+
+        {/* 하단 장식선 */}
+        <View style={styles.decorativeLines}>
+          <View style={styles.decorativeLine} />
+          <View style={styles.decorativeLine} />
+          <View style={styles.decorativeLine} />
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -181,17 +177,15 @@ export default function GuestbookScreen({ navigation }: { navigation?: any }) {
 
       {/* 정보 영역 */}
       <View style={styles.headerContent}>
-        <Text style={styles.headerEmoji}>🌍 여행자들의 이야기</Text>
-        <Text style={styles.headerSubtitle}>
-          다른 러너들의 여행 이야기를 확인해보세요
-        </Text>
-        <Text style={styles.headerCount}>최신 방명록</Text>
+        <Text style={styles.headerEmoji}>📖 나의 여행 기록</Text>
+        <Text style={styles.headerSubtitle}>방문한 랜드마크들</Text>
+        <Text style={styles.headerCount}>총 {guestbooks.length}개의 기록</Text>
       </View>
     </View>
   );
 
   const renderEmpty = () => {
-    if (loading && page === 0) {
+    if (loading && !refreshing) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#8b4513" />
@@ -215,21 +209,12 @@ export default function GuestbookScreen({ navigation }: { navigation?: any }) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.emptyIcon}>📝</Text>
-        <Text style={styles.emptyText}>아직 작성된 방명록이 없습니다.</Text>
+        <Text style={styles.emptyText}>
+          아직 작성한 방명록이 없습니다.
+        </Text>
         <Text style={styles.emptySubText}>
           랜드마크를 방문하고 첫 방명록을 남겨보세요!
         </Text>
-      </View>
-    );
-  };
-
-  const renderFooter = () => {
-    if (!loading || page === 0) return null;
-
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color="#8b4513" />
-        <Text style={styles.footerText}>더 불러오는 중...</Text>
       </View>
     );
   };
@@ -238,7 +223,21 @@ export default function GuestbookScreen({ navigation }: { navigation?: any }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>방명록 피드</Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>내 방명록</Text>
+          {guestbooks.length > 0 && (
+            <Text style={styles.headerSubtitleText}>
+              총 {guestbooks.length}개
+            </Text>
+          )}
+        </View>
+        <View style={styles.headerSpacer} />
       </View>
 
       {/* 방명록 목록 */}
@@ -248,9 +247,6 @@ export default function GuestbookScreen({ navigation }: { navigation?: any }) {
         renderItem={renderGuestbookItem}
         ListHeaderComponent={guestbooks.length > 0 ? renderHeader : null}
         ListEmptyComponent={renderEmpty}
-        ListFooterComponent={renderFooter}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -272,17 +268,47 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f3f0",
   },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "#f5f3f0",
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#d4af37",
+    paddingVertical: 20,
+    height: 80,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  backButtonText: {
+    fontSize: 18,
+    color: "#8b4513",
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "800",
+    fontSize: 18,
+    fontWeight: "700",
     color: "#8b4513",
+    marginBottom: 2,
+  },
+  headerSubtitleText: {
+    fontSize: 12,
+    color: "#a0522d",
+  },
+  headerSpacer: {
+    width: 40,
   },
   headerCard: {
     backgroundColor: "#8b4513",
@@ -335,11 +361,11 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: 8,
   },
-  listContent: {
-    paddingBottom: 20,
-  },
   emptyListContainer: {
     flexGrow: 1,
+  },
+  listContent: {
+    paddingBottom: 20,
   },
   centerContainer: {
     flex: 1,
@@ -397,8 +423,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fffef7",
     marginHorizontal: 20,
     marginBottom: 16,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    overflow: "hidden",
     borderLeftWidth: 4,
     borderLeftColor: "#d4af37",
     shadowColor: "#000",
@@ -407,76 +433,49 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  userHeader: {
+  landmarkImage: {
+    width: "100%",
+    height: 160,
+    backgroundColor: "#e9ecef",
+  },
+  landmarkImagePlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f4f1e8",
+  },
+  landmarkImageEmoji: {
+    fontSize: 64,
+  },
+  itemContent: {
+    padding: 16,
+  },
+  numberBadge: {
+    position: "absolute",
+    right: 16,
+    top: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#8b4513",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  numberText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  landmarkInfo: {
     marginBottom: 12,
   },
-  userInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#e9ecef",
-    marginRight: 12,
-  },
-  userDetails: {
-    flex: 1,
-  },
-  nickname: {
+  landmarkName: {
     fontSize: 16,
     fontWeight: "700",
     color: "#8b4513",
     marginBottom: 2,
   },
-  timestamp: {
-    fontSize: 12,
-    color: "#a0522d",
-  },
-  landmarkBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#8b4513",
-    borderRadius: 8,
-    marginBottom: 12,
-    overflow: "hidden",
-    height: 50,
-  },
-  landmarkBadgeLeft: {
-    width: 40,
-    backgroundColor: "#654321",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 4,
-  },
-  decorativeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#d4af37",
-  },
-  landmarkBadgeContent: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f4f1e8",
-    height: "100%",
-    paddingHorizontal: 12,
-    gap: 6,
-  },
-  landmarkIcon: {
-    fontSize: 16,
-  },
-  landmarkName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#8b4513",
-    flex: 1,
-  },
   landmarkLocation: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#a0522d",
     fontStyle: "italic",
   },
@@ -486,20 +485,37 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 12,
   },
-  landmarkImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: 12,
-    backgroundColor: "#e9ecef",
-    marginTop: 4,
-  },
-  landmarkImagePlaceholder: {
-    justifyContent: "center",
+  meta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#f4f1e8",
   },
-  landmarkImageEmoji: {
-    fontSize: 64,
+  timestamp: {
+    fontSize: 13,
+    color: "#a0522d",
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgePublic: {
+    backgroundColor: "#8b4513",
+  },
+  badgePrivate: {
+    backgroundColor: "#f3f4f6",
+    borderWidth: 1,
+    borderColor: "#d4af37",
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  badgeTextPublic: {
+    color: "#fff",
+  },
+  badgeTextPrivate: {
+    color: "#8b4513",
   },
   decorativeLines: {
     position: "absolute",
@@ -512,14 +528,5 @@ const styles = StyleSheet.create({
     width: 40,
     height: 1,
     backgroundColor: "#e0e0e0",
-  },
-  footerLoader: {
-    paddingVertical: 20,
-    alignItems: "center",
-  },
-  footerText: {
-    fontSize: 12,
-    color: "#a0522d",
-    marginTop: 8,
   },
 });

@@ -22,6 +22,7 @@ type UseJourneyRunningProps = {
   totalDistanceM: number;
   landmarks: JourneyLandmark[];
   journeyRoute: LatLng[];
+  onLandmarkReached?: (landmark: JourneyLandmark) => void;
 };
 
 export function useJourneyRunning({
@@ -30,6 +31,7 @@ export function useJourneyRunning({
   totalDistanceM,
   landmarks,
   journeyRoute,
+  onLandmarkReached,
 }: UseJourneyRunningProps) {
   const runTracker = useLiveRunTracker("JOURNEY"); // 여정 러닝은 JOURNEY 타입
 
@@ -94,7 +96,8 @@ export function useJourneyRunning({
     landmarks.forEach((lm) => {
       if (currentTotalM >= lm.distanceM && !reachedLandmarks.has(lm.id)) {
         setReachedLandmarks((prev) => new Set(prev).add(lm.id));
-        // TODO: 랜드마크 도달 알림/축하 모달 표시
+        // 랜드마크 도달 콜백 실행
+        onLandmarkReached?.(lm);
       }
     });
 
@@ -107,6 +110,7 @@ export function useJourneyRunning({
     landmarks,
     totalDistanceM,
     reachedLandmarks,
+    onLandmarkReached,
   ]);
 
   // 러닝 시작

@@ -7,11 +7,11 @@ import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "./types/types";
 import "./global.css";
-import {
-  registerForPushNotificationsAsync,
-  sendTokenToServer,
-  setupNotificationListeners,
-} from "./utils/notifications";
+// import {
+//   registerForPushNotificationsAsync,
+//   sendTokenToServer,
+//   setupNotificationListeners,
+// } from "./utils/notifications";
 
 import Onboading from "./Pages/Onboading";
 import Login from "./Pages/Login";
@@ -40,6 +40,9 @@ import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
 // import CrewScreen from "./Pages/CrewScreen";
 import CrewDetailScreen from "./Pages/CrewDetailScreen";
 import TabBarAdapter from "./components/Layout/TabBarAdapter";
+import LandmarkGuestbookScreen from "./Pages/LandmarkGuestbookScreen";
+import MyGuestbookScreen from "./Pages/MyGuestbookScreen";
+import GuestbookScreen from "./Pages/GuestbookScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -62,20 +65,20 @@ function MainTabs() {
 
 export default function App() {
   useEffect(() => {
-    // FCM 토큰 등록
-    (async () => {
-      const token = await registerForPushNotificationsAsync();
-      if (token) {
-        // 백엔드에 토큰 전송 (로그인 후에 호출하는 것이 더 좋음)
-        // await sendTokenToServer(token);
-        console.log("FCM 토큰 발급 완료:", token);
-      }
-    })();
+    // FCM 토큰 등록 (시뮬레이터에서는 스킵)
+    // (async () => {
+    //   const token = await registerForPushNotificationsAsync();
+    //   if (token) {
+    //     // 백엔드에 토큰 전송 (로그인 후에 호출하는 것이 더 좋음)
+    //     // await sendTokenToServer(token);
+    //     console.log("FCM 토큰 발급 완료:", token);
+    //   }
+    // })();
 
-    // 알림 리스너 설정
-    const cleanup = setupNotificationListeners();
+    // // 알림 리스너 설정
+    // const cleanup = setupNotificationListeners();
 
-    return cleanup;
+    // return cleanup;
   }, []);
 
   return (
@@ -135,6 +138,23 @@ export default function App() {
           component={AIFeedbackScreen}
         />
         <Stack.Screen name="UserInfoInput" component={UserInfoInputScreen} />
+
+        {/* 방명록 화면들 */}
+        <Stack.Screen
+          name="GuestbookScreen"
+          component={GuestbookScreen}
+          options={{ title: "방명록 피드" }}
+        />
+        <Stack.Screen
+          name="LandmarkGuestbookScreen"
+          component={LandmarkGuestbookScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="MyGuestbookScreen"
+          component={MyGuestbookScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

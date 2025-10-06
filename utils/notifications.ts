@@ -17,10 +17,22 @@ Notifications.setNotificationHandler({
 /**
  * FCM 토큰 등록
  * 앱 시작 시 또는 로그인 후 호출
+ *
+ * 시뮬레이터에서는 Mock 토큰을 사용합니다.
  */
 export async function registerForPushNotificationsAsync() {
   let token = "";
 
+  // 시뮬레이터 체크 (먼저)
+  if (!Device.isDevice) {
+    // 시뮬레이터용 Mock 토큰 생성
+    const mockToken = `ExponentPushToken[SIMULATOR-${Platform.OS}-${Date.now()}]`;
+    console.log("⚠️ FCM Token (시뮬레이터 Mock):", mockToken);
+    console.log("💡 실제 푸시 알림은 실제 기기에서만 작동합니다.");
+    return mockToken;
+  }
+
+  // 실제 기기에서만 아래 코드 실행
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("waytoearth_running", {
       name: "러닝 알림",
@@ -30,32 +42,28 @@ export async function registerForPushNotificationsAsync() {
     });
   }
 
-  if (Device.isDevice) {
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+  const { status: existingStatus } =
+    await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
 
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== "granted") {
-      console.warn("알림 권한이 거부되었습니다.");
-      return null;
-    }
-
-    // FCM 토큰 발급
-    token = (
-      await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.expoConfig?.extra?.eas?.projectId,
-      })
-    ).data;
-
-    console.log("FCM Token:", token);
-  } else {
-    console.warn("실제 기기에서만 푸시 알림을 사용할 수 있습니다.");
+  if (existingStatus !== "granted") {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
   }
+
+  if (finalStatus !== "granted") {
+    console.warn("알림 권한이 거부되었습니다.");
+    return null;
+  }
+
+  // FCM 토큰 발급
+  token = (
+    await Notifications.getExpoPushTokenAsync({
+      projectId: Constants.expoConfig?.extra?.eas?.projectId,
+    })
+  ).data;
+
+  console.log("✅ FCM Token (실제 기기):", token);
 
   return token;
 }
