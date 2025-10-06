@@ -1,5 +1,5 @@
 // utils/notifications.ts
-import { Platform } from "react-native";
+import { Platform, PermissionsAndroid } from "react-native";
 import messaging from "@react-native-firebase/messaging";
 import notifee, { AndroidImportance } from "@notifee/react-native";
 import { client } from "./api/client";
@@ -10,18 +10,34 @@ import { client } from "./api/client";
  */
 export async function registerForPushNotificationsAsync() {
   try {
-    // 1. 알림 권한 요청
+    // 1. Android 13+ 권한 명시적 요청
+    if (Platform.OS === "android" && Platform.Version >= 33) {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+      );
+
+      console.log("📱 Android 13+ 알림 권한 결과:", granted);
+
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        console.warn("❌ 알림 권한이 거부되었습니다.");
+        return null;
+      }
+    }
+
+    // 2. Firebase 권한 요청 (iOS용)
     const authStatus = await messaging().requestPermission();
     const enabled =
       authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
       authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+    console.log("📱 Firebase 알림 권한 상태:", authStatus, "허용:", enabled);
 
     if (!enabled) {
       console.warn("❌ 알림 권한이 거부되었습니다.");
       return null;
     }
 
-    // 2. Android 알림 채널 생성 (Notifee)
+    // 3. Android 알림 채널 생성 (Notifee)
     if (Platform.OS === "android") {
       await notifee.createChannel({
         id: "waytoearth_running",
@@ -33,7 +49,7 @@ export async function registerForPushNotificationsAsync() {
       });
     }
 
-    // 3. Firebase FCM 토큰 발급
+    // 4. Firebase FCM 토큰 발급
     const token = await messaging().getToken();
 
     console.log("✅ Firebase FCM Token:", token);
@@ -60,12 +76,16 @@ export async function sendTokenToServer(fcmToken: string) {
 
     console.log("✅ FCM 토큰 백엔드 등록 성공");
   } catch (error: any) {
+    // 403: 로그인 필요, 조용히 무시
+    if (error?.response?.status === 403) {
+      console.log("⏭️ FCM 토큰 등록 건너뜀 (로그인 필요)");
+      return;
+    }
+
     console.error(
       "❌ FCM 토큰 백엔드 등록 실패:",
       error?.response?.data || error?.message || error
     );
-
-    // 백엔드 에러는 앱 동작을 막지 않도록 조용히 처리
   }
 }
 
