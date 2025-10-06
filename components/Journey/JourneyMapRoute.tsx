@@ -31,6 +31,8 @@ type Props = {
   onMapReady?: () => void;
   // 스냅샷 바인딩
   onBindSnapshot?: (fn: () => Promise<string | null>) => void;
+  // 랜드마크 마커 클릭 콜백
+  onLandmarkPress?: (landmark: JourneyLandmark) => void;
 };
 
 export default function JourneyMapRoute({
@@ -41,6 +43,7 @@ export default function JourneyMapRoute({
   progressPercent,
   onMapReady,
   onBindSnapshot,
+  onLandmarkPress,
 }: Props) {
   const mapRef = useRef<MapView>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -232,6 +235,7 @@ export default function JourneyMapRoute({
           coordinate={landmark.position as RNLatLng}
           title={landmark.name}
           description={landmark.distance}
+          onPress={() => onLandmarkPress?.(landmark)}
         >
           <View
             style={[

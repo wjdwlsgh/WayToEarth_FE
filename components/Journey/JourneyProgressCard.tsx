@@ -2,7 +2,7 @@
 // 여정 진행률 표시 카드
 
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 type Props = {
   progressPercent: number;
@@ -11,7 +11,9 @@ type Props = {
   nextLandmark: {
     name: string;
     distanceKm: number;
+    id?: number;
   } | null;
+  onPressGuestbook?: (landmarkId: number) => void;
 };
 
 export default function JourneyProgressCard({
@@ -19,6 +21,7 @@ export default function JourneyProgressCard({
   currentDistanceKm,
   totalDistanceKm,
   nextLandmark,
+  onPressGuestbook,
 }: Props) {
   const remainingKm = Math.max(0, totalDistanceKm - currentDistanceKm);
 
@@ -54,11 +57,24 @@ export default function JourneyProgressCard({
 
       {nextLandmark && (
         <View style={styles.nextLandmark}>
-          <Text style={styles.nextLandmarkLabel}>다음 랜드마크</Text>
-          <Text style={styles.nextLandmarkName}>{nextLandmark.name}</Text>
-          <Text style={styles.nextLandmarkDistance}>
-            {(nextLandmark.distanceKm - currentDistanceKm).toFixed(2)} km 남음
-          </Text>
+          <View style={styles.nextLandmarkHeader}>
+            <View>
+              <Text style={styles.nextLandmarkLabel}>다음 랜드마크</Text>
+              <Text style={styles.nextLandmarkName}>{nextLandmark.name}</Text>
+              <Text style={styles.nextLandmarkDistance}>
+                {(nextLandmark.distanceKm - currentDistanceKm).toFixed(2)} km 남음
+              </Text>
+            </View>
+            {nextLandmark.id && onPressGuestbook && (
+              <TouchableOpacity
+                style={styles.guestbookButton}
+                onPress={() => onPressGuestbook(nextLandmark.id!)}
+              >
+                <Text style={styles.guestbookButtonText}>📝</Text>
+                <Text style={styles.guestbookButtonLabel}>방명록</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
     </View>
@@ -133,6 +149,11 @@ const styles = StyleSheet.create({
     borderTopColor: "#E5E7EB",
     paddingTop: 12,
   },
+  nextLandmarkHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   nextLandmarkLabel: {
     fontSize: 12,
     color: "#6B7280",
@@ -147,5 +168,22 @@ const styles = StyleSheet.create({
   nextLandmarkDistance: {
     fontSize: 13,
     color: "#4B5563",
+  },
+  guestbookButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  guestbookButtonText: {
+    fontSize: 20,
+    marginBottom: 2,
+  },
+  guestbookButtonLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#6B7280",
   },
 });
