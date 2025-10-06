@@ -55,13 +55,6 @@ export default {
         "@react-native-seoul/kakao-login",
         { kakaoAppKey: process.env.KAKAO_NATIVE_APP_KEY },
       ],
-      [
-        "expo-notifications",
-        {
-          icon: "./assets/icon.png",
-          color: "#10b981",
-        },
-      ],
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
     ],
