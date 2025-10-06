@@ -5,10 +5,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { kakaoLoginWithSDK } from "../utils/api/auth";
 import { mockEnabled } from "../utils/api/client";
 import { useNavigation } from "@react-navigation/native";
-// import {
-//   registerForPushNotificationsAsync,
-//   sendTokenToServer,
-// } from "../utils/notifications";
+import {
+  registerForPushNotificationsAsync,
+  sendTokenToServer,
+} from "../utils/notifications";
 
 type RNKakao = {
   isKakaoTalkLoginAvailable?: () => Promise<boolean>;
@@ -76,11 +76,11 @@ export default function useKakaoLogin() {
 
       await AsyncStorage.setItem("jwtToken", String(jwtToken));
 
-      // FCM 토큰 등록 (임시 주석)
-      // const fcmToken = await registerForPushNotificationsAsync();
-      // if (fcmToken) {
-      //   await sendTokenToServer(fcmToken);
-      // }
+      // FCM 토큰 등록
+      const fcmToken = await registerForPushNotificationsAsync();
+      if (fcmToken) {
+        await sendTokenToServer(fcmToken);
+      }
 
       // ✅ 라우팅: 이미 회원가입 완료 → 러닝 화면, 미완료 → Register
       if (isOnboardingCompleted) {

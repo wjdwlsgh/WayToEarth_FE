@@ -7,11 +7,11 @@ import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "./types/types";
 import "./global.css";
-// import {
-//   registerForPushNotificationsAsync,
-//   sendTokenToServer,
-//   setupNotificationListeners,
-// } from "./utils/notifications";
+import {
+  registerForPushNotificationsAsync,
+  sendTokenToServer,
+  setupNotificationListeners,
+} from "./utils/notifications";
 
 import Onboading from "./Pages/Onboading";
 import Login from "./Pages/Login";
@@ -65,20 +65,20 @@ function MainTabs() {
 
 export default function App() {
   useEffect(() => {
-    // FCM 토큰 등록 (시뮬레이터에서는 스킵)
-    // (async () => {
-    //   const token = await registerForPushNotificationsAsync();
-    //   if (token) {
-    //     // 백엔드에 토큰 전송 (로그인 후에 호출하는 것이 더 좋음)
-    //     // await sendTokenToServer(token);
-    //     console.log("FCM 토큰 발급 완료:", token);
-    //   }
-    // })();
+    // FCM 토큰 등록 (시뮬레이터에서는 Mock 토큰 사용)
+    (async () => {
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        // 백엔드에 토큰 전송 (로그인 후에 호출하는 것이 더 좋음)
+        // await sendTokenToServer(token);
+        console.log("FCM 토큰 발급 완료:", token);
+      }
+    })();
 
-    // // 알림 리스너 설정
-    // const cleanup = setupNotificationListeners();
+    // 알림 리스너 설정
+    const cleanup = setupNotificationListeners();
 
-    // return cleanup;
+    return cleanup;
   }, []);
 
   return (

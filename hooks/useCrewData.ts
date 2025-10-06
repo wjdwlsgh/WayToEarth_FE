@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import type { TopCrewItemData } from "../types/Crew";
-import type { Crew } from "../utils/api/crews";
-import { getMyCrew, listCrews, createCrew, joinCrew } from "../utils/api/crews";
+// import type { Crew } from "../utils/api/crews";
+// import { getMyCrew, listCrews, createCrew, joinCrew } from "../utils/api/crews";
 
 const RAW_TOP_CREWS: TopCrewItemData[] = [
   { id: "2", rank: "1등 크루", name: "마리오 크루", distance: "1150km" },

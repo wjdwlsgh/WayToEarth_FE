@@ -22,7 +22,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import SafeLayout from "../components/Layout/SafeLayout";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-// import { deactivateToken } from "../utils/notifications";
+import { deactivateToken } from "../utils/notifications";
 
 const number = (v: number | null | undefined, digits = 1) =>
   typeof v === "number" ? Number(v.toFixed(digits)) : 0;
@@ -110,8 +110,8 @@ export default function ProfileScreen({
         style: "destructive",
         onPress: async () => {
           try {
-            // FCM 토큰 비활성화 (임시 주석)
-            // await deactivateToken();
+            // FCM 토큰 비활성화
+            await deactivateToken();
             // JWT 토큰 삭제
             await AsyncStorage.removeItem("jwtToken");
             // 로그인 화면으로 이동

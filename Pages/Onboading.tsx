@@ -13,10 +13,10 @@ import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "../types/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-// import {
-//   registerForPushNotificationsAsync,
-//   sendTokenToServer,
-// } from "../utils/notifications";
+import {
+  registerForPushNotificationsAsync,
+  sendTokenToServer,
+} from "../utils/notifications";
 
 const { width, height } = Dimensions.get("window");
 

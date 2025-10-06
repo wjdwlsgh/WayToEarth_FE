@@ -9,12 +9,12 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
-import {
-  getMyCrewDetail,
-  removeMember,
-  approveRequest,
-  rejectRequest,
-} from "../utils/api/crews";
+// import {
+//   getMyCrewDetail,
+//   removeMember,
+//   approveRequest,
+//   rejectRequest,
+// } from "../utils/api/crews";
 
 type Member = {
   id: string;
