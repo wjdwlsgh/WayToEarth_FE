@@ -62,6 +62,8 @@ export default {
           color: "#10b981",
         },
       ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
     ],
 
     extra: {

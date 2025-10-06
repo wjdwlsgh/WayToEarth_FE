@@ -11,6 +11,7 @@ import {
   registerForPushNotificationsAsync,
   sendTokenToServer,
   setupNotificationListeners,
+  setupTokenRefreshListener,
 } from "./utils/notifications";
 
 import Onboading from "./Pages/Onboading";
@@ -65,20 +66,26 @@ function MainTabs() {
 
 export default function App() {
   useEffect(() => {
-    // FCM 토큰 등록 (시뮬레이터에서는 Mock 토큰 사용)
+    // Firebase FCM 토큰 등록 (Expo 서버 거치지 않음)
     (async () => {
       const token = await registerForPushNotificationsAsync();
       if (token) {
         // 백엔드에 토큰 전송 (로그인 후에 호출하는 것이 더 좋음)
         // await sendTokenToServer(token);
-        console.log("FCM 토큰 발급 완료:", token);
+        console.log("Firebase FCM 토큰 발급 완료:", token);
       }
     })();
 
     // 알림 리스너 설정
-    const cleanup = setupNotificationListeners();
+    const cleanupListeners = setupNotificationListeners();
 
-    return cleanup;
+    // 토큰 갱신 리스너 설정
+    const cleanupTokenRefresh = setupTokenRefreshListener();
+
+    return () => {
+      cleanupListeners();
+      cleanupTokenRefresh();
+    };
   }, []);
 
   return (
