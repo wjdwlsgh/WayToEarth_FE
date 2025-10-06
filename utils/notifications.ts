@@ -17,6 +17,8 @@ Notifications.setNotificationHandler({
 /**
  * FCM 토큰 등록
  * 앱 시작 시 또는 로그인 후 호출
+ *
+ * 시뮬레이터에서는 Mock 토큰을 사용합니다.
  */
 export async function registerForPushNotificationsAsync() {
   let token = "";
@@ -52,9 +54,26 @@ export async function registerForPushNotificationsAsync() {
       })
     ).data;
 
-    console.log("FCM Token:", token);
+    console.log("✅ FCM Token (실제 기기):", token);
   } else {
-    console.warn("실제 기기에서만 푸시 알림을 사용할 수 있습니다.");
+    // 시뮬레이터용 Mock 토큰 생성
+    const mockToken = `ExponentPushToken[SIMULATOR-${Platform.OS}-${Date.now()}]`;
+    console.log("⚠️ FCM Token (시뮬레이터 Mock):", mockToken);
+    console.log("💡 실제 푸시 알림은 실제 기기에서만 작동합니다.");
+    token = mockToken;
+
+    // 시뮬레이터에서 테스트 알림 발송 (개발 모드만)
+    if (__DEV__) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "🏃 WayToEarth 알림 테스트",
+          body: "시뮬레이터에서 알림이 정상적으로 작동하고 있어요!",
+          data: { test: true, source: "simulator" },
+        },
+        trigger: { seconds: 3 },
+      });
+      console.log("📬 3초 후 테스트 알림이 표시됩니다.");
+    }
   }
 
   return token;
