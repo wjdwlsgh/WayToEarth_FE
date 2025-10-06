@@ -3,17 +3,29 @@
 
 import React, { useState, useCallback, useMemo } from "react";
 import SafeLayout from "../components/Layout/SafeLayout";
-import { View, Text, Alert, Pressable, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 import JourneyMapRoute from "../components/Journey/JourneyMapRoute";
 import JourneyProgressCard from "../components/Journey/JourneyProgressCard";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
+import GuestbookCreateModal from "../components/Guestbook/GuestbookCreateModal";
+import LandmarkStatistics from "../components/Guestbook/LandmarkStatistics";
 import { useJourneyRunning } from "../hooks/journey/useJourneyRunning";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";
 import { apiComplete } from "../utils/api/running";
+import type { LandmarkSummary } from "../types/guestbook";
 
 type RouteParams = {
   route: {
@@ -45,16 +57,55 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   // 임시 userId (실제로는 전역 상태나 auth에서 가져오기)
   const userId = "user123";
 
+  // 랜드마크 도달 시 방명록 작성 모달 표시
+  const handleLandmarkReached = useCallback((landmark: any) => {
+    console.log("[JourneyRunning] 랜드마크 도달:", landmark.name);
+
+    // 랜드마크를 LandmarkSummary 형식으로 변환
+    const landmarkSummary: LandmarkSummary = {
+      id: parseInt(landmark.id),
+      name: landmark.name,
+      cityName: "서울", // TODO: 실제 도시명으로 교체
+      countryCode: "KR",
+      imageUrl: "", // TODO: 실제 이미지 URL로 교체
+    };
+
+    setSelectedLandmark(landmarkSummary);
+    setGuestbookModalVisible(true);
+
+    // 축하 알림 표시
+    Alert.alert(
+      `🎉 ${landmark.name} 도착!`,
+      "랜드마크에 방명록을 남겨보세요.",
+      [
+        {
+          text: "나중에",
+          style: "cancel",
+          onPress: () => {
+            setGuestbookModalVisible(false);
+            setSelectedLandmark(null);
+          },
+        },
+        { text: "방명록 작성", onPress: () => {} },
+      ]
+    );
+  }, []);
+
   const t = useJourneyRunning({
     journeyId,
     userId,
     totalDistanceM: totalDistanceKm * 1000,
     landmarks,
     journeyRoute,
+    onLandmarkReached: handleLandmarkReached,
   });
 
   const insets = useSafeAreaInsets();
   const [countdownVisible, setCountdownVisible] = useState(false);
+  const [guestbookModalVisible, setGuestbookModalVisible] = useState(false);
+  const [selectedLandmark, setSelectedLandmark] = useState<LandmarkSummary | null>(null);
+  const [landmarkMenuVisible, setLandmarkMenuVisible] = useState(false);
+  const [menuLandmark, setMenuLandmark] = useState<any>(null);
 
   const handleStartPress = useCallback(() => {
     setCountdownVisible(true);
@@ -66,6 +117,13 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
       t.startJourneyRun();
     });
   }, [t]);
+
+  // 랜드마크 마커 클릭 핸들러
+  const handleLandmarkMarkerPress = useCallback((landmark: any) => {
+    console.log("[JourneyRunning] 랜드마크 마커 클릭:", landmark.name);
+    setMenuLandmark(landmark);
+    setLandmarkMenuVisible(true);
+  }, []);
 
   const handleComplete = useCallback(async () => {
     try {
@@ -168,6 +226,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         userRoute={[]} // 여정 러닝에서는 실제 GPS 경로 표시 안 함
         currentLocation={virtualLocation}
         progressPercent={t.progressPercent}
+        onLandmarkPress={handleLandmarkMarkerPress}
       />
 
       {/* 러닝 중이 아닐 때: 여정 진행률 카드 */}
@@ -181,9 +240,19 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
               ? {
                   name: t.nextLandmark.name,
                   distanceKm: t.nextLandmark.distanceM / 1000,
+                  id: parseInt(t.nextLandmark.id),
                 }
               : null
           }
+          onPressGuestbook={(landmarkId) => {
+            const landmark = landmarks.find((lm) => parseInt(lm.id) === landmarkId);
+            if (landmark) {
+              navigation?.navigate("LandmarkGuestbookScreen", {
+                landmarkId,
+                landmarkName: landmark.name,
+              });
+            }
+          }}
         />
       )}
 
@@ -290,6 +359,102 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         seconds={3}
         onDone={handleCountdownDone}
       />
+
+      {/* 방명록 작성 모달 */}
+      {selectedLandmark && (
+        <GuestbookCreateModal
+          visible={guestbookModalVisible}
+          onClose={() => {
+            setGuestbookModalVisible(false);
+            setSelectedLandmark(null);
+          }}
+          landmark={selectedLandmark}
+          userId={1} // TODO: 실제 userId로 교체
+          onSuccess={() => {
+            console.log("[JourneyRunning] 방명록 작성 완료");
+          }}
+        />
+      )}
+
+      {/* 랜드마크 메뉴 바텀시트 */}
+      <Modal
+        visible={landmarkMenuVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLandmarkMenuVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setLandmarkMenuVisible(false)}
+        >
+          <View style={styles.bottomSheet}>
+            <View style={styles.bottomSheetHandle} />
+
+            {menuLandmark && (
+              <>
+                <View style={styles.bottomSheetHeader}>
+                  <Text style={styles.bottomSheetTitle}>
+                    {menuLandmark.name}
+                  </Text>
+                  <Text style={styles.bottomSheetSubtitle}>
+                    {menuLandmark.distance}
+                  </Text>
+                </View>
+
+                {/* 랜드마크 통계 */}
+                <View style={styles.statisticsContainer}>
+                  <LandmarkStatistics
+                    landmarkId={parseInt(menuLandmark.id)}
+                  />
+                </View>
+
+                {/* 메뉴 옵션 */}
+                <View style={styles.menuOptions}>
+                  <TouchableOpacity
+                    style={styles.menuOption}
+                    onPress={() => {
+                      setLandmarkMenuVisible(false);
+                      const landmarkSummary: LandmarkSummary = {
+                        id: parseInt(menuLandmark.id),
+                        name: menuLandmark.name,
+                        cityName: "서울",
+                        countryCode: "KR",
+                        imageUrl: "",
+                      };
+                      setSelectedLandmark(landmarkSummary);
+                      setGuestbookModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.menuOptionIcon}>✍️</Text>
+                    <Text style={styles.menuOptionText}>방명록 작성</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.menuOption}
+                    onPress={() => {
+                      setLandmarkMenuVisible(false);
+                      navigation?.navigate("LandmarkGuestbookScreen", {
+                        landmarkId: parseInt(menuLandmark.id),
+                        landmarkName: menuLandmark.name,
+                      });
+                    }}
+                  >
+                    <Text style={styles.menuOptionIcon}>📖</Text>
+                    <Text style={styles.menuOptionText}>방명록 보기</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.menuOption, styles.menuOptionCancel]}
+                    onPress={() => setLandmarkMenuVisible(false)}
+                  >
+                    <Text style={styles.menuOptionText}>닫기</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeLayout>
   );
 }
@@ -397,5 +562,71 @@ const styles = StyleSheet.create({
   compactNextLandmark: {
     fontSize: 12,
     color: "#4B5563",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  bottomSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 8,
+    minHeight: 400,
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  bottomSheetHeader: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  bottomSheetTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  bottomSheetSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  statisticsContainer: {
+    marginBottom: 20,
+  },
+  menuOptions: {
+    gap: 12,
+  },
+  menuOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  menuOptionIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  menuOptionText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  menuOptionCancel: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginTop: 8,
   },
 });
