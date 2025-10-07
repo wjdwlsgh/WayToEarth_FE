@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import * as Location from "expo-location";
+import {
+  createKalman2D,
+  kalmanInit,
+  kalmanPredict,
+  kalmanUpdate,
+  projectToMeters,
+  unprojectFromMeters,
+} from "../utils/filters/kalman2d";
 import type { LatLng } from "../types/types";
 import { distanceKm } from "../utils/geo";
 import { fmtMMSS, avgPaceSecPerKm, caloriesKcal } from "../utils/run";
@@ -38,6 +46,9 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   const recentRef = useRef<Sample[]>([]);
   const pausedRef = useRef(false);
   const prevAccRef = useRef<number | null>(null); // m
+  const kfRef = useRef<ReturnType<typeof createKalman2D> | null>(null);
+  const originRef = useRef<LatLng | null>(null);
+  const lastTsRef = useRef<number | null>(null);
 
   // 세션 & 업데이트 쓰로틀
   const sessionIdRef = useRef<string | null>(null);
@@ -58,8 +69,8 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   ) => {
     const acc = cur.coords.accuracy ?? 999; // m
     const spd = cur.coords.speed ?? null; // m/s
-    // 정확도 너무 나쁘면 제외(강화)
-    if (acc > 60) return true;
+    // 정확도 너무 나쁘면 제외(완화)
+    if (acc > 65) return true;
 
     if (!prevP) return false; // 첫 포인트 수락
     const p = {
@@ -67,12 +78,12 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       longitude: cur.coords.longitude,
     };
     const seg = toMeters(prevP, p);
-    // 이동 최소 임계치(강화): 정확도 20m → 10m, 하한 5m
-    const minMove = Math.max(acc * 0.5, 5);
+    // 이동 최소 임계치(완화)
+    const minMove = Math.max(1.5, Math.min(acc * 0.3, 3));
     if (seg < minMove) return true;
     // 정지에 가까운 속도에서의 미세 흔들림 제거
     if (typeof spd === "number" && spd >= 0 && spd < 0.6) {
-      if (seg < Math.max(acc * 0.8, 8)) return true;
+      if (seg < Math.max(2, Math.min(acc * 0.5, 4))) return true;
     }
     return false;
   };
@@ -125,14 +136,14 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       const mps = (segKm * 1000) / Math.max(dtSec, 0.001);
       // 속도 스파이크 필터(완화 → 강화): 6.5 m/s 초과는 노이즈로 간주
       if (mps <= 6.5) {
-        // 정확도 기반 거리 보정: 세그먼트에서 노이즈 허용치 차감
+        // 정확도 기반 거리 보정(완화): 세그먼트의 30%, 평균 정확도의 10%, 절대 1.5m 중 최소만 차감
         const prevAcc = prevAccRef.current ?? acc ?? 0;
         const curAcc = acc ?? prevAccRef.current ?? 0;
-        const noiseAllowanceM = 0.5 * (prevAcc + curAcc); // 평균 정확도의 50%
         const segM = segKm * 1000;
+        const avgAcc = (prevAcc + curAcc) / 2;
+        const noiseAllowanceM = Math.min(1.5, 0.1 * avgAcc, 0.3 * segM);
         const effM = Math.max(0, segM - noiseAllowanceM);
-        const effKm = effM / 1000;
-        newDistanceKm = distanceRef.current + effKm;
+        newDistanceKm = distanceRef.current + effM / 1000;
       }
     } else {
       newDistanceKm = 0;
@@ -301,9 +312,9 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
           subRef.current?.remove?.();
           subRef.current = await Location.watchPositionAsync(
             {
-              accuracy: Location.Accuracy.High,
+              accuracy: Location.Accuracy.Highest,
               timeInterval: 1000,
-              distanceInterval: 5,
+              distanceInterval: 2,
             },
             (loc) => {
               // console trace for incoming points
@@ -314,20 +325,39 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
               // 🔒 노이즈 필터
               if (shouldIgnoreSample(prev.current, loc)) return;
 
-              const point = {
+              const raw = {
                 latitude: loc.coords.latitude,
                 longitude: loc.coords.longitude,
-              };
+              } as LatLng;
+
+              // Kalman smoothing in local meters frame
+              const nowTs = Date.now();
+              if (!originRef.current) originRef.current = raw;
+              const origin = originRef.current!;
+              const meas = projectToMeters(origin, raw);
+              if (!kfRef.current) {
+                kfRef.current = createKalman2D(0.1, Math.max(3, loc.coords.accuracy || 5));
+                kalmanInit(kfRef.current, meas);
+                lastTsRef.current = nowTs;
+              } else {
+                const dt = lastTsRef.current ? Math.max(0.05, (nowTs - lastTsRef.current) / 1000) : 1;
+                kalmanPredict(kfRef.current, dt);
+                const rMeas = Math.max(3, loc.coords.accuracy || 5);
+                kalmanUpdate(kfRef.current, meas, rMeas);
+                lastTsRef.current = nowTs;
+              }
+              const kf = kfRef.current!;
+              const filtered = unprojectFromMeters(origin, { x: kf.x[0], y: kf.x[1] });
 
               // 첫 포인트라면 초기 상태 세팅
               if (!prev.current && route.length === 0) {
-                prev.current = point;
-                setRoute([point]);
-                recentRef.current = [{ t: Date.now(), p: point }];
-                centerMap(point);
+                prev.current = filtered;
+                setRoute([filtered]);
+                recentRef.current = [{ t: Date.now(), p: filtered }];
+                centerMap(filtered);
               } else {
                 pushPoint(
-                  point,
+                  filtered,
                   loc.coords.accuracy,
                   loc.coords.speed ?? undefined
                 );
