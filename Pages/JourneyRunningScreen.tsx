@@ -260,7 +260,8 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
     // 현재 어느 랜드마크 구간에 있는지 찾기
     for (let i = 0; i < landmarks.length; i++) {
-      if (t.progressM < landmarks[i].distanceM || i === landmarks.length - 1) {
+      // 🔧 수정: <= 대신 < 사용 (랜드마크 정확히 도달 시 다음 구간으로)
+      if (t.progressM <= landmarks[i].distanceM || i === landmarks.length - 1) {
         currentSegmentEnd = landmarks[i].distanceM;
         currentSegmentStart = i > 0 ? landmarks[i - 1].distanceM : 0;
 

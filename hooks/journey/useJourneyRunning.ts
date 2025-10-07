@@ -187,6 +187,10 @@ export function useJourneyRunning({
   // 🧪 테스트용: 강제로 거리 증가
   const addTestDistance = useCallback((metersToAdd: number) => {
     const newProgressM = progressM + metersToAdd;
+
+    // 🔧 수정: initialProgressM도 함께 증가시켜야 함!
+    initialProgressM.current = newProgressM;
+
     setProgressM(newProgressM);
     setProgressPercent(
       totalDistanceM > 0 ? Math.min(100, (newProgressM / totalDistanceM) * 100) : 0
@@ -195,6 +199,7 @@ export function useJourneyRunning({
     console.log("[useJourneyRunning] 🧪 테스트 거리 추가:", {
       added: metersToAdd,
       newProgressM,
+      initialProgressM: initialProgressM.current,
       progressPercent: ((newProgressM / totalDistanceM) * 100).toFixed(4),
     });
 
