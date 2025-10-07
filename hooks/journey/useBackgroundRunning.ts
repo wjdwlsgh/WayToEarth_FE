@@ -92,20 +92,29 @@ export function useBackgroundRunning() {
   };
 
   // Foreground Service 업데이트
-  const updateForegroundService = async (
-    journeyTitle: string,
-    distanceKm: number,
-    progressPercent: number,
-    nextLandmark?: string
-  ) => {
+  const updateForegroundService = async (session: RunningSessionState, nextLandmark?: string) => {
     try {
-      const body = nextLandmark
-        ? `진행: ${distanceKm.toFixed(2)}km (${progressPercent.toFixed(1)}%) | 다음: ${nextLandmark}`
-        : `진행 거리: ${distanceKm.toFixed(2)}km | 진행률: ${progressPercent.toFixed(1)}%`;
+      const title = session.type === 'journey' && session.journeyTitle
+        ? `🏃 ${session.journeyTitle} 러닝 중`
+        : `🏃 일반 러닝 중`;
+
+      let body = '';
+      if (session.type === 'journey' && nextLandmark) {
+        body = `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(session.durationSeconds)} | 다음: ${nextLandmark}`;
+      } else if (session.type === 'journey') {
+        body = `진행 거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(session.durationSeconds)}`;
+      } else {
+        body = `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(session.durationSeconds)}`;
+      }
+
+      // 일시정지 상태 표시
+      if (session.isPaused) {
+        body = `⏸️ 일시정지 | ${body}`;
+      }
 
       await notifee.displayNotification({
         id: 'running_session',
-        title: `🏃 ${journeyTitle} 러닝 중`,
+        title,
         body,
         android: {
           channelId: NOTIFICATION_CHANNEL_ID,
@@ -115,7 +124,7 @@ export function useBackgroundRunning() {
           autoCancel: false,
           showTimestamp: true,
           asForegroundService: true,
-          color: '#00FF00',
+          color: session.isPaused ? '#FFA500' : '#00FF00',
           smallIcon: 'ic_launcher',
         },
       });

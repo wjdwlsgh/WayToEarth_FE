@@ -1,7 +1,7 @@
 // Pages/JourneyRunningScreen.tsx
 // 여정 러닝 메인 화면 (실시간 추적 + 진행률)
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import SafeLayout from "../components/Layout/SafeLayout";
 import {
   View,
@@ -12,6 +12,7 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
+  AppState,
 } from "react-native";
 import JourneyMapRoute from "../components/Journey/JourneyMapRoute";
 import JourneyProgressCard from "../components/Journey/JourneyProgressCard";
@@ -21,6 +22,7 @@ import CountdownOverlay from "../components/Running/CountdownOverlay";
 import GuestbookCreateModal from "../components/Guestbook/GuestbookCreateModal";
 import LandmarkStatistics from "../components/Guestbook/LandmarkStatistics";
 import { useJourneyRunning } from "../hooks/journey/useJourneyRunning";
+import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";
@@ -100,12 +102,74 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     onLandmarkReached: handleLandmarkReached,
   });
 
+  // 백그라운드 러닝 훅
+  const backgroundRunning = useBackgroundRunning();
+
   const insets = useSafeAreaInsets();
   const [countdownVisible, setCountdownVisible] = useState(false);
   const [guestbookModalVisible, setGuestbookModalVisible] = useState(false);
   const [selectedLandmark, setSelectedLandmark] = useState<LandmarkSummary | null>(null);
   const [landmarkMenuVisible, setLandmarkMenuVisible] = useState(false);
   const [menuLandmark, setMenuLandmark] = useState<any>(null);
+
+  // 다음 랜드마크 계산
+  const nextLandmark = useMemo(() => {
+    const remaining = landmarks.filter(lm => !t.reachedLandmarks.includes(lm.id));
+    return remaining[0]?.name;
+  }, [landmarks, t.reachedLandmarks]);
+
+  // 러닝 세션 상태 업데이트
+  useEffect(() => {
+    if (!t.isRunning) return;
+
+    const session = {
+      type: 'journey' as const,
+      journeyId,
+      journeyTitle,
+      sessionId: t.sessionId,
+      startTime: Date.now() - (t.elapsedSec * 1000),
+      distanceKm: t.distance,
+      durationSeconds: t.elapsedSec,
+      isRunning: t.isRunning,
+      isPaused: t.isPaused,
+      reachedLandmarks: t.reachedLandmarks,
+    };
+
+    // Foreground Service 업데이트
+    backgroundRunning.updateForegroundService(session, nextLandmark);
+
+    // 세션 상태 저장 (백그라운드 복원용)
+    backgroundRunning.saveSession(session);
+  }, [t.isRunning, t.distance, t.elapsedSec, t.isPaused, nextLandmark]);
+
+  // 러닝 시작 시 Foreground Service 시작
+  useEffect(() => {
+    if (t.isRunning) {
+      const session = {
+        type: 'journey' as const,
+        journeyId,
+        journeyTitle,
+        sessionId: t.sessionId,
+        startTime: Date.now() - (t.elapsedSec * 1000),
+        distanceKm: t.distance,
+        durationSeconds: t.elapsedSec,
+        isRunning: true,
+        isPaused: t.isPaused,
+        reachedLandmarks: t.reachedLandmarks,
+      };
+      backgroundRunning.startForegroundService(session);
+    }
+  }, [t.isRunning]);
+
+  // 컴포넌트 언마운트 시 세션 정리 (완료/취소 시)
+  useEffect(() => {
+    return () => {
+      if (!t.isRunning) {
+        backgroundRunning.stopForegroundService();
+        backgroundRunning.clearSession();
+      }
+    };
+  }, []);
 
   const handleStartPress = useCallback(() => {
     setCountdownVisible(true);
@@ -170,6 +234,10 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
       });
 
       console.log("[JourneyRunning] apiComplete 응답:", { runId, data });
+
+      // 백그라운드 서비스 중지 및 세션 정리
+      await backgroundRunning.stopForegroundService();
+      await backgroundRunning.clearSession();
 
       // 여정 진행률 업데이트
       await t.completeJourneyRun();
