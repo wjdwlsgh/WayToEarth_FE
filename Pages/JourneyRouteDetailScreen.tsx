@@ -98,115 +98,43 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
 
         <TouchableOpacity
           style={styles.startButton}
+          disabled={loadingJourneyData || routeData.length === 0}
           onPress={() => {
-            // 한국의 고궁탐방 여정 (실제 위치 기반)
-            const palaceJourney = {
-              journeyId: id || '1',
-              journeyTitle: data?.title ?? '한국의 고궁탐방',
-              totalDistanceKm: 12.5,
-              landmarks: [
-                {
-                  id: '1',
-                  name: '경복궁',
-                  distance: '0km 지점',
-                  distanceM: 0,
-                  position: { latitude: 37.5796, longitude: 126.9770 },
+            if (!id || !data) return;
+
+            // API 데이터를 JourneyRunningScreen에 전달할 형식으로 변환
+            const totalDistanceKm = parseFloat(data.distance.replace('Km', '').replace('km', ''));
+
+            const journeyData = {
+              journeyId: String(id),
+              journeyTitle: data.title,
+              totalDistanceKm,
+              landmarks: landmarkData.map((lm) => ({
+                id: String(lm.id),
+                name: lm.name,
+                distance: `${lm.distanceFromStart.toFixed(1)}km 지점`,
+                distanceM: lm.distanceFromStart * 1000, // km → 미터 변환
+                position: {
+                  latitude: lm.latitude,
+                  longitude: lm.longitude,
                 },
-                {
-                  id: '2',
-                  name: '청와대',
-                  distance: '1.2km 지점',
-                  distanceM: 1200,
-                  position: { latitude: 37.5869, longitude: 126.9744 },
-                },
-                {
-                  id: '3',
-                  name: '창덕궁',
-                  distance: '3.5km 지점',
-                  distanceM: 3500,
-                  position: { latitude: 37.5794, longitude: 126.9910 },
-                },
-                {
-                  id: '4',
-                  name: '창경궁',
-                  distance: '4.8km 지점',
-                  distanceM: 4800,
-                  position: { latitude: 37.5788, longitude: 126.9950 },
-                },
-                {
-                  id: '5',
-                  name: '종묘',
-                  distance: '6.5km 지점',
-                  distanceM: 6500,
-                  position: { latitude: 37.5742, longitude: 126.9944 },
-                },
-                {
-                  id: '6',
-                  name: '서울역사박물관',
-                  distance: '9.2km 지점',
-                  distanceM: 9200,
-                  position: { latitude: 37.5700, longitude: 126.9690 },
-                },
-                {
-                  id: '7',
-                  name: '덕수궁',
-                  distance: '10.5km 지점',
-                  distanceM: 10500,
-                  position: { latitude: 37.5658, longitude: 126.9751 },
-                },
-                {
-                  id: '8',
-                  name: '숭례문',
-                  distance: '12.5km 지점',
-                  distanceM: 12500,
-                  position: { latitude: 37.5605, longitude: 126.9753 },
-                },
-              ],
-              journeyRoute: [
-                // 경복궁 시작
-                { latitude: 37.5796, longitude: 126.9770 },
-                { latitude: 37.5810, longitude: 126.9765 },
-                { latitude: 37.5830, longitude: 126.9760 },
-                { latitude: 37.5850, longitude: 126.9755 },
-                // 청와대
-                { latitude: 37.5869, longitude: 126.9744 },
-                { latitude: 37.5860, longitude: 126.9780 },
-                { latitude: 37.5840, longitude: 126.9820 },
-                { latitude: 37.5820, longitude: 126.9860 },
-                { latitude: 37.5805, longitude: 126.9890 },
-                // 창덕궁
-                { latitude: 37.5794, longitude: 126.9910 },
-                { latitude: 37.5792, longitude: 126.9925 },
-                { latitude: 37.5790, longitude: 126.9940 },
-                // 창경궁
-                { latitude: 37.5788, longitude: 126.9950 },
-                { latitude: 37.5780, longitude: 126.9950 },
-                { latitude: 37.5765, longitude: 126.9948 },
-                { latitude: 37.5750, longitude: 126.9946 },
-                // 종묘
-                { latitude: 37.5742, longitude: 126.9944 },
-                { latitude: 37.5730, longitude: 126.9920 },
-                { latitude: 37.5715, longitude: 126.9880 },
-                { latitude: 37.5705, longitude: 126.9820 },
-                { latitude: 37.5700, longitude: 126.9760 },
-                { latitude: 37.5700, longitude: 126.9720 },
-                // 서울역사박물관
-                { latitude: 37.5700, longitude: 126.9690 },
-                { latitude: 37.5690, longitude: 126.9710 },
-                { latitude: 37.5675, longitude: 126.9735 },
-                // 덕수궁
-                { latitude: 37.5658, longitude: 126.9751 },
-                { latitude: 37.5645, longitude: 126.9752 },
-                { latitude: 37.5625, longitude: 126.9753 },
-                // 숭례문 (종료)
-                { latitude: 37.5605, longitude: 126.9753 },
-              ],
+              })),
+              journeyRoute: routeData
+                .sort((a, b) => a.sequence - b.sequence)
+                .map((r) => ({
+                  latitude: r.latitude,
+                  longitude: r.longitude,
+                })),
             };
 
-            navigation?.navigate?.('JourneyRunningScreen', palaceJourney);
+            navigation?.navigate?.('JourneyRunningScreen', journeyData);
           }}
         >
-          <Text style={styles.startButtonText}>여정 계속하기</Text>
+          {loadingJourneyData ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.startButtonText}>여정 계속하기</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
 

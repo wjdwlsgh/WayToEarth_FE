@@ -6,12 +6,12 @@ export type RouteId = string | number;
 // 백엔드 응답 타입
 export type Journey = {
   id: number;
-  name: string;
+  title: string; // DB 필드명: title
   description: string;
   totalDistanceKm: number;
-  category: 'DOMESTIC' | 'INTERNATIONAL' | 'FAMOUS_ROUTE';
+  category: 'DOMESTIC' | 'INTERNATIONAL';
   difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-  estimatedDurationHours: number;
+  estimatedDays: number; // DB 필드명: estimated_days
   thumbnailUrl: string;
   landmarkCount?: number;
   completedUserCount?: number;
@@ -34,7 +34,7 @@ export type JourneyLandmark = {
   name: string;
   latitude: number;
   longitude: number;
-  distanceFromStart: number; // 미터 단위
+  distanceFromStart: number; // km 단위 (백엔드 DB 기준)
   description?: string;
   imageUrl?: string;
 };
@@ -73,15 +73,12 @@ const difficultyMap: Record<string, '쉬움' | '보통' | '어려움'> = {
 
 // 백엔드 Journey → 프론트 RouteSummary 변환
 function mapJourneyToSummary(journey: Journey): RouteSummary {
-  const hours = journey.estimatedDurationHours;
-  const days = Math.ceil(hours / 2); // 하루 2시간씩 러닝 가정
-
   return {
     id: journey.id,
-    title: journey.name,
+    title: journey.title,
     description: journey.description,
     distance: `${journey.totalDistanceKm}Km`,
-    duration: `${days}일`,
+    duration: `${journey.estimatedDays}일`,
     difficulty: difficultyMap[journey.difficulty] || '보통',
     completed: 0,
     total: journey.completedUserCount || 0,
