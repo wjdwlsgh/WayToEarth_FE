@@ -28,7 +28,13 @@ export default {
     android: {
       package: "cloud.waytoearth", // ✅ Firebase와 일치하도록 수정
       googleServicesFile: "./google-services.json", // ✅ Firebase 설정
+      // Android 권한: 백그라운드 위치/정밀 위치/FG 서비스/알림
       permissions: [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "POST_NOTIFICATIONS", // Android 13+ 알림 권한
       ],
       config: { googleMaps: { apiKey: process.env.ANDROID_MAPS_KEY } },

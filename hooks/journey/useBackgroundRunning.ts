@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react';
 import notifee, { AndroidImportance, AndroidCategory, AuthorizationStatus } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, PermissionsAndroid, Platform } from 'react-native';
+import * as Location from 'expo-location';
+import { WAY_LOCATION_TASK } from '../../utils/backgroundLocation';
 
 const RUNNING_SESSION_KEY = '@running_session';
 const ONGOING_CHANNEL_ID = 'running_session_ongoing';
@@ -77,15 +79,14 @@ export function useBackgroundRunning() {
     } catch {}
   };
 
-  // 내부: 현재 세션으로 알림 본문 구성 후 표시
+  // 내부: 진행 카드는 Expo Location foreground service로만 유지.
+  // Notifee ongoing 알림은 중복을 피하기 위해 비활성화(주석 처리)합니다.
   const renderOngoing = async (session: RunningSessionState, effectiveDurationSec?: number) => {
+    /*
     try {
-      // 여정 러닝 vs 일반 러닝 구분
       const title = session.type === 'journey' && session.journeyTitle
         ? `🏃 ${session.journeyTitle} 러닝 중`
         : `🏃 일반 러닝 중`;
-
-      // 진행 시간은 startTime 기준(일시정지면 전달값/세션값 유지)
       let dur = session.durationSeconds;
       if (!session.isPaused) {
         dur = Math.max(0, Math.floor((Date.now() - session.startTime) / 1000));
@@ -94,8 +95,6 @@ export function useBackgroundRunning() {
       const body = session.type === 'journey'
         ? `진행 거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(dur)}`
         : `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(dur)}`;
-
-      // Channels are pre-created at app start; do not await here to avoid delays
       createNotificationChannels();
       const notificationIdResult = await notifee.displayNotification({
         id: 'running_session',
@@ -105,30 +104,29 @@ export function useBackgroundRunning() {
           channelId: ONGOING_CHANNEL_ID,
           importance: AndroidImportance.DEFAULT,
           category: AndroidCategory.WORKOUT,
-          ongoing: true, // 스와이프로 삭제 불가
+          ongoing: true,
           autoCancel: false,
           onlyAlertOnce: true,
           showTimestamp: true,
-          pressAction: {
-            id: 'default',
-            launchActivity: 'default',
-          },
-          asForegroundService: true, // Foreground Service로 실행 (핵심!)
+          pressAction: { id: 'default', launchActivity: 'default' },
+          asForegroundService: true,
           color: session.isPaused ? '#FFA500' : '#00FF00',
-          smallIcon: 'ic_launcher', // 앱 아이콘
+          smallIcon: 'ic_launcher',
         },
       });
       notificationId.current = notificationIdResult;
     } catch (error) {
       console.error('Failed to start foreground service:', error);
     }
+    */
+    return;
   };
 
   // 내부: 백그라운드 지속 알림을 1회 표시하고, 시간만 초단위 갱신
   const showBackgroundOngoing = async (session: RunningSessionState) => {
     lastSessionRef.current = session;
-    // 즉시 1회 표시
-    renderOngoing(session).catch(() => {});
+    // 진행 카드는 Expo Location 카드만 유지(중복 방지)
+    // renderOngoing(session).catch(() => {});
     // 동시에 헤드업 1회 알림(짧게 표시 후 자동 취소)
     try {
       const title = session.type === 'journey' && session.journeyTitle
@@ -163,18 +161,12 @@ export function useBackgroundRunning() {
       }, 3000);
     } catch {}
     bgNotiShownRef.current = true;
-    // 조용한 진행 카드 시간/거리 갱신(무음 채널, 동일 ID 업데이트)
-    if (bgTickerRef.current) clearInterval(bgTickerRef.current);
-    bgTickerRef.current = setInterval(() => {
-      const s = lastSessionRef.current;
-      if (!s) return;
-      // distanceKm은 updateForegroundService에서 최신 값으로 갱신됨
-      // 시간은 startTime 기준으로 계산(일시정지 시 고정)
-      const eff = s.isPaused
-        ? s.durationSeconds
-        : Math.max(0, Math.floor((Date.now() - s.startTime) / 1000));
-      renderOngoing({ ...s }, eff).catch(() => {});
-    }, 1000);
+    // 진행 카드 실시간 갱신(조용히 업데이트)
+    // 진행 카드 실시간 갱신 비활성화(Expo Location 카드만 유지)
+    if (bgTickerRef.current) {
+      clearInterval(bgTickerRef.current);
+      bgTickerRef.current = null;
+    }
   };
 
   // Foreground Service 시작 (요청 시점에 앱이 백그라운드일 때만 1회 표시)
@@ -295,6 +287,38 @@ export function useBackgroundRunning() {
             const s = await loadSession();
             if (s?.isRunning) {
               await startForegroundService(s, true);
+              // 보조: Expo Background Location 업데이트가 확실히 시작되도록 이곳에서도 시도
+              /*
+               * Expo Background Location은 포그라운드에서만 시작해야 함.
+               * 백그라운드 전환 시점에서 시작을 시도하면
+               * "Foreground service cannot be started when the application is in the background"
+               * 에러가 발생하므로 이 보조 호출은 비활성화합니다.
+               * (러닝 시작 시 포그라운드에서만 startLocationUpdatesAsync 호출)
+               */
+              // try {
+              //   const bg = await Location.getBackgroundPermissionsAsync();
+              //   if (bg.status !== 'granted') {
+              //     const req = await Location.requestBackgroundPermissionsAsync();
+              //     console.log('[BG-LOC][AS] request background perm:', req.status);
+              //   }
+              //   const running = await Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK);
+              //   if (!running) {
+              //     console.log('[BG-LOC][AS] starting background updates');
+              //     await Location.startLocationUpdatesAsync(WAY_LOCATION_TASK, {
+              //       accuracy: Location.Accuracy.Highest,
+              //       timeInterval: 1000,
+              //       distanceInterval: 2,
+              //       showsBackgroundLocationIndicator: false,
+              //       pausesUpdatesAutomatically: false,
+              //       foregroundService: {
+              //         notificationTitle: '러닝 진행 중',
+              //         notificationBody: '앱을 열어 진행 상태를 확인하세요',
+              //       },
+              //     } as any);
+              //   }
+              // } catch (e) {
+              //   console.warn('[BG-LOC][AS] start failed:', e);
+              // }
             }
           } catch {}
         })();

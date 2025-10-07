@@ -4,6 +4,8 @@ import notifee, { AndroidImportance, EventType } from "@notifee/react-native";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { navigationRef } from "./navigation/RootNavigation";
+// Ensure background location task is registered at startup
+import "./utils/backgroundLocation";
 import App from "./App";
 
 // FCM 백그라운드 메시지 핸들러 (앱 시작 전 등록 필수)

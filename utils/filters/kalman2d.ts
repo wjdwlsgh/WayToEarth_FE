@@ -158,6 +158,22 @@ function transpose2x4(H: number[]): number[] {
   return r;
 }
 
+// Multiply (4x2) * (2x4) -> (4x4)
+function multiply4x2x4(A4x2: number[], B2x4: number[]): Mat4 {
+  const r: number[] = new Array(16).fill(0);
+  for (let i = 0; i < 4; i++) { // rows of A
+    for (let j = 0; j < 4; j++) { // cols of B
+      // sum over k=0..1
+      const a0 = A4x2[i*2 + 0];
+      const a1 = A4x2[i*2 + 1];
+      const b0 = B2x4[0*4 + j];
+      const b1 = B2x4[1*4 + j];
+      r[i*4 + j] = a0 * b0 + a1 * b1;
+    }
+  }
+  return r as Mat4;
+}
+
 function multiply2x4x4_to2x2(A2x4: number[], Bt4x2: number[]): Mat2 {
   // (2x4) * (4x2) -> 2x2
   const r = [0, 0, 0, 0];

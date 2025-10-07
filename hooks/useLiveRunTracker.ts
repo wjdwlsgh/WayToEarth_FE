@@ -9,6 +9,7 @@ import {
   projectToMeters,
   unprojectFromMeters,
 } from "../utils/filters/kalman2d";
+import { WAY_LOCATION_TASK } from "../utils/backgroundLocation";
 import type { LatLng } from "../types/types";
 import { distanceKm } from "../utils/geo";
 import { fmtMMSS, avgPaceSecPerKm, caloriesKcal } from "../utils/run";
@@ -49,6 +50,10 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   const kfRef = useRef<ReturnType<typeof createKalman2D> | null>(null);
   const originRef = useRef<LatLng | null>(null);
   const lastTsRef = useRef<number | null>(null);
+  // 시간 계산: 시스템 시각 기반으로 일시정지 누적 반영
+  const startEpochRef = useRef<number | null>(null); // ms
+  const pausedAccumMsRef = useRef<number>(0);
+  const pausedAtRef = useRef<number | null>(null);
 
   // 세션 & 업데이트 쓰로틀
   const sessionIdRef = useRef<string | null>(null);
@@ -214,13 +219,15 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
     }
   };
 
-  /** 타이머 */
+  /** 타이머: 시스템 시각 기반 경과시간 산출 */
   const startElapsed = () => {
     if (elapsedTimerRef.current) return;
-    elapsedTimerRef.current = setInterval(
-      () => setElapsedSec((s) => s + 1),
-      1000
-    );
+    elapsedTimerRef.current = setInterval(() => {
+      const startMs = startEpochRef.current ?? Date.now();
+      const pausedMs = pausedAccumMsRef.current + (pausedAtRef.current ? (Date.now() - pausedAtRef.current) : 0);
+      const elapsed = Math.max(0, Math.floor((Date.now() - startMs - pausedMs) / 1000));
+      setElapsedSec(elapsed);
+    }, 1000);
   };
   const stopElapsed = () => {
     if (!elapsedTimerRef.current) return;
@@ -254,6 +261,9 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       } catch {}
 
       // 2) 상태 초기화 (초기 위치는 첫 watch 콜백에서 세팅)
+      startEpochRef.current = Date.now();
+      pausedAccumMsRef.current = 0;
+      pausedAtRef.current = null;
       const seed = cachedLocationRef.current ?? null;
       if (seed) {
         setRoute([seed]);
@@ -364,6 +374,37 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
               }
             }
           );
+
+          // Start background location updates (OS-managed foreground service)
+          try {
+            // Ensure background location permission (Android 10+ requires "항상 허용")
+            const bg = await Location.getBackgroundPermissionsAsync();
+            if (bg.status !== 'granted') {
+              const req = await Location.requestBackgroundPermissionsAsync();
+              console.log('[BG-LOC] request background perm:', req.status);
+            }
+
+            const hasTask = await Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK);
+            if (!hasTask) {
+              console.log('[BG-LOC] starting background updates');
+              await Location.startLocationUpdatesAsync(WAY_LOCATION_TASK, {
+                // 백그라운드에서는 리소스 사용을 줄여 안정성을 높입니다.
+                accuracy: Location.Accuracy.High,
+                timeInterval: 3000,
+                distanceInterval: 5,
+                showsBackgroundLocationIndicator: false,
+                pausesUpdatesAutomatically: false,
+                foregroundService: {
+                  notificationTitle: '러닝 진행 중',
+                  notificationBody: '앱을 열어 진행 상태를 확인하세요',
+                },
+              } as any);
+            } else {
+              console.log('[BG-LOC] background updates already running');
+            }
+          } catch (e) {
+            console.warn('[BG-LOC] start failed:', e);
+          }
         } catch (e) {
           console.warn("위치 스트림 설정 실패:", e);
         }
@@ -381,6 +422,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
     if (!isRunning || isPaused) return;
     pausedRef.current = true;
     setIsPaused(true);
+    pausedAtRef.current = Date.now();
     stopElapsed();
     const sid = sessionIdRef.current;
     if (sid) {
@@ -395,6 +437,10 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
     if (!isRunning || !isPaused) return;
     pausedRef.current = false;
     setIsPaused(false);
+    if (pausedAtRef.current) {
+      pausedAccumMsRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
     startElapsed();
     const sid = sessionIdRef.current;
     if (sid) {
@@ -413,6 +459,13 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
     setIsPaused(false);
     setIsInitializing(false);
     pausedRef.current = false;
+    startEpochRef.current = null;
+    pausedAccumMsRef.current = 0;
+    pausedAtRef.current = null;
+    // Stop background updates
+    Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK)
+      .then((v) => (v ? Location.stopLocationUpdatesAsync(WAY_LOCATION_TASK) : undefined))
+      .catch(() => {});
   };
 
   // 파생값
