@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Modal, ActivityIndicator } from 'react-native';
 import useRouteDetail from '../hooks/journey/useJourneyRouteDetail';
-import type { RouteId } from '../utils/api/journeyRoutes';
+import { getJourneyRoutes, getJourneyLandmarks, type RouteId, type JourneyRoute, type JourneyLandmark } from '../utils/api/journeyRoutes';
 
 type RouteParams = { route: { params?: { id?: RouteId } } ; navigation?: any };
 
@@ -9,6 +9,32 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
   const id = route?.params?.id;
   const { data, loading } = useRouteDetail(id);
   const [showLandmarks, setShowLandmarks] = useState(false);
+
+  // API 데이터 상태
+  const [routeData, setRouteData] = useState<JourneyRoute[]>([]);
+  const [landmarkData, setLandmarkData] = useState<JourneyLandmark[]>([]);
+  const [loadingJourneyData, setLoadingJourneyData] = useState(false);
+
+  // 여정 데이터 로드
+  useEffect(() => {
+    if (!id) return;
+
+    setLoadingJourneyData(true);
+    Promise.all([
+      getJourneyRoutes(id),
+      getJourneyLandmarks(id),
+    ])
+      .then(([routes, landmarks]) => {
+        setRouteData(routes);
+        setLandmarkData(landmarks);
+      })
+      .catch((err) => {
+        console.error('여정 데이터 로드 실패:', err);
+      })
+      .finally(() => {
+        setLoadingJourneyData(false);
+      });
+  }, [id]);
 
   return (
     <View style={styles.container}>
