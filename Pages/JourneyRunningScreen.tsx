@@ -208,14 +208,25 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   console.log("[JourneyRunning] 사용자 경로 개수:", t.route.length);
   console.log("[JourneyRunning] 진행률:", t.progressPercent.toFixed(1), "%");
 
-  // 진행률에 따른 여정 경로 상의 가상 위치 계산
+  // 진행률에 따른 여정 경로 상의 가상 위치 계산 (선형 보간)
   const virtualLocation = useMemo(() => {
     if (journeyRoute.length === 0) return null;
+    if (journeyRoute.length === 1) return journeyRoute[0];
 
-    const index = Math.floor((journeyRoute.length - 1) * t.progressPercent / 100);
-    const clampedIndex = Math.max(0, Math.min(index, journeyRoute.length - 1));
+    // 정확한 인덱스 계산 (소수점 포함)
+    const exactIndex = (journeyRoute.length - 1) * t.progressPercent / 100;
+    const beforeIndex = Math.floor(exactIndex);
+    const afterIndex = Math.min(beforeIndex + 1, journeyRoute.length - 1);
+    const ratio = exactIndex - beforeIndex;  // 0~1 사이 값
 
-    return journeyRoute[clampedIndex];
+    const pointA = journeyRoute[beforeIndex];
+    const pointB = journeyRoute[afterIndex];
+
+    // 두 점 사이를 ratio 비율로 선형 보간
+    return {
+      latitude: pointA.latitude + (pointB.latitude - pointA.latitude) * ratio,
+      longitude: pointA.longitude + (pointB.longitude - pointA.longitude) * ratio,
+    };
   }, [journeyRoute, t.progressPercent]);
 
   return (

@@ -163,16 +163,33 @@ export default function JourneyMapRoute({
     onMapReady?.();
   };
 
-  // 진행률에 따라 완료된 경로 구간 계산 - useMemo로 캐싱
+  // 진행률에 따라 완료된 경로 구간 계산 (선형 보간 적용) - useMemo로 캐싱
   const { completedRoute, remainingRoute } = useMemo(() => {
-    const completedRouteLength = Math.floor(
-      (journeyRoute.length * progressPercent) / 100
-    );
-    const completed = journeyRoute.slice(0, Math.max(1, completedRouteLength));
-    const remaining = journeyRoute.slice(Math.max(0, completedRouteLength - 1));
+    if (journeyRoute.length === 0) {
+      return { completedRoute: [], remainingRoute: [] };
+    }
+
+    // 정확한 인덱스 계산 (소수점 포함)
+    const exactIndex = (journeyRoute.length - 1) * progressPercent / 100;
+    const beforeIndex = Math.floor(exactIndex);
+    const afterIndex = Math.min(beforeIndex + 1, journeyRoute.length - 1);
+
+    // 완료된 구간: 시작 ~ beforeIndex + 보간된 현재 위치
+    let completed = journeyRoute.slice(0, beforeIndex + 1);
+
+    // 보간된 현재 위치 추가 (currentLocation이 있으면)
+    if (currentLocation && beforeIndex < afterIndex) {
+      completed = [...completed, currentLocation];
+    }
+
+    // 남은 구간: 보간된 현재 위치 ~ 끝
+    let remaining = journeyRoute.slice(beforeIndex);
+    if (currentLocation && beforeIndex < afterIndex) {
+      remaining = [currentLocation, ...journeyRoute.slice(afterIndex)];
+    }
 
     return { completedRoute: completed, remainingRoute: remaining };
-  }, [journeyRoute, progressPercent]);
+  }, [journeyRoute, progressPercent, currentLocation]);
 
   return (
     <View style={styles.container}>
