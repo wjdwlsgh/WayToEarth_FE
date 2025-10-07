@@ -3,6 +3,8 @@ import * as WebBrowser from "expo-web-browser";
 WebBrowser.maybeCompleteAuthSession();
 import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
+import { navigationRef } from "./navigation/RootNavigation";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "./types/types";
@@ -88,8 +90,25 @@ export default function App() {
     };
   }, []);
 
+  // 알림 탭 등으로 저장된 보류 네비게이션 처리
+  const handleNavReady = async () => {
+    try {
+      const raw = await AsyncStorage.getItem("@pending_nav");
+      if (raw) {
+        const { target, params } = JSON.parse(raw);
+        AsyncStorage.removeItem("@pending_nav").catch(() => {});
+        // target은 'live' | 'journey'
+        if (target === 'journey') {
+          navigationRef.navigate('JourneyRunningScreen' as never, (params || {}) as never);
+        } else {
+          navigationRef.navigate('MainTabs' as never, { screen: 'LiveRunningScreen', ...(params || {}) } as never);
+        }
+      }
+    } catch {}
+  };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} onReady={handleNavReady}>
       <Stack.Navigator
         initialRouteName="Onboading"
         screenOptions={{ headerShown: false }}

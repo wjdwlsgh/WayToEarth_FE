@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
 import * as Location from "expo-location";
 import type { LatLng } from "../types/types";
 import { distanceKm } from "../utils/geo";
@@ -33,6 +34,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   const subRef = useRef<Location.LocationSubscription | null>(null);
   const elapsedTimerRef = useRef<TimerId | null>(null);
   const mapCenterRef = useRef<((p: LatLng) => void) | undefined>(undefined);
+  const appStateRef = useRef<string>(AppState.currentState);
   const recentRef = useRef<Sample[]>([]);
   const pausedRef = useRef(false);
   const prevAccRef = useRef<number | null>(null); // m
@@ -77,6 +79,9 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
 
   // 앱 시작시 GPS 준비
   useEffect(() => {
+    const sub = AppState.addEventListener("change", (s) => {
+      appStateRef.current = s;
+    });
     const prepareGPS = async () => {
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
@@ -96,7 +101,10 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       }
     };
     prepareGPS();
-    return () => stop();
+    return () => {
+      stop();
+      sub.remove();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -150,7 +158,9 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       setSpeedKmh(dt > 0 ? (dk / dt) * 3600 : 0);
     }
 
-    centerMap(p);
+    if (appStateRef.current === "active") {
+      centerMap(p);
+    }
     if (typeof acc === "number") prevAccRef.current = acc;
 
     // ── 주기 업데이트 (세션 있을 때만)
@@ -209,14 +219,22 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
 
   /** ✅ 최적화된 시작 */
   const start = async () => {
+    console.log("[RunTracker] start() invoked");
     if (isInitializing) return; // 중복 방지
     setIsInitializing(true);
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setIsInitializing(false);
-        return;
+      // 1) 권한: 먼저 현재 상태 확인 후, 필요 시에만 요청
+      let perm = await Location.getForegroundPermissionsAsync();
+      console.log("[RunTracker] location perm status(before):", perm?.status);
+      if (perm.status !== "granted") {
+        perm = await Location.requestForegroundPermissionsAsync();
+        console.log("[RunTracker] location perm status(after):", perm?.status);
+        if (perm.status !== "granted") {
+          console.warn("[RunTracker] location permission denied");
+          setIsInitializing(false);
+          return;
+        }
       }
 
       try {
@@ -224,34 +242,28 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
         await Location.setActivityTypeAsync?.(Location.ActivityType.Fitness);
       } catch {}
 
-      // 초기 위치(캐시 우선)
-      let initialLocation: LatLng;
-      if (cachedLocationRef.current) {
-        initialLocation = cachedLocationRef.current;
+      // 2) 상태 초기화 (초기 위치는 첫 watch 콜백에서 세팅)
+      const seed = cachedLocationRef.current ?? null;
+      if (seed) {
+        setRoute([seed]);
+        prev.current = seed;
+        recentRef.current = [{ t: Date.now(), p: seed }];
+        centerMap(seed);
       } else {
-        const cur = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        initialLocation = {
-          latitude: cur.coords.latitude,
-          longitude: cur.coords.longitude,
-        };
+        setRoute([]);
+        prev.current = null;
+        recentRef.current = [];
       }
-
-      // 상태 초기화
-      setRoute([initialLocation]);
-      prev.current = initialLocation;
-      recentRef.current = [{ t: Date.now(), p: initialLocation }];
       distanceRef.current = 0;
       setDistance(0);
       setSpeedKmh(0);
       setElapsedSec(0);
       seqRef.current = 0;
-      centerMap(initialLocation);
 
       pausedRef.current = false;
       setIsPaused(false);
       setIsRunning(true);
+      console.log("[RunTracker] state set to running");
       startElapsed();
 
       // 세션 생성 (백엔드 API 호출)
@@ -294,18 +306,32 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
               distanceInterval: 5,
             },
             (loc) => {
+              // console trace for incoming points
+              // Avoid noisy logs: only print every ~5s via recentRef length
+              // Here minimal log to confirm callback wiring
+              // console.log("[RunTracker] location update received");
               if (pausedRef.current) return;
               // 🔒 노이즈 필터
               if (shouldIgnoreSample(prev.current, loc)) return;
 
-              pushPoint(
-                {
-                  latitude: loc.coords.latitude,
-                  longitude: loc.coords.longitude,
-                },
-                loc.coords.accuracy,
-                loc.coords.speed ?? undefined
-              );
+              const point = {
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+              };
+
+              // 첫 포인트라면 초기 상태 세팅
+              if (!prev.current && route.length === 0) {
+                prev.current = point;
+                setRoute([point]);
+                recentRef.current = [{ t: Date.now(), p: point }];
+                centerMap(point);
+              } else {
+                pushPoint(
+                  point,
+                  loc.coords.accuracy,
+                  loc.coords.speed ?? undefined
+                );
+              }
             }
           );
         } catch (e) {

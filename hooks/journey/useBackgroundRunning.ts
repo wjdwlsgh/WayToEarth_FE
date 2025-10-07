@@ -1,12 +1,13 @@
 // hooks/journey/useBackgroundRunning.ts
 // Notifee를 사용한 백그라운드 러닝 세션 관리 (여정 러닝 + 일반 러닝 공용)
 import { useEffect, useRef } from 'react';
-import notifee, { AndroidImportance, AndroidCategory } from '@notifee/react-native';
+import notifee, { AndroidImportance, AndroidCategory, AuthorizationStatus } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState } from 'react-native';
+import { AppState, PermissionsAndroid, Platform } from 'react-native';
 
 const RUNNING_SESSION_KEY = '@running_session';
-const NOTIFICATION_CHANNEL_ID = 'running_session';
+const ONGOING_CHANNEL_ID = 'running_session_ongoing';
+const POPUP_CHANNEL_ID = 'running_session_popup';
 
 export type RunningSessionType = 'journey' | 'general';
 
@@ -26,56 +27,165 @@ export type RunningSessionState = {
 export function useBackgroundRunning() {
   const appState = useRef(AppState.currentState);
   const notificationId = useRef<string | null>(null);
+  const bgNotiShownRef = useRef<boolean>(false);
+  // 1회성 표시만 유지. ticker는 사용하지 않음(레거시 정리만).
+  const bgTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSessionRef = useRef<RunningSessionState | null>(null);
 
-  // 알림 채널 생성 (Android 필수)
-  const createNotificationChannel = async () => {
-    await notifee.createChannel({
-      id: NOTIFICATION_CHANNEL_ID,
-      name: '러닝 세션',
-      importance: AndroidImportance.HIGH,
-      sound: 'default',
-    });
+  // 알림 권한 요청 (Android 13+)
+  const requestNotificationPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+
+    try {
+      // Android 13+ (API 33+)에서는 POST_NOTIFICATIONS 권한 필요
+      if (Platform.Version >= 33) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+        );
+
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          console.warn('알림 권한이 거부되었습니다.');
+          return false;
+        }
+      }
+
+      // Notifee 권한 확인
+      const settings = await notifee.requestPermission();
+      return settings.authorizationStatus >= AuthorizationStatus.AUTHORIZED;
+    } catch (error) {
+      console.error('알림 권한 요청 실패:', error);
+      return false;
+    }
   };
 
-  // Foreground Service 시작 (백그라운드에서도 앱 실행 유지)
-  const startForegroundService = async (session: RunningSessionState) => {
+  // 알림 채널 생성 (Android 필수) - 백업 용도로 남겨둠
+  const createNotificationChannels = async () => {
     try {
-      await createNotificationChannel();
+      await notifee.createChannel({
+        id: ONGOING_CHANNEL_ID,
+        name: '러닝 진행(무음)',
+        importance: AndroidImportance.DEFAULT,
+        vibration: false,
+      });
+      await notifee.createChannel({
+        id: POPUP_CHANNEL_ID,
+        name: '러닝 시작 알림',
+        importance: AndroidImportance.HIGH,
+        vibration: true,
+        sound: 'default',
+      });
+    } catch {}
+  };
 
+  // 내부: 현재 세션으로 알림 본문 구성 후 표시
+  const renderOngoing = async (session: RunningSessionState, effectiveDurationSec?: number) => {
+    try {
       // 여정 러닝 vs 일반 러닝 구분
       const title = session.type === 'journey' && session.journeyTitle
         ? `🏃 ${session.journeyTitle} 러닝 중`
         : `🏃 일반 러닝 중`;
 
+      // 진행 시간은 startTime 기준(일시정지면 전달값/세션값 유지)
+      let dur = session.durationSeconds;
+      if (!session.isPaused) {
+        dur = Math.max(0, Math.floor((Date.now() - session.startTime) / 1000));
+      }
+      if (typeof effectiveDurationSec === 'number') dur = effectiveDurationSec;
       const body = session.type === 'journey'
-        ? `진행 거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(session.durationSeconds)}`
-        : `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(session.durationSeconds)}`;
+        ? `진행 거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(dur)}`
+        : `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(dur)}`;
 
+      // Channels are pre-created at app start; do not await here to avoid delays
+      createNotificationChannels();
       const notificationIdResult = await notifee.displayNotification({
         id: 'running_session',
         title,
         body,
         android: {
-          channelId: NOTIFICATION_CHANNEL_ID,
-          importance: AndroidImportance.HIGH,
+          channelId: ONGOING_CHANNEL_ID,
+          importance: AndroidImportance.DEFAULT,
           category: AndroidCategory.WORKOUT,
           ongoing: true, // 스와이프로 삭제 불가
           autoCancel: false,
+          onlyAlertOnce: true,
           showTimestamp: true,
           pressAction: {
             id: 'default',
             launchActivity: 'default',
           },
           asForegroundService: true, // Foreground Service로 실행 (핵심!)
-          color: '#00FF00',
+          color: session.isPaused ? '#FFA500' : '#00FF00',
           smallIcon: 'ic_launcher', // 앱 아이콘
         },
       });
-
       notificationId.current = notificationIdResult;
-      console.log('Foreground service started:', notificationIdResult);
     } catch (error) {
       console.error('Failed to start foreground service:', error);
+    }
+  };
+
+  // 내부: 백그라운드 지속 알림을 1회 표시하고, 시간만 초단위 갱신
+  const showBackgroundOngoing = async (session: RunningSessionState) => {
+    lastSessionRef.current = session;
+    // 즉시 1회 표시
+    renderOngoing(session).catch(() => {});
+    // 동시에 헤드업 1회 알림(짧게 표시 후 자동 취소)
+    try {
+      const title = session.type === 'journey' && session.journeyTitle
+        ? `🏃 ${session.journeyTitle} 러닝 시작`
+        : `🏃 일반 러닝 시작`;
+      const dur = session.isPaused
+        ? session.durationSeconds
+        : Math.max(0, Math.floor((Date.now() - session.startTime) / 1000));
+      const body = session.type === 'journey'
+        ? `진행 거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(dur)}`
+        : `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(dur)}`;
+
+      await notifee.displayNotification({
+        id: 'running_popup',
+        title,
+        body,
+        android: {
+          channelId: POPUP_CHANNEL_ID,
+          importance: AndroidImportance.HIGH,
+          category: AndroidCategory.WORKOUT,
+          autoCancel: true,
+          onlyAlertOnce: true,
+          showTimestamp: true,
+          lightUpScreen: true,
+          // 짧게 표시 후 자동 종료(일부 기기에서만 동작). 보조로 setTimeout 취소 처리.
+          timeoutAfter: 2500,
+          smallIcon: 'ic_launcher',
+        },
+      });
+      setTimeout(() => {
+        notifee.cancelNotification('running_popup').catch(() => {});
+      }, 3000);
+    } catch {}
+    bgNotiShownRef.current = true;
+    // 조용한 진행 카드 시간/거리 갱신(무음 채널, 동일 ID 업데이트)
+    if (bgTickerRef.current) clearInterval(bgTickerRef.current);
+    bgTickerRef.current = setInterval(() => {
+      const s = lastSessionRef.current;
+      if (!s) return;
+      // distanceKm은 updateForegroundService에서 최신 값으로 갱신됨
+      // 시간은 startTime 기준으로 계산(일시정지 시 고정)
+      const eff = s.isPaused
+        ? s.durationSeconds
+        : Math.max(0, Math.floor((Date.now() - s.startTime) / 1000));
+      renderOngoing({ ...s }, eff).catch(() => {});
+    }, 1000);
+  };
+
+  // Foreground Service 시작 (요청 시점에 앱이 백그라운드일 때만 1회 표시)
+  const startForegroundService = async (session: RunningSessionState, isBackground: boolean = false) => {
+    // 세션 저장은 비동기로 처리해 표시를 지연시키지 않음
+    saveSession(session).catch(() => {});
+    if (Platform.OS !== 'android') return;
+    // 권한 확인은 러닝 시작 시점에서 수행됨. 여기서는 지연 없이 표시만 시도.
+    // 앱이 백그라운드일 때만 표시, 이미 표시했다면 무시
+    if (((isBackground || appState.current === 'background') && !bgNotiShownRef.current)) {
+      showBackgroundOngoing(session);
     }
   };
 
@@ -93,53 +203,23 @@ export function useBackgroundRunning() {
 
   // Foreground Service 업데이트
   const updateForegroundService = async (session: RunningSessionState, nextLandmark?: string) => {
-    try {
-      const title = session.type === 'journey' && session.journeyTitle
-        ? `🏃 ${session.journeyTitle} 러닝 중`
-        : `🏃 일반 러닝 중`;
-
-      let body = '';
-      if (session.type === 'journey' && nextLandmark) {
-        body = `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(session.durationSeconds)} | 다음: ${nextLandmark}`;
-      } else if (session.type === 'journey') {
-        body = `진행 거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(session.durationSeconds)}`;
-      } else {
-        body = `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(session.durationSeconds)}`;
-      }
-
-      // 일시정지 상태 표시
-      if (session.isPaused) {
-        body = `⏸️ 일시정지 | ${body}`;
-      }
-
-      await notifee.displayNotification({
-        id: 'running_session',
-        title,
-        body,
-        android: {
-          channelId: NOTIFICATION_CHANNEL_ID,
-          importance: AndroidImportance.HIGH,
-          category: AndroidCategory.WORKOUT,
-          ongoing: true,
-          autoCancel: false,
-          showTimestamp: true,
-          asForegroundService: true,
-          color: session.isPaused ? '#FFA500' : '#00FF00',
-          smallIcon: 'ic_launcher',
-        },
-      });
-    } catch (error) {
-      console.error('Failed to update foreground service:', error);
-    }
+    // 세션만 갱신하고, 백그라운드 틱커가 제목/본문을 갱신
+    await saveSession(session);
+    lastSessionRef.current = session;
   };
 
   // Foreground Service 중지
   const stopForegroundService = async () => {
     try {
       await notifee.cancelNotification('running_session');
+      await notifee.cancelNotification('running_popup');
       await notifee.stopForegroundService();
       notificationId.current = null;
-      console.log('Foreground service stopped');
+      bgNotiShownRef.current = false;
+      if (bgTickerRef.current) {
+        clearInterval(bgTickerRef.current);
+        bgTickerRef.current = null;
+      }
     } catch (error) {
       console.error('Failed to stop foreground service:', error);
     }
@@ -149,11 +229,8 @@ export function useBackgroundRunning() {
   const saveSession = async (session: RunningSessionState) => {
     try {
       await AsyncStorage.setItem(RUNNING_SESSION_KEY, JSON.stringify(session));
-      console.log('✅ Running session saved:', {
-        journeyTitle: session.journeyTitle,
-        progressM: session.progressM,
-        isRunning: session.isRunning,
-      });
+      // 과도한 로그 방지: 필요 시 디버깅에서만 활성화
+      // console.log('✅ Running session saved:', { isRunning: session.isRunning });
     } catch (error) {
       console.error('Failed to save session:', error);
     }
@@ -195,7 +272,7 @@ export function useBackgroundRunning() {
         title: `🎉 ${landmarkName} 도착!`,
         body: '랜드마크에 방명록을 남겨보세요.',
         android: {
-          channelId: NOTIFICATION_CHANNEL_ID,
+          channelId: POPUP_CHANNEL_ID,
           importance: AndroidImportance.HIGH,
           sound: 'default',
           vibrationPattern: [300, 500, 300],
@@ -212,10 +289,19 @@ export function useBackgroundRunning() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (appState.current.match(/active/) && nextAppState === 'background') {
-        console.log('📱 App moved to background');
+        // 앱이 백그라운드로 갈 때 최근 세션 정보를 읽어 1회성 알림 표시
+        (async () => {
+          try {
+            const s = await loadSession();
+            if (s?.isRunning) {
+              await startForegroundService(s, true);
+            }
+          } catch {}
+        })();
       }
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('📱 App moved to foreground');
+        // 포그라운드 복귀 시 알림/서비스 정리
+        stopForegroundService();
       }
       appState.current = nextAppState;
     });
@@ -227,10 +313,11 @@ export function useBackgroundRunning() {
 
   // 초기화 시 채널 생성
   useEffect(() => {
-    createNotificationChannel();
+    createNotificationChannels();
   }, []);
 
   return {
+    requestNotificationPermission,
     startForegroundService,
     updateForegroundService,
     stopForegroundService,

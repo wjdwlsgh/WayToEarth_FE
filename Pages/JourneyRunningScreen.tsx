@@ -2,6 +2,7 @@
 // 여정 러닝 메인 화면 (실시간 추적 + 진행률)
 
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import * as Location from "expo-location";
 import SafeLayout from "../components/Layout/SafeLayout";
 import {
   View,
@@ -113,10 +114,16 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   const [menuLandmark, setMenuLandmark] = useState<any>(null);
 
   // 다음 랜드마크 계산
+  // 도달한 랜드마크 ID 목록을 훅의 landmarksWithReached에서 파생
+  const reachedIds = useMemo(
+    () => t.landmarksWithReached.filter(lm => lm.reached).map(lm => lm.id),
+    [t.landmarksWithReached]
+  );
+
   const nextLandmark = useMemo(() => {
-    const remaining = landmarks.filter(lm => !t.reachedLandmarks.includes(lm.id));
+    const remaining = landmarks.filter(lm => !reachedIds.includes(lm.id));
     return remaining[0]?.name;
-  }, [landmarks, t.reachedLandmarks]);
+  }, [landmarks, reachedIds]);
 
   // 러닝 세션 상태 업데이트
   useEffect(() => {
@@ -132,7 +139,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
       durationSeconds: t.elapsedSec,
       isRunning: t.isRunning,
       isPaused: t.isPaused,
-      reachedLandmarks: t.reachedLandmarks,
+      reachedLandmarks: reachedIds,
     };
 
     // Foreground Service 업데이트
@@ -155,7 +162,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         durationSeconds: t.elapsedSec,
         isRunning: true,
         isPaused: t.isPaused,
-        reachedLandmarks: t.reachedLandmarks,
+        reachedLandmarks: reachedIds,
       };
       backgroundRunning.startForegroundService(session);
     }
@@ -172,15 +179,21 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   }, []);
 
   const handleStartPress = useCallback(() => {
+    console.log("[JourneyRunning] start pressed -> show countdown");
     setCountdownVisible(true);
   }, []);
 
-  const handleCountdownDone = useCallback(() => {
+  const handleCountdownDone = useCallback(async () => {
+    console.log("[JourneyRunning] countdown done");
     setCountdownVisible(false);
+    // 즉시 시작 시도 (권한은 내부에서 처리)
     requestAnimationFrame(() => {
+      console.log("[JourneyRunning] calling t.startJourneyRun()");
       t.startJourneyRun();
     });
-  }, [t]);
+    // 알림 권한 요청은 비동기로 병렬 처리
+    backgroundRunning.requestNotificationPermission().catch(() => {});
+  }, [t, backgroundRunning]);
 
   // 랜드마크 마커 클릭 핸들러
   const handleLandmarkMarkerPress = useCallback((landmark: any) => {
