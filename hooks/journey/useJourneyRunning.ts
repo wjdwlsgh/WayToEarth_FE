@@ -84,6 +84,12 @@ export function useJourneyRunning({
 
   // 러닝 거리 변경 시 진행률 업데이트
   useEffect(() => {
+    console.log("[useJourneyRunning] 거리 업데이트 체크:", {
+      isRunning: runTracker.isRunning,
+      distance: runTracker.distance,
+      route: runTracker.route.length,
+    });
+
     if (!runTracker.isRunning) return;
 
     const currentTotalM = initialProgressM.current + runTracker.distance * 1000;
@@ -91,6 +97,14 @@ export function useJourneyRunning({
     setProgressPercent(
       totalDistanceM > 0 ? Math.min(100, (currentTotalM / totalDistanceM) * 100) : 0
     );
+
+    console.log("[useJourneyRunning] 진행률 업데이트:", {
+      initialProgressM: initialProgressM.current,
+      runTrackerDistance: runTracker.distance,
+      currentTotalM,
+      totalDistanceM,
+      progressPercent: ((currentTotalM / totalDistanceM) * 100).toFixed(4),
+    });
 
     // 랜드마크 도달 체크
     landmarks.forEach((lm) => {
@@ -170,6 +184,33 @@ export function useJourneyRunning({
     reached: reachedLandmarks.has(lm.id),
   }));
 
+  // 🧪 테스트용: 강제로 거리 증가
+  const addTestDistance = useCallback((metersToAdd: number) => {
+    const newProgressM = progressM + metersToAdd;
+    setProgressM(newProgressM);
+    setProgressPercent(
+      totalDistanceM > 0 ? Math.min(100, (newProgressM / totalDistanceM) * 100) : 0
+    );
+
+    console.log("[useJourneyRunning] 🧪 테스트 거리 추가:", {
+      added: metersToAdd,
+      newProgressM,
+      progressPercent: ((newProgressM / totalDistanceM) * 100).toFixed(4),
+    });
+
+    // 랜드마크 도달 체크
+    landmarks.forEach((lm) => {
+      if (newProgressM >= lm.distanceM && !reachedLandmarks.has(lm.id)) {
+        setReachedLandmarks((prev) => new Set(prev).add(lm.id));
+        onLandmarkReached?.(lm);
+      }
+    });
+
+    // 다음 랜드마크 업데이트
+    const next = landmarks.find((lm) => newProgressM < lm.distanceM);
+    setNextLandmark(next || null);
+  }, [progressM, totalDistanceM, landmarks, reachedLandmarks, onLandmarkReached]);
+
   return {
     // 기본 러닝 추적 데이터
     ...runTracker,
@@ -183,5 +224,8 @@ export function useJourneyRunning({
     // 여정 러닝 제어
     startJourneyRun,
     completeJourneyRun,
+
+    // 🧪 테스트용
+    addTestDistance,
   };
 }

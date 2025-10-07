@@ -27,6 +27,8 @@ type Props = {
   currentLocation: LatLng | null;
   // 진행률 (0~100)
   progressPercent: number;
+  // 가상 경로 인덱스 (거리 기반)
+  virtualRouteIndex?: number;
   // 지도 준비 완료 콜백
   onMapReady?: () => void;
   // 스냅샷 바인딩
@@ -41,6 +43,7 @@ export default function JourneyMapRoute({
   userRoute,
   currentLocation,
   progressPercent,
+  virtualRouteIndex,
   onMapReady,
   onBindSnapshot,
   onLandmarkPress,
@@ -163,33 +166,43 @@ export default function JourneyMapRoute({
     onMapReady?.();
   };
 
-  // 진행률에 따라 완료된 경로 구간 계산 (선형 보간 적용) - useMemo로 캐싱
+  // 진행률에 따라 완료된 경로 구간 계산 (거리 기반 인덱스 사용) - useMemo로 캐싱
   const { completedRoute, remainingRoute } = useMemo(() => {
     if (journeyRoute.length === 0) {
       return { completedRoute: [], remainingRoute: [] };
     }
 
-    // 정확한 인덱스 계산 (소수점 포함)
-    const exactIndex = (journeyRoute.length - 1) * progressPercent / 100;
+    // virtualRouteIndex가 있으면 그것을 사용, 없으면 progressPercent 사용
+    const exactIndex = virtualRouteIndex !== undefined
+      ? virtualRouteIndex
+      : (journeyRoute.length - 1) * progressPercent / 100;
+
     const beforeIndex = Math.floor(exactIndex);
     const afterIndex = Math.min(beforeIndex + 1, journeyRoute.length - 1);
 
-    // 완료된 구간: 시작 ~ beforeIndex + 보간된 현재 위치
+    // ✅ 초록색 선: 시작 ~ beforeIndex + 마커 위치
     let completed = journeyRoute.slice(0, beforeIndex + 1);
-
-    // 보간된 현재 위치 추가 (currentLocation이 있으면)
-    if (currentLocation && beforeIndex < afterIndex) {
-      completed = [...completed, currentLocation];
+    if (currentLocation) {
+      completed = [...completed, currentLocation]; // 마커까지 연결
     }
 
-    // 남은 구간: 보간된 현재 위치 ~ 끝
-    let remaining = journeyRoute.slice(beforeIndex);
-    if (currentLocation && beforeIndex < afterIndex) {
-      remaining = [currentLocation, ...journeyRoute.slice(afterIndex)];
+    // ✅ 회색 점선: 마커 위치 ~ 끝
+    let remaining = journeyRoute.slice(afterIndex);
+    if (currentLocation) {
+      remaining = [currentLocation, ...remaining]; // 마커부터 시작
     }
+
+    console.log("[JourneyMapRoute] 경로 계산:", {
+      exactIndex: exactIndex.toFixed(2),
+      beforeIndex,
+      afterIndex,
+      completedLength: completed.length,
+      remainingLength: remaining.length,
+      hasCurrentLocation: !!currentLocation,
+    });
 
     return { completedRoute: completed, remainingRoute: remaining };
-  }, [journeyRoute, progressPercent, currentLocation]);
+  }, [journeyRoute, progressPercent, virtualRouteIndex, currentLocation]);
 
   return (
     <View style={styles.container}>

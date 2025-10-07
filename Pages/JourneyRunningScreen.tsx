@@ -204,30 +204,152 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
   // 디버깅: 여정 데이터 확인
   console.log("[JourneyRunning] 여정 경로 개수:", journeyRoute.length);
+  console.log("[JourneyRunning] 총 여정 거리:", totalDistanceKm, "km");
   console.log("[JourneyRunning] 랜드마크 개수:", landmarks.length);
+  console.log("[JourneyRunning] 랜드마크 목록:", landmarks.map(lm => ({
+    name: lm.name,
+    distanceM: lm.distanceM,
+    distanceKm: (lm.distanceM / 1000).toFixed(2) + "km",
+  })));
+
+  // 🔍 청와대 위치 확인 (첫 번째 랜드마크)
+  if (landmarks.length > 1) {
+    const landmark = landmarks[1]; // 청와대
+    console.log("[JourneyRunning] 🎯 청와대 위치:", {
+      position: landmark.position,
+      distanceM: landmark.distanceM,
+    });
+    // journeyRoute에서 청와대와 가장 가까운 포인트 찾기
+    let closestIndex = 0;
+    let minDist = 999999;
+    journeyRoute.forEach((point, idx) => {
+      const dist = Math.sqrt(
+        Math.pow(point.latitude - landmark.position.latitude, 2) +
+        Math.pow(point.longitude - landmark.position.longitude, 2)
+      );
+      if (dist < minDist) {
+        minDist = dist;
+        closestIndex = idx;
+      }
+    });
+    console.log("[JourneyRunning] 🗺️ 청와대가 여정 경로의 몇 번째 포인트?:", {
+      closestIndex,
+      totalPoints: journeyRoute.length,
+      percentage: ((closestIndex / (journeyRoute.length - 1)) * 100).toFixed(1) + "%",
+    });
+  }
+
   console.log("[JourneyRunning] 사용자 경로 개수:", t.route.length);
   console.log("[JourneyRunning] 진행률:", t.progressPercent.toFixed(1), "%");
 
-  // 진행률에 따른 여정 경로 상의 가상 위치 계산 (선형 보간)
+  // 진행률에 따른 여정 경로 상의 가상 위치 계산 (거리 기반으로 수정)
   const virtualLocation = useMemo(() => {
     if (journeyRoute.length === 0) return null;
     if (journeyRoute.length === 1) return journeyRoute[0];
 
-    // 정확한 인덱스 계산 (소수점 포함)
-    const exactIndex = (journeyRoute.length - 1) * t.progressPercent / 100;
+    // 🔧 수정: 각 랜드마크 사이를 거리 비율로 분할
+    // 현재 진행 거리로 어느 구간에 있는지 찾기
+    let currentSegmentStart = 0;
+    let currentSegmentEnd = landmarks.length > 1 ? landmarks[1].distanceM : totalDistanceKm * 1000;
+    let segmentStartIdx = 0;
+    let segmentEndIdx = landmarks.length > 1 ?
+      journeyRoute.findIndex(p =>
+        Math.abs(p.latitude - landmarks[1].position.latitude) < 0.0001 &&
+        Math.abs(p.longitude - landmarks[1].position.longitude) < 0.0001
+      ) : journeyRoute.length - 1;
+
+    // 현재 어느 랜드마크 구간에 있는지 찾기
+    for (let i = 0; i < landmarks.length; i++) {
+      if (t.progressM < landmarks[i].distanceM || i === landmarks.length - 1) {
+        currentSegmentEnd = landmarks[i].distanceM;
+        currentSegmentStart = i > 0 ? landmarks[i - 1].distanceM : 0;
+
+        // 해당 랜드마크와 가장 가까운 경로 포인트 찾기
+        const landmark = landmarks[i];
+        let minDist = 999999;
+        segmentEndIdx = journeyRoute.length - 1; // 기본값: 마지막 포인트
+        journeyRoute.forEach((point, idx) => {
+          const dist = Math.sqrt(
+            Math.pow(point.latitude - landmark.position.latitude, 2) +
+            Math.pow(point.longitude - landmark.position.longitude, 2)
+          );
+          if (dist < minDist) {
+            minDist = dist;
+            segmentEndIdx = idx;
+          }
+        });
+
+        if (i > 0) {
+          const prevLandmark = landmarks[i - 1];
+          minDist = 999999;
+          segmentStartIdx = 0; // 기본값: 첫 포인트
+          journeyRoute.forEach((point, idx) => {
+            const dist = Math.sqrt(
+              Math.pow(point.latitude - prevLandmark.position.latitude, 2) +
+              Math.pow(point.longitude - prevLandmark.position.longitude, 2)
+            );
+            if (dist < minDist) {
+              minDist = dist;
+              segmentStartIdx = idx;
+            }
+          });
+        } else {
+          segmentStartIdx = 0; // 첫 번째 구간의 시작은 0
+        }
+
+        console.log("[JourneyRunning] 🔍 구간 찾기:", {
+          landmarkIndex: i,
+          landmarkName: landmark.name,
+          segmentStartIdx,
+          segmentEndIdx,
+          currentSegmentStart,
+          currentSegmentEnd,
+        });
+
+        break;
+      }
+    }
+
+    // 구간 내에서의 진행 비율 계산
+    const segmentDistance = currentSegmentEnd - currentSegmentStart;
+    const progressInSegment = t.progressM - currentSegmentStart;
+    const segmentRatio = segmentDistance > 0 ? progressInSegment / segmentDistance : 0;
+
+    // 경로 포인트 인덱스 계산
+    const indexRange = segmentEndIdx - segmentStartIdx;
+    const exactIndex = segmentStartIdx + (indexRange * segmentRatio);
     const beforeIndex = Math.floor(exactIndex);
     const afterIndex = Math.min(beforeIndex + 1, journeyRoute.length - 1);
-    const ratio = exactIndex - beforeIndex;  // 0~1 사이 값
+    const ratio = exactIndex - beforeIndex;
 
     const pointA = journeyRoute[beforeIndex];
     const pointB = journeyRoute[afterIndex];
 
-    // 두 점 사이를 ratio 비율로 선형 보간
-    return {
+    // 선형 보간
+    const interpolated = {
       latitude: pointA.latitude + (pointB.latitude - pointA.latitude) * ratio,
       longitude: pointA.longitude + (pointB.longitude - pointA.longitude) * ratio,
     };
-  }, [journeyRoute, t.progressPercent]);
+
+    console.log("[JourneyRunning] 가상 위치 계산 (거리 기반):", {
+      progressM: t.progressM,
+      segmentStart: currentSegmentStart,
+      segmentEnd: currentSegmentEnd,
+      segmentRatio: segmentRatio.toFixed(4),
+      exactIndex: exactIndex.toFixed(4),
+      beforeIndex,
+      afterIndex,
+    });
+
+    return {
+      location: interpolated,
+      routeIndex: exactIndex, // 경로 인덱스도 함께 반환
+    };
+  }, [journeyRoute, t.progressM, landmarks, totalDistanceKm]);
+
+  // 가상 위치와 인덱스 분리
+  const virtualLocationPoint = virtualLocation?.location || null;
+  const virtualRouteIndex = virtualLocation?.routeIndex || 0;
 
   return (
     <SafeLayout withBottomInset>
@@ -235,8 +357,9 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         journeyRoute={journeyRoute}
         landmarks={t.landmarksWithReached}
         userRoute={[]} // 여정 러닝에서는 실제 GPS 경로 표시 안 함
-        currentLocation={virtualLocation}
+        currentLocation={virtualLocationPoint}
         progressPercent={t.progressPercent}
+        virtualRouteIndex={virtualRouteIndex}
         onLandmarkPress={handleLandmarkMarkerPress}
       />
 
@@ -297,9 +420,16 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
             {t.nextLandmark && (
               <Text style={styles.compactNextLandmark}>
                 다음: {t.nextLandmark.name} (
-                {(t.nextLandmark.distanceM / 1000 - t.progressM / 1000).toFixed(
-                  1
-                )}{" "}
+                {(() => {
+                  const remaining = (t.nextLandmark.distanceM - t.progressM) / 1000;
+                  console.log("[JourneyRunning] 랜드마크 거리 계산:", {
+                    landmarkName: t.nextLandmark.name,
+                    landmarkDistanceM: t.nextLandmark.distanceM,
+                    progressM: t.progressM,
+                    remainingKm: remaining.toFixed(3),
+                  });
+                  return remaining.toFixed(1);
+                })()}{" "}
                 km)
               </Text>
             )}
@@ -350,6 +480,28 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
           </Pressable>
         </View>
       )}
+
+      {/* 🧪 테스트 버튼 (거리 증가) */}
+      <View style={styles.testButtonContainer}>
+        <Pressable
+          onPress={() => t.addTestDistance(1)}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>+1m</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => t.addTestDistance(5)}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>+5m</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => t.addTestDistance(10)}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>+10m</Text>
+        </Pressable>
+      </View>
 
       {/* 러닝 제어 버튼 (러닝 중) */}
       {t.isRunning && (
@@ -573,6 +725,30 @@ const styles = StyleSheet.create({
   compactNextLandmark: {
     fontSize: 12,
     color: "#4B5563",
+  },
+  testButtonContainer: {
+    position: "absolute",
+    top: 120,
+    right: 16,
+    flexDirection: "column",
+    gap: 8,
+    zIndex: 1000,
+  },
+  testButton: {
+    backgroundColor: "#FF6B6B",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  testButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
   modalOverlay: {
     flex: 1,
