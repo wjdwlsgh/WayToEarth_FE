@@ -61,12 +61,59 @@ export async function getAIFeedback(
 }
 
 /**
- * AI 피드백 조회 또는 생성
- * GET 시도 후 404이면 자동으로 POST로 새로 생성
+ * 전체 AI 분석 조회 (최근 러닝 기록 기반)
+ * 최근 러닝 기록을 가져와서 해당 기록에 대한 AI 분석 수행
  *
- * @param runningRecordId 러닝 기록 ID
  * @param onLoading 로딩 상태 변경 콜백 (POST 시 2-5초 소요)
  * @returns AI 피드백 데이터
+ */
+export async function getOrCreateOverallFeedback(
+  onLoading?: (loading: boolean) => void
+): Promise<{ feedback: AIFeedback; wasCreated: boolean }> {
+  try {
+    // 먼저 최근 러닝 기록 조회
+    console.log("[API] 최근 러닝 기록 조회");
+    const response = await client.get(`/v1/running/records`, {
+      params: { limit: 1, offset: 0 },
+    });
+
+    console.log("[API] 응답 데이터:", response.data);
+
+    // 응답 구조 확인 - data가 배열일 수도, 객체일 수도 있음
+    let records = Array.isArray(response.data) ? response.data : response.data?.records || response.data?.data || [];
+
+    if (!records || records.length === 0) {
+      throw new Error("러닝 기록이 없습니다.");
+    }
+
+    const latestRecordId = records[0].id;
+    console.log("[API] 최근 러닝 기록 ID:", latestRecordId);
+
+    // 해당 기록에 대한 AI 피드백 조회 시도
+    try {
+      const feedback = await getAIFeedback(latestRecordId);
+      return { feedback, wasCreated: false };
+    } catch (error: any) {
+      // 404인 경우 새로 생성
+      if (error?.response?.status === 404 || error?.response?.status === 400) {
+        onLoading?.(true);
+        try {
+          const feedback = await createAIFeedback(latestRecordId);
+          return { feedback, wasCreated: true };
+        } finally {
+          onLoading?.(false);
+        }
+      }
+      throw error;
+    }
+  } catch (error: any) {
+    throw error;
+  }
+}
+
+/**
+ * AI 피드백 조회 또는 생성 (개별 레코드용 - deprecated)
+ * @deprecated 이제 getOrCreateOverallFeedback 사용
  */
 export async function getOrCreateAIFeedback(
   runningRecordId: number,

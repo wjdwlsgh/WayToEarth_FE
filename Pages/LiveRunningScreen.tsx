@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useState, useCallback } from "react";
+import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import * as Location from "expo-location";
 import SafeLayout from "../components/Layout/SafeLayout";
 import {
   StyleSheet,
@@ -8,18 +9,24 @@ import {
   Pressable,
   Animated,
   Easing,
+  AppState,
 } from "react-native";
 import MapRoute from "../components/Running/MapRoute";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
 import { useLiveRunTracker } from "../hooks/useLiveRunTracker";
+import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiComplete } from "../utils/api/running"; // ✅ 추가
 
 export default function LiveRunningScreen({ navigation, route }: { navigation: any; route?: any }) {
   const targetDistanceKm = (route?.params?.targetDistanceKm as number | undefined) ?? undefined;
   const t = useLiveRunTracker();
+
+  // 백그라운드 러닝 훅
+  const backgroundRunning = useBackgroundRunning();
+
   const insets = useSafeAreaInsets();
   const bottomSafe = Math.max(insets.bottom, 12);
   const FAB_BASE = 100;
@@ -33,6 +40,53 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
   const progress = useRef(new Animated.Value(0)).current;
 
   const [mapReady, setMapReady] = useState(false);
+
+  // 러닝 세션 상태 업데이트 (일반 러닝)
+  useEffect(() => {
+    if (!t.isRunning) return;
+
+    const session = {
+      type: 'general' as const,
+      sessionId: t.sessionId,
+      startTime: Date.now() - (t.elapsedSec * 1000),
+      distanceKm: t.distance,
+      durationSeconds: t.elapsedSec,
+      isRunning: t.isRunning,
+      isPaused: t.isPaused,
+    };
+
+    // Foreground Service 업데이트
+    backgroundRunning.updateForegroundService(session);
+
+    // 세션 상태 저장 (백그라운드 복원용)
+    backgroundRunning.saveSession(session);
+  }, [t.isRunning, t.distance, t.elapsedSec, t.isPaused]);
+
+  // 러닝 시작 시 Foreground Service 시작
+  useEffect(() => {
+    if (t.isRunning) {
+      const session = {
+        type: 'general' as const,
+        sessionId: t.sessionId,
+        startTime: Date.now() - (t.elapsedSec * 1000),
+        distanceKm: t.distance,
+        durationSeconds: t.elapsedSec,
+        isRunning: true,
+        isPaused: t.isPaused,
+      };
+      backgroundRunning.startForegroundService(session);
+    }
+  }, [t.isRunning]);
+
+  // 컴포넌트 언마운트 시 세션 정리
+  useEffect(() => {
+    return () => {
+      if (!t.isRunning) {
+        backgroundRunning.stopForegroundService();
+        backgroundRunning.clearSession();
+      }
+    };
+  }, []);
 
   const fade = progress.interpolate({
     inputRange: [0, 1],
@@ -92,17 +146,59 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
 
   const handleStartPress = () => (menuOpen ? closeMenu() : openMenu());
 
-  const handleRunningStart = useCallback(() => {
+  const handleRunningStart = useCallback(async () => {
+    console.log("[LiveRunning] start pressed -> prepare permissions");
     closeMenu();
+    try {
+      // 선행: 백그라운드 위치 권한 확보(안드 10+). 이 과정에서 설정/권한 UI로 나가면 AppState가 background가 됨.
+      const bg = await Location.getBackgroundPermissionsAsync();
+      if (bg.status !== "granted") {
+        const req = await Location.requestBackgroundPermissionsAsync();
+        console.log("[LiveRunning] request BG location perm:", req.status);
+      }
+    } catch (e) {
+      console.warn("[LiveRunning] BG perm check fail:", e);
+    }
+
+    // 권한 UI에서 돌아오는 동안 background일 수 있음 → active까지 잠깐 대기(최대 1.5s)
+    if (AppState.currentState !== "active") {
+      await new Promise<void>((resolve) => {
+        let resolved = false;
+        const timeout = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            resolve();
+          }
+        }, 1500);
+        const sub = AppState.addEventListener("change", (s) => {
+          if (!resolved && s === "active") {
+            resolved = true;
+            clearTimeout(timeout as any);
+            sub.remove();
+            resolve();
+          }
+        });
+      });
+    }
+
+    console.log("[LiveRunning] show countdown (AppState:", AppState.currentState, ")");
     setCountdownVisible(true);
   }, []);
 
-  const handleCountdownDone = useCallback(() => {
+  const handleCountdownDone = useCallback(async () => {
+    console.log("[LiveRunning] countdown done");
+    console.log("[LiveRunning] AppState at start:", AppState.currentState);
     setCountdownVisible(false);
+
+    // 즉시 시작 시도 (권한은 내부에서 처리)
     requestAnimationFrame(() => {
+      console.log("[LiveRunning] calling t.start()");
       t.start();
     });
-  }, [t]);
+
+    // 권한 요청은 비동기로 병렬 처리 (UI 차단 방지)
+    backgroundRunning.requestNotificationPermission().catch(() => {});
+  }, [t, backgroundRunning]);
 
   const elapsedLabel = useMemo(() => {
     const m = Math.floor(t.elapsedSec / 60);
@@ -144,7 +240,12 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         endedAt: Date.now(),
         title: "오늘의 러닝",
       });
-      t.stop();
+
+      // 백그라운드 서비스 중지 및 세션 정리
+      await backgroundRunning.stopForegroundService();
+      await backgroundRunning.clearSession();
+
+      await t.stop();
       navigation.navigate("RunSummary", {
         runId,
         defaultTitle: "오늘의 러닝",

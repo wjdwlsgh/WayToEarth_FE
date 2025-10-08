@@ -1,7 +1,8 @@
 // Pages/JourneyRunningScreen.tsx
 // 여정 러닝 메인 화면 (실시간 추적 + 진행률)
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
+import * as Location from "expo-location";
 import SafeLayout from "../components/Layout/SafeLayout";
 import {
   View,
@@ -12,6 +13,7 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
+  AppState,
 } from "react-native";
 import JourneyMapRoute from "../components/Journey/JourneyMapRoute";
 import JourneyProgressCard from "../components/Journey/JourneyProgressCard";
@@ -21,6 +23,7 @@ import CountdownOverlay from "../components/Running/CountdownOverlay";
 import GuestbookCreateModal from "../components/Guestbook/GuestbookCreateModal";
 import LandmarkStatistics from "../components/Guestbook/LandmarkStatistics";
 import { useJourneyRunning } from "../hooks/journey/useJourneyRunning";
+import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";
@@ -100,6 +103,9 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     onLandmarkReached: handleLandmarkReached,
   });
 
+  // 백그라운드 러닝 훅
+  const backgroundRunning = useBackgroundRunning();
+
   const insets = useSafeAreaInsets();
   const [countdownVisible, setCountdownVisible] = useState(false);
   const [guestbookModalVisible, setGuestbookModalVisible] = useState(false);
@@ -107,16 +113,87 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   const [landmarkMenuVisible, setLandmarkMenuVisible] = useState(false);
   const [menuLandmark, setMenuLandmark] = useState<any>(null);
 
+  // 다음 랜드마크 계산
+  // 도달한 랜드마크 ID 목록을 훅의 landmarksWithReached에서 파생
+  const reachedIds = useMemo(
+    () => t.landmarksWithReached.filter(lm => lm.reached).map(lm => lm.id),
+    [t.landmarksWithReached]
+  );
+
+  const nextLandmark = useMemo(() => {
+    const remaining = landmarks.filter(lm => !reachedIds.includes(lm.id));
+    return remaining[0]?.name;
+  }, [landmarks, reachedIds]);
+
+  // 러닝 세션 상태 업데이트
+  useEffect(() => {
+    if (!t.isRunning) return;
+
+    const session = {
+      type: 'journey' as const,
+      journeyId,
+      journeyTitle,
+      sessionId: t.sessionId,
+      startTime: Date.now() - (t.elapsedSec * 1000),
+      distanceKm: t.distance,
+      durationSeconds: t.elapsedSec,
+      isRunning: t.isRunning,
+      isPaused: t.isPaused,
+      reachedLandmarks: reachedIds,
+    };
+
+    // Foreground Service 업데이트
+    backgroundRunning.updateForegroundService(session, nextLandmark);
+
+    // 세션 상태 저장 (백그라운드 복원용)
+    backgroundRunning.saveSession(session);
+  }, [t.isRunning, t.distance, t.elapsedSec, t.isPaused, nextLandmark]);
+
+  // 러닝 시작 시 Foreground Service 시작
+  useEffect(() => {
+    if (t.isRunning) {
+      const session = {
+        type: 'journey' as const,
+        journeyId,
+        journeyTitle,
+        sessionId: t.sessionId,
+        startTime: Date.now() - (t.elapsedSec * 1000),
+        distanceKm: t.distance,
+        durationSeconds: t.elapsedSec,
+        isRunning: true,
+        isPaused: t.isPaused,
+        reachedLandmarks: reachedIds,
+      };
+      backgroundRunning.startForegroundService(session);
+    }
+  }, [t.isRunning]);
+
+  // 컴포넌트 언마운트 시 세션 정리 (완료/취소 시)
+  useEffect(() => {
+    return () => {
+      if (!t.isRunning) {
+        backgroundRunning.stopForegroundService();
+        backgroundRunning.clearSession();
+      }
+    };
+  }, []);
+
   const handleStartPress = useCallback(() => {
+    console.log("[JourneyRunning] start pressed -> show countdown");
     setCountdownVisible(true);
   }, []);
 
-  const handleCountdownDone = useCallback(() => {
+  const handleCountdownDone = useCallback(async () => {
+    console.log("[JourneyRunning] countdown done");
     setCountdownVisible(false);
+    // 즉시 시작 시도 (권한은 내부에서 처리)
     requestAnimationFrame(() => {
+      console.log("[JourneyRunning] calling t.startJourneyRun()");
       t.startJourneyRun();
     });
-  }, [t]);
+    // 알림 권한 요청은 비동기로 병렬 처리
+    backgroundRunning.requestNotificationPermission().catch(() => {});
+  }, [t, backgroundRunning]);
 
   // 랜드마크 마커 클릭 핸들러
   const handleLandmarkMarkerPress = useCallback((landmark: any) => {
@@ -171,28 +248,24 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
       console.log("[JourneyRunning] apiComplete 응답:", { runId, data });
 
+      // 백그라운드 서비스 중지 및 세션 정리
+      await backgroundRunning.stopForegroundService();
+      await backgroundRunning.clearSession();
+
       // 여정 진행률 업데이트
       await t.completeJourneyRun();
 
       console.log("[JourneyRunning] 완료 처리 성공, 요약 화면으로 이동");
 
-      navigation.navigate("RunSummary", {
-        runId,
-        defaultTitle: journeyTitle,
-        distanceKm: t.distance,
-        paceLabel: t.paceLabel,
-        kcal: Math.round(t.kcal),
-        elapsedSec: t.elapsedSec,
-        elapsedLabel: `${Math.floor(t.elapsedSec / 60)}:${String(
-          t.elapsedSec % 60
-        ).padStart(2, "0")}`,
-        routePath: t.route,
-        sessionId: (t.sessionId as string) ?? "",
-      });
+      // 여정 러닝은 종료 후 여정 상세(진행률/경로 확인) 화면으로 이동
+      navigation.navigate("JourneyRouteDetail", { id: journeyId });
     } catch (e) {
       console.error("[JourneyRunning] 여정 러닝 완료 실패:", e);
       console.error("[JourneyRunning] 에러 상세:", JSON.stringify(e, null, 2));
       Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
+    } finally {
+      // 러닝 트래커 정리(백그라운드 위치 업데이트 종료 보장)
+      await t.stop();
     }
   }, [navigation, t, journeyTitle]);
 
@@ -204,19 +277,153 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
   // 디버깅: 여정 데이터 확인
   console.log("[JourneyRunning] 여정 경로 개수:", journeyRoute.length);
+  console.log("[JourneyRunning] 총 여정 거리:", totalDistanceKm, "km");
   console.log("[JourneyRunning] 랜드마크 개수:", landmarks.length);
+  console.log("[JourneyRunning] 랜드마크 목록:", landmarks.map(lm => ({
+    name: lm.name,
+    distanceM: lm.distanceM,
+    distanceKm: (lm.distanceM / 1000).toFixed(2) + "km",
+  })));
+
+  // 🔍 청와대 위치 확인 (첫 번째 랜드마크)
+  if (landmarks.length > 1) {
+    const landmark = landmarks[1]; // 청와대
+    console.log("[JourneyRunning] 🎯 청와대 위치:", {
+      position: landmark.position,
+      distanceM: landmark.distanceM,
+    });
+    // journeyRoute에서 청와대와 가장 가까운 포인트 찾기
+    let closestIndex = 0;
+    let minDist = 999999;
+    journeyRoute.forEach((point, idx) => {
+      const dist = Math.sqrt(
+        Math.pow(point.latitude - landmark.position.latitude, 2) +
+        Math.pow(point.longitude - landmark.position.longitude, 2)
+      );
+      if (dist < minDist) {
+        minDist = dist;
+        closestIndex = idx;
+      }
+    });
+    console.log("[JourneyRunning] 🗺️ 청와대가 여정 경로의 몇 번째 포인트?:", {
+      closestIndex,
+      totalPoints: journeyRoute.length,
+      percentage: ((closestIndex / (journeyRoute.length - 1)) * 100).toFixed(1) + "%",
+    });
+  }
+
   console.log("[JourneyRunning] 사용자 경로 개수:", t.route.length);
   console.log("[JourneyRunning] 진행률:", t.progressPercent.toFixed(1), "%");
 
-  // 진행률에 따른 여정 경로 상의 가상 위치 계산
+  // 진행률에 따른 여정 경로 상의 가상 위치 계산 (거리 기반으로 수정)
   const virtualLocation = useMemo(() => {
     if (journeyRoute.length === 0) return null;
+    if (journeyRoute.length === 1) return journeyRoute[0];
 
-    const index = Math.floor((journeyRoute.length - 1) * t.progressPercent / 100);
-    const clampedIndex = Math.max(0, Math.min(index, journeyRoute.length - 1));
+    // 🔧 수정: 각 랜드마크 사이를 거리 비율로 분할
+    // 현재 진행 거리로 어느 구간에 있는지 찾기
+    let currentSegmentStart = 0;
+    let currentSegmentEnd = landmarks.length > 1 ? landmarks[1].distanceM : totalDistanceKm * 1000;
+    let segmentStartIdx = 0;
+    let segmentEndIdx = landmarks.length > 1 ?
+      journeyRoute.findIndex(p =>
+        Math.abs(p.latitude - landmarks[1].position.latitude) < 0.0001 &&
+        Math.abs(p.longitude - landmarks[1].position.longitude) < 0.0001
+      ) : journeyRoute.length - 1;
 
-    return journeyRoute[clampedIndex];
-  }, [journeyRoute, t.progressPercent]);
+    // 현재 어느 랜드마크 구간에 있는지 찾기
+    for (let i = 0; i < landmarks.length; i++) {
+      // 🔧 수정: <= 대신 < 사용 (랜드마크 정확히 도달 시 다음 구간으로)
+      if (t.progressM <= landmarks[i].distanceM || i === landmarks.length - 1) {
+        currentSegmentEnd = landmarks[i].distanceM;
+        currentSegmentStart = i > 0 ? landmarks[i - 1].distanceM : 0;
+
+        // 해당 랜드마크와 가장 가까운 경로 포인트 찾기
+        const landmark = landmarks[i];
+        let minDist = 999999;
+        segmentEndIdx = journeyRoute.length - 1; // 기본값: 마지막 포인트
+        journeyRoute.forEach((point, idx) => {
+          const dist = Math.sqrt(
+            Math.pow(point.latitude - landmark.position.latitude, 2) +
+            Math.pow(point.longitude - landmark.position.longitude, 2)
+          );
+          if (dist < minDist) {
+            minDist = dist;
+            segmentEndIdx = idx;
+          }
+        });
+
+        if (i > 0) {
+          const prevLandmark = landmarks[i - 1];
+          minDist = 999999;
+          segmentStartIdx = 0; // 기본값: 첫 포인트
+          journeyRoute.forEach((point, idx) => {
+            const dist = Math.sqrt(
+              Math.pow(point.latitude - prevLandmark.position.latitude, 2) +
+              Math.pow(point.longitude - prevLandmark.position.longitude, 2)
+            );
+            if (dist < minDist) {
+              minDist = dist;
+              segmentStartIdx = idx;
+            }
+          });
+        } else {
+          segmentStartIdx = 0; // 첫 번째 구간의 시작은 0
+        }
+
+        console.log("[JourneyRunning] 🔍 구간 찾기:", {
+          landmarkIndex: i,
+          landmarkName: landmark.name,
+          segmentStartIdx,
+          segmentEndIdx,
+          currentSegmentStart,
+          currentSegmentEnd,
+        });
+
+        break;
+      }
+    }
+
+    // 구간 내에서의 진행 비율 계산
+    const segmentDistance = currentSegmentEnd - currentSegmentStart;
+    const progressInSegment = t.progressM - currentSegmentStart;
+    const segmentRatio = segmentDistance > 0 ? progressInSegment / segmentDistance : 0;
+
+    // 경로 포인트 인덱스 계산
+    const indexRange = segmentEndIdx - segmentStartIdx;
+    const exactIndex = segmentStartIdx + (indexRange * segmentRatio);
+    const beforeIndex = Math.floor(exactIndex);
+    const afterIndex = Math.min(beforeIndex + 1, journeyRoute.length - 1);
+    const ratio = exactIndex - beforeIndex;
+
+    const pointA = journeyRoute[beforeIndex];
+    const pointB = journeyRoute[afterIndex];
+
+    // 선형 보간
+    const interpolated = {
+      latitude: pointA.latitude + (pointB.latitude - pointA.latitude) * ratio,
+      longitude: pointA.longitude + (pointB.longitude - pointA.longitude) * ratio,
+    };
+
+    console.log("[JourneyRunning] 가상 위치 계산 (거리 기반):", {
+      progressM: t.progressM,
+      segmentStart: currentSegmentStart,
+      segmentEnd: currentSegmentEnd,
+      segmentRatio: segmentRatio.toFixed(4),
+      exactIndex: exactIndex.toFixed(4),
+      beforeIndex,
+      afterIndex,
+    });
+
+    return {
+      location: interpolated,
+      routeIndex: exactIndex, // 경로 인덱스도 함께 반환
+    };
+  }, [journeyRoute, t.progressM, landmarks, totalDistanceKm]);
+
+  // 가상 위치와 인덱스 분리
+  const virtualLocationPoint = virtualLocation?.location || null;
+  const virtualRouteIndex = virtualLocation?.routeIndex || 0;
 
   return (
     <SafeLayout withBottomInset>
@@ -224,8 +431,9 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         journeyRoute={journeyRoute}
         landmarks={t.landmarksWithReached}
         userRoute={[]} // 여정 러닝에서는 실제 GPS 경로 표시 안 함
-        currentLocation={virtualLocation}
+        currentLocation={virtualLocationPoint}
         progressPercent={t.progressPercent}
+        virtualRouteIndex={virtualRouteIndex}
         onLandmarkPress={handleLandmarkMarkerPress}
       />
 
@@ -286,9 +494,16 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
             {t.nextLandmark && (
               <Text style={styles.compactNextLandmark}>
                 다음: {t.nextLandmark.name} (
-                {(t.nextLandmark.distanceM / 1000 - t.progressM / 1000).toFixed(
-                  1
-                )}{" "}
+                {(() => {
+                  const remaining = (t.nextLandmark.distanceM - t.progressM) / 1000;
+                  console.log("[JourneyRunning] 랜드마크 거리 계산:", {
+                    landmarkName: t.nextLandmark.name,
+                    landmarkDistanceM: t.nextLandmark.distanceM,
+                    progressM: t.progressM,
+                    remainingKm: remaining.toFixed(3),
+                  });
+                  return remaining.toFixed(1);
+                })()}{" "}
                 km)
               </Text>
             )}
@@ -339,6 +554,28 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
           </Pressable>
         </View>
       )}
+
+      {/* 🧪 테스트 버튼 (거리 증가) */}
+      <View style={styles.testButtonContainer}>
+        <Pressable
+          onPress={() => t.addTestDistance(1)}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>+1m</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => t.addTestDistance(5)}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>+5m</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => t.addTestDistance(10)}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>+10m</Text>
+        </Pressable>
+      </View>
 
       {/* 러닝 제어 버튼 (러닝 중) */}
       {t.isRunning && (
@@ -562,6 +799,30 @@ const styles = StyleSheet.create({
   compactNextLandmark: {
     fontSize: 12,
     color: "#4B5563",
+  },
+  testButtonContainer: {
+    position: "absolute",
+    top: 120,
+    right: 16,
+    flexDirection: "column",
+    gap: 8,
+    zIndex: 1000,
+  },
+  testButton: {
+    backgroundColor: "#FF6B6B",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  testButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
   modalOverlay: {
     flex: 1,

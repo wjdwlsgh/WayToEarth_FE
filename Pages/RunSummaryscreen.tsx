@@ -178,6 +178,16 @@ export default function RunSummaryScreen({ route, navigation }: any) {
     });
   };
 
+  const onCompletePress = () => {
+    // 메인으로 이동 (탭 홈)
+    try {
+      navigation.navigate("MainTabs");
+    } catch {
+      // 폴백: Main으로 이동 시도
+      navigation.navigate("Main");
+    }
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -343,7 +353,7 @@ export default function RunSummaryScreen({ route, navigation }: any) {
             backgroundColor:
               runIdRef.current === null || saving ? "#ccc" : "#000",
             marginHorizontal: 20,
-            marginBottom: 40,
+            marginBottom: 12,
             height: 56,
             borderRadius: 28,
             alignItems: "center",
@@ -352,6 +362,24 @@ export default function RunSummaryScreen({ route, navigation }: any) {
         >
           <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
             {saving ? "저장 중..." : "공유하기"}
+          </Text>
+        </Pressable>
+
+        {/* 완료하기: 메인으로 이동 */}
+        <Pressable
+          onPress={onCompletePress}
+          style={{
+            backgroundColor: "#111111",
+            marginHorizontal: 20,
+            marginBottom: 40,
+            height: 56,
+            borderRadius: 28,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+            완료하기
           </Text>
         </Pressable>
       </ScrollView>

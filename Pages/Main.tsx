@@ -87,7 +87,8 @@ export default function Main() {
 
   const goLiveRun = () => {
     closeMenu();
-    nav.navigate("LiveRunning"); // 스택에 등록한 이름으로 이동
+    // Tab 내의 LiveRunningScreen으로 이동
+    nav.navigate("MainTabs", { screen: "LiveRunningScreen" });
   };
 
   const goVirtualRun = () => {

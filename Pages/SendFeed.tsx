@@ -68,7 +68,13 @@ export default function FeedComposeScreen({ route, navigation }: any) {
       console.log("[FeedCompose] photoUrl:", photoUrl);
       await createFeed({ runningRecordId: normalizedRunId, content, photoUrl });
       Alert.alert("공유 완료", "피드가 업로드되었습니다.");
-      navigation.navigate("Feed");
+      // 탭 네비게이터의 Feed 탭으로 이동 (중첩 네비게이션)
+      try {
+        navigation.navigate("MainTabs", { screen: "Feed" });
+      } catch {
+        // 폴백: 탭 루트로 이동
+        navigation.navigate("MainTabs");
+      }
     } catch (e: any) {
       console.error("[FeedCompose] createFeed error =>", e?.message ?? e);
       console.error("[FeedCompose] error response =>", e?.response?.data);

@@ -1,8 +1,10 @@
 // utils/notifications.ts
 import { Platform, PermissionsAndroid } from "react-native";
 import messaging from "@react-native-firebase/messaging";
-import notifee, { AndroidImportance } from "@notifee/react-native";
+import notifee, { AndroidImportance, EventType } from "@notifee/react-native";
 import { client } from "./api/client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { navigate, navigateToJourneyRun, navigateToLiveRun } from "../navigation/RootNavigation";
 
 /**
  * Firebase FCM 토큰 등록
@@ -40,8 +42,8 @@ export async function registerForPushNotificationsAsync() {
     // 3. Android 알림 채널 생성 (Notifee)
     if (Platform.OS === "android") {
       await notifee.createChannel({
-        id: "waytoearth_running",
-        name: "러닝 알림",
+        id: "running_session",
+        name: "러닝 세션",
         importance: AndroidImportance.HIGH,
         vibration: true,
         vibrationPattern: [300, 500],
@@ -127,7 +129,7 @@ export function setupNotificationListeners() {
         body: remoteMessage.notification.body || "",
         data: remoteMessage.data,
         android: {
-          channelId: "waytoearth_running",
+          channelId: "running_session",
           smallIcon: "ic_launcher",
           color: "#10b981",
           pressAction: {
@@ -161,12 +163,19 @@ export function setupNotificationListeners() {
     });
 
   // 4. Notifee 알림 탭 이벤트
-  notifee.onForegroundEvent(({ type, detail }) => {
-    console.log("🔔 Notifee 이벤트:", type, detail);
-    // type === 1 은 PRESS (알림 탭)
-    if (type === 1 && detail.notification) {
-      console.log("👆 알림 탭:", detail.notification);
-      // 필요한 화면으로 네비게이션
+  notifee.onForegroundEvent(async ({ type, detail }) => {
+    // PRESS, ACTION_PRESS 만 처리하고, DELIVERED(3) 등은 로그 억제
+    if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
+      try {
+        const raw = await AsyncStorage.getItem("@running_session");
+        if (raw) {
+          const session = JSON.parse(raw);
+          if (session?.type === 'journey') navigateToJourneyRun();
+          else navigateToLiveRun();
+        } else {
+          navigateToLiveRun();
+        }
+      } catch {}
     }
   });
 
@@ -202,7 +211,7 @@ export function setupBackgroundMessageHandler() {
         body: remoteMessage.notification.body || "",
         data: remoteMessage.data,
         android: {
-          channelId: "waytoearth_running",
+          channelId: "running_session",
           smallIcon: "ic_launcher",
           color: "#10b981",
         },

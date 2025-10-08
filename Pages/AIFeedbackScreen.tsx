@@ -11,16 +11,17 @@ import {
   ScrollView,
 } from "react-native";
 import {
-  getOrCreateAIFeedback,
+  getOrCreateOverallFeedback,
   getFriendlyErrorMessage,
   AIFeedback,
 } from "../utils/api/aiFeedback";
+import { client } from "../utils/api/client";
 
 type AIFeedbackScreenProps = {
   route: {
     params: {
-      runningRecordId: number;
       completedCount?: number; // 완료된 러닝 기록 수 (에러 메시지용)
+      latestRecordId?: number; // 최근 레코드 ID (RecordScreen에서 전달)
     };
   };
   navigation: any;
@@ -28,7 +29,7 @@ type AIFeedbackScreenProps = {
 
 /**
  * AI 피드백 화면
- * - 러닝 기록에 대한 AI 분석 결과를 표시
+ * - 최근 10개 러닝 기록에 대한 전체 AI 분석 결과를 표시
  * - GET으로 조회 시도 후 없으면 POST로 새로 생성
  * - 로딩 상태 표시 (POST는 2-5초 소요)
  */
@@ -36,7 +37,7 @@ const AIFeedbackScreen: React.FC<AIFeedbackScreenProps> = ({
   route,
   navigation,
 }) => {
-  const { runningRecordId, completedCount } = route.params;
+  const { completedCount, latestRecordId } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<AIFeedback | null>(null);
@@ -45,16 +46,34 @@ const AIFeedbackScreen: React.FC<AIFeedbackScreenProps> = ({
 
   useEffect(() => {
     loadFeedback();
-  }, [runningRecordId]);
+  }, []);
 
   const loadFeedback = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const result = await getOrCreateAIFeedback(runningRecordId, (loading) => {
-        setLoading(loading);
-      });
+      // latestRecordId가 있으면 직접 사용, 없으면 getOrCreateOverallFeedback 사용
+      let result;
+      if (latestRecordId) {
+        console.log("[AI Feedback] 전달받은 레코드 ID 사용:", latestRecordId);
+        try {
+          const feedback = await client.get(`/v1/running/analysis/${latestRecordId}`).then(res => res.data);
+          result = { feedback, wasCreated: false };
+        } catch (err: any) {
+          if (err?.response?.status === 404 || err?.response?.status === 400) {
+            setLoading(true);
+            const feedback = await client.post(`/v1/running/analysis/${latestRecordId}`).then(res => res.data);
+            result = { feedback, wasCreated: true };
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        result = await getOrCreateOverallFeedback((loading) => {
+          setLoading(loading);
+        });
+      }
 
       setFeedback(result.feedback);
       setWasCreated(result.wasCreated);
