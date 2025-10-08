@@ -32,6 +32,8 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [speedKmh, setSpeedKmh] = useState(0);
+  // TODO: 사용자 프로필에서 체중 정보를 가져오도록 개선 필요
+  // UserProfile 타입에 weight 필드 추가 후 getMyProfile()로 가져오기
   const [weightKg] = useState(65);
 
   // ✅ 준비 상태
@@ -47,6 +49,10 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   const recentRef = useRef<Sample[]>([]);
   const pausedRef = useRef(false);
   const prevAccRef = useRef<number | null>(null); // m
+  const stationaryLockRef = useRef<{ locked: boolean; lastToggle: number }>({
+    locked: false,
+    lastToggle: 0,
+  });
   const kfRef = useRef<ReturnType<typeof createKalman2D> | null>(null);
   const originRef = useRef<LatLng | null>(null);
   const lastTsRef = useRef<number | null>(null);
@@ -96,6 +102,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   // 앱 시작시 GPS 준비
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
+      console.log("[AppState]", appStateRef.current, "->", s);
       appStateRef.current = s;
     });
     const prepareGPS = async () => {
@@ -132,6 +139,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
 
     // ── 거리 계산(스파이크 필터)
     let newDistanceKm = distanceRef.current;
+    let acceptedMove = false; // 경로/마커에 반영할지 여부
     if (prev.current) {
       const segKm = distanceKm(prev.current, p);
       const dtSec =
@@ -139,27 +147,55 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
           ? (now - recentRef.current[recentRef.current.length - 1].t) / 1000
           : 1;
       const mps = (segKm * 1000) / Math.max(dtSec, 0.001);
-      // 속도 스파이크 필터(완화 → 강화): 6.5 m/s 초과는 노이즈로 간주
-      if (mps <= 6.5) {
-        // 정확도 기반 거리 보정(완화): 세그먼트의 30%, 평균 정확도의 10%, 절대 1.5m 중 최소만 차감
+      // 윈도우 기반 정지 감지(최근 ~10초)
+      const windowPoints = [...recentRef.current, { t: now, p }];
+      const windowCut = now - 10000; // 10s
+      const startIdx = windowPoints.findIndex((s) => s.t >= windowCut);
+      const winArr = startIdx >= 0 ? windowPoints.slice(startIdx) : windowPoints;
+      const winDtSec = winArr.length > 1 ? (winArr[winArr.length - 1].t - winArr[0].t) / 1000 : 0;
+      const winDkKm = winArr.length > 1 ? distanceKm(winArr[0].p, winArr[winArr.length - 1].p) : 0;
+      const winMps = winDtSec > 0 ? (winDkKm * 1000) / winDtSec : 0;
+      const winDm = winDkKm * 1000;
+
+      // 정지 락 조건: 최근 10초 평균속도 < 0.5 m/s AND 총 변위 < 3m, 또는 현재 측정 속도 매우 낮음
+      const shouldLock = (winDtSec >= 4 && winMps < 0.5 && winDm < 3) || (typeof spd === 'number' && spd >= 0 && spd < 0.4);
+      const shouldUnlock = (winMps > 0.7 || winDm > 6);
+      if (shouldLock && !stationaryLockRef.current.locked) {
+        stationaryLockRef.current.locked = true;
+        stationaryLockRef.current.lastToggle = now;
+      } else if (stationaryLockRef.current.locked && shouldUnlock) {
+        stationaryLockRef.current.locked = false;
+        stationaryLockRef.current.lastToggle = now;
+      }
+
+      // 속도 스파이크 필터: 6.5 m/s 초과는 노이즈로 간주
+      if (!stationaryLockRef.current.locked && mps <= 6.5) {
+        // 정확도 기반 거리 보정(완화): 세그먼트의 10%, 평균 정확도의 5%, 절대 0.8m 중 최소만 차감
         const prevAcc = prevAccRef.current ?? acc ?? 0;
         const curAcc = acc ?? prevAccRef.current ?? 0;
         const segM = segKm * 1000;
         const avgAcc = (prevAcc + curAcc) / 2;
-        const noiseAllowanceM = Math.min(1.5, 0.1 * avgAcc, 0.3 * segM);
+        const noiseAllowanceM = Math.min(0.8, 0.05 * avgAcc, 0.1 * segM);
         const effM = Math.max(0, segM - noiseAllowanceM);
-        newDistanceKm = distanceRef.current + effM / 1000;
+        // 아주 미미한 이동(잔떨림) 무시: 0.5m 미만이면 채택하지 않음
+        if (effM >= 0.5) {
+          newDistanceKm = distanceRef.current + effM / 1000;
+          acceptedMove = true;
+        }
       }
     } else {
       newDistanceKm = 0;
+      acceptedMove = true; // 첫 포인트는 경로에 반영
     }
 
     // 상태/refs 갱신
     distanceRef.current = newDistanceKm;
     setDistance(newDistanceKm);
-    prev.current = p;
-    seqRef.current += 1;
-    setRoute((cur) => (cur.length ? [...cur, p] : [p]));
+    if (acceptedMove) {
+      prev.current = p;
+      seqRef.current += 1;
+      setRoute((cur) => (cur.length ? [...cur, p] : [p]));
+    }
 
     // 최근 5초 평균 속도
     recentRef.current.push({ t: now, p, a: acc, s: spd });
@@ -174,7 +210,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       setSpeedKmh(dt > 0 ? (dk / dt) * 3600 : 0);
     }
 
-    if (appStateRef.current === "active") {
+    if (acceptedMove && appStateRef.current === "active") {
       centerMap(p);
     }
     if (typeof acc === "number") prevAccRef.current = acc;
@@ -201,7 +237,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
           distanceMeters: Math.round(distanceRef.current * 1000),
           durationSeconds: elapsedSec,
           averagePaceSeconds: isFinite(paceSec) ? Math.floor(paceSec) : null,
-          calories: caloriesKcal(distanceRef.current, weightKg),
+          calories: caloriesKcal(distanceRef.current, elapsedSec, weightKg),
           currentPoint: {
             latitude: p.latitude,
             longitude: p.longitude,
@@ -286,6 +322,48 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       setIsRunning(true);
       console.log("[RunTracker] state set to running");
       startElapsed();
+
+      // 2.1) 포어그라운드에서 백그라운드 위치 업데이트(FGS) 우선 시작
+      try {
+        if (appStateRef.current !== 'active') {
+          console.warn('[BG-LOC] waiting for foreground to start FGS (', appStateRef.current, ')');
+          await new Promise<void>((resolve) => {
+            let resolved = false;
+            const timeout = setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 1500);
+            const sub = AppState.addEventListener('change', (s) => {
+              if (!resolved && s === 'active') { resolved = true; clearTimeout(timeout as any); sub.remove(); resolve(); }
+            });
+          });
+        }
+        if (appStateRef.current === 'active') {
+          const already = await Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK);
+          if (already) {
+            await Location.stopLocationUpdatesAsync(WAY_LOCATION_TASK);
+            await new Promise((r) => setTimeout(r, 150));
+          }
+          const bgPerm = await Location.getBackgroundPermissionsAsync();
+          if (bgPerm.status !== 'granted') {
+            const req = await Location.requestBackgroundPermissionsAsync();
+            console.log('[BG-LOC] request background perm (start path):', req.status);
+          }
+          console.log('[BG-LOC] starting background updates');
+          await Location.startLocationUpdatesAsync(WAY_LOCATION_TASK, {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 3000,
+            distanceInterval: 5,
+            showsBackgroundLocationIndicator: false,
+            pausesUpdatesAutomatically: false,
+            foregroundService: {
+              notificationTitle: '러닝 진행 중',
+              notificationBody: '앱을 열어 진행 상태를 확인하세요',
+            },
+          } as any);
+        } else {
+          console.warn('[BG-LOC] FGS start aborted: app not active');
+        }
+      } catch (e) {
+        console.warn('[BG-LOC] start failed (start path):', e);
+      }
 
       // 세션 생성 (백엔드 API 호출)
       (async () => {
@@ -375,36 +453,11 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
             }
           );
 
-          // Start background location updates (OS-managed foreground service)
+          // BG 업데이트는 start() 초반에 선행 시작. 여기서는 상태만 로깅
           try {
-            // Ensure background location permission (Android 10+ requires "항상 허용")
-            const bg = await Location.getBackgroundPermissionsAsync();
-            if (bg.status !== 'granted') {
-              const req = await Location.requestBackgroundPermissionsAsync();
-              console.log('[BG-LOC] request background perm:', req.status);
-            }
-
-            const hasTask = await Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK);
-            if (!hasTask) {
-              console.log('[BG-LOC] starting background updates');
-              await Location.startLocationUpdatesAsync(WAY_LOCATION_TASK, {
-                // 백그라운드에서는 리소스 사용을 줄여 안정성을 높입니다.
-                accuracy: Location.Accuracy.High,
-                timeInterval: 3000,
-                distanceInterval: 5,
-                showsBackgroundLocationIndicator: false,
-                pausesUpdatesAutomatically: false,
-                foregroundService: {
-                  notificationTitle: '러닝 진행 중',
-                  notificationBody: '앱을 열어 진행 상태를 확인하세요',
-                },
-              } as any);
-            } else {
-              console.log('[BG-LOC] background updates already running');
-            }
-          } catch (e) {
-            console.warn('[BG-LOC] start failed:', e);
-          }
+            const running = await Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK);
+            if (!running) console.warn('[BG-LOC] not running after watch started');
+          } catch {}
         } catch (e) {
           console.warn("위치 스트림 설정 실패:", e);
         }
@@ -451,7 +504,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   };
 
   /** 종료(센서 정리만) */
-  const stop = () => {
+  const stop = async () => {
     subRef.current?.remove?.();
     subRef.current = null;
     stopElapsed();
@@ -463,16 +516,20 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
     pausedAccumMsRef.current = 0;
     pausedAtRef.current = null;
     // Stop background updates
-    Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK)
-      .then((v) => (v ? Location.stopLocationUpdatesAsync(WAY_LOCATION_TASK) : undefined))
-      .catch(() => {});
+    try {
+      const running = await Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK);
+      if (running) {
+        await Location.stopLocationUpdatesAsync(WAY_LOCATION_TASK);
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    } catch {}
   };
 
   // 파생값
   const last = route[route.length - 1] ?? null;
   const paceSec = avgPaceSecPerKm(distance, elapsedSec);
   const paceLabel = isFinite(paceSec) ? fmtMMSS(paceSec) : "--:--";
-  const kcal = caloriesKcal(distance, weightKg);
+  const kcal = caloriesKcal(distance, elapsedSec, weightKg);
 
   // 맵 카메라 바인딩
   const bindMapCenter = (fn: (p: LatLng) => void) =>

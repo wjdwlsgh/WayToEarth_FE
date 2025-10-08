@@ -188,10 +188,11 @@ export default function MapRoute({
       onPanDrag={() => stopFollowingTemporarily()}
       onTouchStart={() => stopFollowingTemporarily()}
     >
-      {last && (
+      {/* 라이브 모드에서는 마커 숨김 (showsUserLocation의 파란 마커만 사용) */}
+      {!liveMode && last && (
         <Marker
           coordinate={last as RNLatLng}
-          title={liveMode ? "현재 위치" : "위치"}
+          title="위치"
         />
       )}
       {route.length > 1 && (

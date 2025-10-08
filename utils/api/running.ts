@@ -195,14 +195,42 @@ export type RunningRecordItem = {
 };
 
 export async function listRunningRecords(
-  limit = 5
+  limit = 10,
+  offset = 0
 ): Promise<RunningRecordItem[]> {
+  const page = Math.floor(offset / Math.max(1, limit));
   const { data } = await client.get("/v1/running/records", {
-    params: { limit },
+    params: { limit, offset, size: limit, page },
   });
   // 서버가 pagination wrapper를 줄 수 있어 content 안전 접근
   const items = (data?.content ?? data) as any[];
   return Array.isArray(items) ? items : [];
+}
+
+// Cursor-based pagination (preferred if backend supports)
+export type CursorResult<T> = { items: T[]; nextCursor: string | null };
+
+export async function listRunningRecordsByCursor(
+  cursor: string | null | undefined,
+  size = 10
+): Promise<CursorResult<RunningRecordItem>> {
+  const params: Record<string, any> = { size };
+  if (cursor) params.cursor = cursor;
+  const { data } = await client.get("/v1/running/records/cursor", { params });
+  const d: any = data;
+  const items: any[] = Array.isArray(d?.content)
+    ? d.content
+    : Array.isArray(d?.items)
+    ? d.items
+    : Array.isArray(d)
+    ? d
+    : [];
+  const nextCursor: string | null =
+    d?.nextCursor ?? d?.next_cursor ?? d?.next ?? d?.cursor ?? null;
+  return {
+    items: items.filter((it: any) => it && it.id != null) as RunningRecordItem[],
+    nextCursor,
+  };
 }
 
 export type RunningRecordDetail = {

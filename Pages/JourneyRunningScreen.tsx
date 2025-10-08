@@ -257,23 +257,15 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
       console.log("[JourneyRunning] 완료 처리 성공, 요약 화면으로 이동");
 
-      navigation.navigate("RunSummary", {
-        runId,
-        defaultTitle: journeyTitle,
-        distanceKm: t.distance,
-        paceLabel: t.paceLabel,
-        kcal: Math.round(t.kcal),
-        elapsedSec: t.elapsedSec,
-        elapsedLabel: `${Math.floor(t.elapsedSec / 60)}:${String(
-          t.elapsedSec % 60
-        ).padStart(2, "0")}`,
-        routePath: t.route,
-        sessionId: (t.sessionId as string) ?? "",
-      });
+      // 여정 러닝은 종료 후 여정 상세(진행률/경로 확인) 화면으로 이동
+      navigation.navigate("JourneyRouteDetail", { id: journeyId });
     } catch (e) {
       console.error("[JourneyRunning] 여정 러닝 완료 실패:", e);
       console.error("[JourneyRunning] 에러 상세:", JSON.stringify(e, null, 2));
       Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
+    } finally {
+      // 러닝 트래커 정리(백그라운드 위치 업데이트 종료 보장)
+      await t.stop();
     }
   }, [navigation, t, journeyTitle]);
 

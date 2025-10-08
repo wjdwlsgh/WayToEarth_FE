@@ -126,8 +126,10 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     switch (runningType) {
       case "SINGLE":
         return "싱글런";
+      case "JOURNEY":
+        return "여정런";
       case "VIRTUAL":
-        return "가상런";
+        return "버추얼런";
       case "GROUP":
         return "그룹런";
       default:
@@ -139,6 +141,8 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     switch (runningType) {
       case "SINGLE":
         return { backgroundColor: "#10b981" };
+      case "JOURNEY":
+        return { backgroundColor: "#7c3aed" };
       case "VIRTUAL":
         return { backgroundColor: "#3b82f6" };
       case "GROUP":
@@ -242,7 +246,7 @@ const RecordDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           >
             <Polyline
               coordinates={routeCoords}
-              strokeColor="#6366f1"
+              strokeColor={recordDetail?.runningType === 'JOURNEY' ? '#7c3aed' : '#10b981'}
               strokeWidth={4}
             />
           </MapView>
