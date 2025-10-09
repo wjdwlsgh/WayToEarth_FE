@@ -1,14 +1,15 @@
 import { client, mockEnabled as globalMockEnabled } from "./client";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getMyProfile } from "./users";
 
 export type Crew = {
   id: string;
   name: string;
   description: string;
-  progress: string; // e.g., "12/50"
+  progress: string; // UI 표기용: "{currentMembers}/{maxMembers}"
   imageUrl?: string | null;
-  role?: CrewRole; // 내 역할 (ADMIN|MEMBER)
+  role?: CrewRole; // OWNER를 ADMIN으로 매핑하여 UI 호환
 };
 
 const MY_CREW_KEY = "myCrew";
@@ -95,8 +96,18 @@ async function mockLeaveCrew(): Promise<void> {
 
 export async function getMyCrew(): Promise<Crew | null> {
   if (mockEnabled) return getMockMyCrew();
-  const { data } = await client.get("/v1/crews/me");
-  return (data ?? null) as Crew | null;
+  // 실제 API: 내가 속한 크루 목록(Page)
+  const { data } = await client.get("/v1/crews/my", { params: { page: 0, size: 1 } });
+  const page = data as any;
+  const first = page?.content?.[0];
+  if (!first) return null;
+  return {
+    id: String(first.id),
+    name: String(first.name ?? "크루"),
+    description: String(first.description ?? ""),
+    progress: `${first.currentMembers ?? 0}/${first.maxMembers ?? 0}`,
+    imageUrl: first.profileImageUrl ?? null,
+  } as Crew;
 }
 
 export async function getMyCrewDetail(): Promise<CrewDetail | null> {
@@ -128,8 +139,49 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
     }
     return detail;
   }
-  const { data } = await client.get("/v1/crews/me/detail");
-  return (data ?? null) as CrewDetail | null;
+  // 실제 API 조합: 내 크루 1개 기준으로 상세/멤버/대기열을 합성
+  const my = await getMyCrew();
+  if (!my) return null;
+
+  const [detailRes, membersRes, pendingRes, me] = await Promise.all([
+    client.get(`/v1/crews/${my.id}`),
+    client.get(`/v1/crews/${my.id}/members`, { params: { page: 0, size: 100 } }),
+    client.get(`/v1/crews/${my.id}/join-requests`, { params: { page: 0, size: 100 } }),
+    getMyProfile().catch(() => null as any),
+  ]);
+
+  const d = detailRes.data as any; // CrewDetailResponse
+  const membersPage = membersRes.data as any; // PageCrewMemberResponse
+  const pendingPage = pendingRes.data as any; // PageJoinRequestResponse
+
+  const role: CrewRole = (() => {
+    const myId = me?.id != null ? Number(me.id) : undefined;
+    const mine = membersPage?.content?.find((m: any) => Number(m.userId) === myId);
+    // OWNER → ADMIN으로 매핑
+    if (mine?.isOwner || mine?.role === "OWNER") return "ADMIN";
+    return "MEMBER";
+  })();
+
+  const mapped: CrewDetail = {
+    crew: {
+      id: String(d.id),
+      name: String(d.name ?? "크루"),
+      description: String(d.description ?? ""),
+      progress: `${d.currentMembers ?? 0}/${d.maxMembers ?? 0}`,
+      imageUrl: d.profileImageUrl ?? null,
+      role,
+    },
+    role,
+    members: (membersPage?.content ?? []).map((m: any) => ({
+      id: String(m.userId),
+      nickname: String(m.userNickname ?? ""),
+      role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
+    })),
+    pending: (pendingPage?.content ?? [])
+      .filter((p: any) => p.status === "PENDING")
+      .map((p: any) => ({ id: String(p.id), nickname: String(p.userNickname ?? "") })),
+  };
+  return mapped;
 }
 
 export async function listCrews(query?: string): Promise<Crew[]> {
@@ -168,8 +220,29 @@ export async function listCrews(query?: string): Promise<Crew[]> {
         c.description.toLowerCase().includes(q)
     );
   }
-  const { data } = await client.get("/v1/crews", { params: { q: query } });
-  return (data ?? []) as Crew[];
+  // 실제 API: 목록 또는 검색
+  if (query && query.trim().length > 0) {
+    const { data } = await client.get("/v1/crews/search", {
+      params: { keyword: query.trim(), page: 0, size: 20 },
+    });
+    const page = data as any;
+    return (page?.content ?? []).map((c: any) => ({
+      id: String(c.id),
+      name: String(c.name ?? "크루"),
+      description: String(c.description ?? ""),
+      progress: `${c.currentMembers ?? 0}/${c.maxMembers ?? 0}`,
+      imageUrl: c.profileImageUrl ?? null,
+    })) as Crew[];
+  }
+  const { data } = await client.get("/v1/crews", { params: { page: 0, size: 20 } });
+  const page = data as any;
+  return (page?.content ?? []).map((c: any) => ({
+    id: String(c.id),
+    name: String(c.name ?? "크루"),
+    description: String(c.description ?? ""),
+    progress: `${c.currentMembers ?? 0}/${c.maxMembers ?? 0}`,
+    imageUrl: c.profileImageUrl ?? null,
+  })) as Crew[];
 }
 
 export async function createCrew(payload: {
@@ -194,7 +267,15 @@ export async function createCrew(payload: {
     return newCrew;
   }
   const { data } = await client.post("/v1/crews", payload);
-  return data as Crew;
+  const c = data as any;
+  return {
+    id: String(c.id),
+    name: String(c.name ?? payload.name),
+    description: String(c.description ?? payload.description ?? ""),
+    progress: `${c.currentMembers ?? 1}/${c.maxMembers ?? 1}`,
+    imageUrl: c.profileImageUrl ?? null,
+    role: "ADMIN",
+  } as Crew;
 }
 
 export type JoinResult = { pending: true; crewId: string } | Crew;
@@ -215,11 +296,12 @@ export async function joinCrew(crew: Crew, message?: string): Promise<JoinResult
     // 2) 내 상태는 '가입 대기중'으로만 표시하고, 실제 멤버 편입은 승인 시에 수행
     return { pending: true, crewId: crew.id };
   }
-  const { data } = await client.post(`/v1/crews/${crew.id}/join`, message ? { message } : undefined);
-  return (data ?? crew) as JoinResult;
+  // 실제 API: 가입 신청 생성 → 기본적으로 PENDING
+  await client.post(`/v1/crews/${crew.id}/join-requests`, { message: message ?? "" });
+  return { pending: true, crewId: crew.id } as JoinResult;
 }
 
-export async function removeMember(userId: string): Promise<void> {
+export async function removeMember(crewId: string, userId: string): Promise<void> {
   if (mockEnabled) {
     const detail = (await getMockMyCrewDetail()) as CrewDetail | null;
     if (!detail) return;
@@ -227,10 +309,10 @@ export async function removeMember(userId: string): Promise<void> {
     await setMockMyCrewDetail(detail);
     return;
   }
-  await client.post(`/v1/crews/members/${userId}/remove`);
+  await client.delete(`/v1/crews/${crewId}/members/${userId}`);
 }
 
-export async function approveRequest(applicantId: string): Promise<void> {
+export async function approveRequest(requestId: string, note?: string): Promise<void> {
   if (mockEnabled) {
     const detail = (await getMockMyCrewDetail()) as CrewDetail | null;
     if (!detail) return;
@@ -242,10 +324,10 @@ export async function approveRequest(applicantId: string): Promise<void> {
     }
     return;
   }
-  await client.post(`/v1/crews/applicants/${applicantId}/approve`);
+  await client.post(`/v1/crews/join-requests/${requestId}/approve`, { note: note ?? "" });
 }
 
-export async function rejectRequest(applicantId: string): Promise<void> {
+export async function rejectRequest(requestId: string, note?: string): Promise<void> {
   if (mockEnabled) {
     const detail = (await getMockMyCrewDetail()) as CrewDetail | null;
     if (!detail) return;
@@ -253,33 +335,35 @@ export async function rejectRequest(applicantId: string): Promise<void> {
     await setMockMyCrewDetail(detail);
     return;
   }
-  await client.post(`/v1/crews/applicants/${applicantId}/reject`);
+  await client.post(`/v1/crews/join-requests/${requestId}/reject`, { note: note ?? "" });
 }
 
 // 권한 부여/회수 및 폐쇄
-export async function promoteMember(userId: string): Promise<void> {
+// 서버 스펙상 OWNER/MEMBER만 존재 → 승격은 소유권 이양으로 처리
+export async function promoteMember(crewId: string, userId: string): Promise<void> {
   if (mockEnabled) return mockPromoteMember(userId);
-  await client.post(`/v1/crews/members/${userId}/promote`);
+  // 승격 = 소유권 이양 (UI 호환 목적)
+  await client.post(`/v1/crews/${crewId}/transfer-ownership`, { newOwnerId: Number(userId) });
 }
 
-export async function demoteMember(userId: string): Promise<void> {
+export async function demoteMember(crewId: string, userId: string): Promise<void> {
   if (mockEnabled) return mockDemoteMember(userId);
-  await client.post(`/v1/crews/members/${userId}/demote`);
+  await client.patch(`/v1/crews/${crewId}/members/${userId}/role`, { newRole: "MEMBER" });
 }
 
-export async function closeCrew(): Promise<void> {
+export async function closeCrew(crewId: string): Promise<void> {
   if (mockEnabled) return mockCloseCrew();
-  await client.post(`/v1/crews/close`);
+  await client.delete(`/v1/crews/${crewId}`);
 }
 
 // 멤버 탈퇴
-export async function leaveCrew(): Promise<void> {
+export async function leaveCrew(crewId: string): Promise<void> {
   if (mockEnabled) return mockLeaveCrew();
-  await client.post(`/v1/crews/leave`);
+  await client.delete(`/v1/crews/${crewId}/members/leave`);
 }
 
-// 운영진 권한 이임(소유권 이전): 선택한 멤버를 ADMIN으로, 나머지는 MEMBER로 정규화
-export async function transferOwnership(userId: string): Promise<void> {
+// 운영진 권한 이임(소유권 이전)
+export async function transferOwnership(crewId: string, userId: string): Promise<void> {
   if (mockEnabled) {
     const detail = (await getMockMyCrewDetail()) as CrewDetail | null;
     if (!detail) return;
@@ -289,5 +373,5 @@ export async function transferOwnership(userId: string): Promise<void> {
     await setMockMyCrewDetail(detail);
     return;
   }
-  await client.post(`/v1/crews/members/${userId}/transfer-ownership`);
+  await client.post(`/v1/crews/${crewId}/transfer-ownership`, { newOwnerId: Number(userId) });
 }

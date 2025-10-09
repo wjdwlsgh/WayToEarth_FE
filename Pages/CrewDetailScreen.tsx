@@ -295,7 +295,7 @@ export default function CrewDetailScreen() {
                                 text: "임명",
                                 style: "default",
                                 onPress: async () => {
-                                  await promoteMember(m.id);
+                                  await promoteMember(crewId, m.id);
                                   await refresh();
                                 },
                               },
@@ -319,7 +319,7 @@ export default function CrewDetailScreen() {
                                 text: "해제",
                                 style: "destructive",
                                 onPress: async () => {
-                                  await demoteMember(m.id);
+                                  await demoteMember(crewId, m.id);
                                   await refresh();
                                 },
                               },
@@ -341,7 +341,7 @@ export default function CrewDetailScreen() {
                               text: "이임",
                               style: "destructive",
                               onPress: async () => {
-                                await transferOwnership(m.id);
+                                await transferOwnership(crewId, m.id);
                                 await refresh();
                               },
                             },
@@ -362,7 +362,7 @@ export default function CrewDetailScreen() {
                               text: "내보내기",
                               style: "destructive",
                               onPress: async () => {
-                                await removeMember(m.id);
+                                await removeMember(crewId, m.id);
                                 await refresh();
                               },
                             },
@@ -398,7 +398,7 @@ export default function CrewDetailScreen() {
                         text: "폐쇄",
                         style: "destructive",
                         onPress: async () => {
-                          await closeCrew();
+                          await closeCrew(crewId);
                           Alert.alert("완료", "크루가 폐쇄되었습니다.");
                           navigation.goBack();
                         },
@@ -423,7 +423,7 @@ export default function CrewDetailScreen() {
                         text: "탈퇴",
                         style: "destructive",
                         onPress: async () => {
-                          await leaveCrew();
+                          await leaveCrew(crewId);
                           Alert.alert("완료", "크루에서 탈퇴했습니다.");
                           navigation.goBack();
                         },

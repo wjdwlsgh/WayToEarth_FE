@@ -15,6 +15,7 @@ import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import type { UserProfile } from "../utils/api/users";
 import { getMyProfile } from "../utils/api/users";
 import { useCrewChat, type ChatMessage } from "../hooks/useCrewChat";
+import { getRecentCrewMessages } from "../utils/api/crewChat";
 
 type Params = {
   CrewChat: { crewId: string; crewName: string };
@@ -30,15 +31,7 @@ export default function CrewChatScreen() {
   const [me, setMe] = useState<UserProfile | null>(null);
   const [input, setInput] = useState("");
   const listRef = useRef<FlatList<ChatMessage>>(null);
-  const seed = useMemo(() => {
-    const now = Date.now();
-    return [
-      { id: `m1`, text: "오늘 한강에서 같이 뛸 사람?", createdAt: now - 5*60*1000, userId: "u2", nickname: "김철수", role: "MEMBER" as const },
-      { id: `m2`, text: "저 참여할게요! 몇 시에 만날까요?", createdAt: now - 4*60*1000, userId: "me", nickname: "나", role: "MEMBER" as const },
-      { id: `m3`, text: "6시 반에 잠실대교 어떠세요?", createdAt: now - 3*60*1000, userId: "u3", nickname: "이영희", role: "ADMIN" as const },
-      { id: `m4`, text: "좋아요! 그럼 6시 반에 봐요 👍", createdAt: now - 2*60*1000, userId: "me", nickname: "나", role: "MEMBER" as const },
-    ] as ChatMessage[];
-  }, []);
+  const [seed, setSeed] = useState<ChatMessage[] | undefined>(undefined);
   const { messages, send } = useCrewChat(String(crewId), seed);
 
   useEffect(() => {
@@ -53,6 +46,25 @@ export default function CrewChatScreen() {
       } catch {}
     })();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const recent = await getRecentCrewMessages(crewId, 30);
+        const mapped: ChatMessage[] = (recent || []).map((m) => ({
+          id: String(m.messageId),
+          text: String(m.message ?? ""),
+          createdAt: m.sentAt ? new Date(m.sentAt).getTime() : Date.now(),
+          userId: String(m.senderId),
+          nickname: String(m.senderName ?? ""),
+          role: "MEMBER",
+        }));
+        setSeed(mapped);
+      } catch {
+        setSeed(undefined);
+      }
+    })();
+  }, [crewId]);
 
   // messages state comes from useCrewChat
 
