@@ -56,6 +56,9 @@ export default {
     extra: {
       kakaoNativeAppKey: process.env.KAKAO_NATIVE_APP_KEY,
       kakaoRestApiKey: process.env.KAKAO_REST_API_KEY,
+      apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || "https://api.waytoearth.cloud",
+      mockEnabled: process.env.EXPO_PUBLIC_API_MOCK === "1",
+      crewMockEnabled: true, // 개발 편의: 크루 기능을 목 데이터로 사용
       eas: { projectId: "7a5e6a60-69ad-4ddc-8301-9aaf03e404a6" },
     },
   },
