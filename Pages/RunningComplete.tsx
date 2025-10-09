@@ -58,7 +58,8 @@ const RunningComplete: React.FC = () => {
   const startRunning = useCallback(async () => {
     try {
       setLoading(true);
-      const sid = `mock-${Date.now()}`;
+      // 서버 연동: 임시 세션 아이디(클라이언트 생성)
+      const sid = String(Date.now());
       const data = await apiStart({ sessionId: sid, runningType: "SINGLE" });
       console.log("[running started]", data);
       setSessionId(sid);
