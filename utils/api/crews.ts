@@ -87,6 +87,12 @@ async function mockCloseCrew(): Promise<void> {
   await setMockMyCrewDetail(null);
 }
 
+async function mockLeaveCrew(): Promise<void> {
+  // 멤버가 크루를 떠나는 경우: 내 크루/디테일을 초기화
+  await setMockMyCrew(null);
+  await setMockMyCrewDetail(null);
+}
+
 export async function getMyCrew(): Promise<Crew | null> {
   if (mockEnabled) return getMockMyCrew();
   const { data } = await client.get("/v1/crews/me");
@@ -255,4 +261,10 @@ export async function demoteMember(userId: string): Promise<void> {
 export async function closeCrew(): Promise<void> {
   if (mockEnabled) return mockCloseCrew();
   await client.post(`/v1/crews/close`);
+}
+
+// 멤버 탈퇴
+export async function leaveCrew(): Promise<void> {
+  if (mockEnabled) return mockLeaveCrew();
+  await client.post(`/v1/crews/leave`);
 }

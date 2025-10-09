@@ -19,6 +19,7 @@ import {
   promoteMember,
   demoteMember,
   closeCrew,
+  leaveCrew,
 } from "../utils/api/crews";
 
 type Member = {
@@ -341,7 +342,30 @@ export default function CrewDetailScreen() {
                 <Text style={s.closeCrewBtnText}>크루 폐쇄</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ color: "#6B7280" }}>관리자만 접근 가능한 메뉴입니다.</Text>
+              <TouchableOpacity
+                style={[s.closeCrewBtn, { backgroundColor: "#111827" }]}
+                onPress={() => {
+                  Alert.alert(
+                    "크루 탈퇴",
+                    "크루를 탈퇴하시겠습니까?",
+                    [
+                      { text: "취소", style: "cancel" },
+                      {
+                        text: "탈퇴",
+                        style: "destructive",
+                        onPress: async () => {
+                          await leaveCrew();
+                          Alert.alert("완료", "크루에서 탈퇴했습니다.");
+                          navigation.goBack();
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="log-out-outline" size={18} color="#fff" />
+                <Text style={s.closeCrewBtnText}>크루 탈퇴</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
