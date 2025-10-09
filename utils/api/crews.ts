@@ -114,10 +114,16 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
           { id: "u3", nickname: "지영", role: "MEMBER" },
         ],
         pending: [
-          { id: "a1", nickname: "지원자-철수" },
-          { id: "a2", nickname: "지원자-영희" },
+          { id: "a1", nickname: "김러너" },
+          { id: "a2", nickname: "박조거" },
         ],
       };
+      await setMockMyCrewDetail(detail);
+    } else if (!detail.pending || detail.pending.length === 0) {
+      // 테스트 편의: 대기열이 비면 더미 신청자 한 명 추가
+      const newAppId = `a${Date.now()}`;
+      const newAppName = "신규 지원자";
+      detail.pending = [{ id: newAppId, nickname: newAppName }];
       await setMockMyCrewDetail(detail);
     }
     return detail;
