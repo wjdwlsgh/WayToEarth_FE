@@ -24,8 +24,9 @@ export function useCrewData(searchText: string) {
         listCrews(searchText),
       ]);
       setMyCrew(m);
-      // 내 크루가 목록에 있으면 중복 제거 후 최상단에 노출
-      const filtered = (list ?? []).filter((c) => !m || c.id !== m.id);
+      // 내 크루가 목록에 있으면 중복 제거 (id 타입 차이 방지용 String 비교)
+      const myId = m ? String((m as any).id) : "";
+      const filtered = (list ?? []).filter((c) => String((c as any).id) !== myId);
       setCrews(filtered);
     } catch (e: any) {
       setError(e?.message || "크루 정보를 불러오지 못했습니다.");
@@ -40,8 +41,12 @@ export function useCrewData(searchText: string) {
 
   const topCrews = RAW_TOP_CREWS;
 
+  // 화면에서는 내 크루를 별도로 노출하므로,
+  // 목록(crews)에는 항상 내 크루를 제외한 항목만 유지
   const finalList = useMemo(() => {
-    return myCrew ? [myCrew, ...crews] : crews;
+    if (!myCrew) return crews;
+    const myId = String((myCrew as any).id);
+    return (crews || []).filter((c) => String((c as any).id) !== myId);
   }, [myCrew, crews]);
 
   const ensureMyCrew = useCallback(async () => {
@@ -53,14 +58,14 @@ export function useCrewData(searchText: string) {
     const created = await createCrew({ name, description });
     setMyCrew(created);
     // 목록에서 중복 제거
-    setCrews((prev) => prev.filter((c) => c.id !== created.id));
+    setCrews((prev) => prev.filter((c) => String((c as any).id) !== String((created as any).id)));
     return created;
   }, []);
 
-  const joinExistingCrew = useCallback(async (crew: Crew) => {
-    const joined = await joinCrew(crew);
+  const joinExistingCrew = useCallback(async (crew: Crew, message?: string) => {
+    const joined = await joinCrew(crew, message);
     setMyCrew(joined);
-    setCrews((prev) => prev.filter((c) => c.id !== joined.id));
+    setCrews((prev) => prev.filter((c) => String((c as any).id) !== String((joined as any).id)));
     return joined;
   }, []);
 

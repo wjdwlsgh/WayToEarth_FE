@@ -9,11 +9,16 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import {
   getMyCrewDetail,
   removeMember,
   approveRequest,
   rejectRequest,
+  promoteMember,
+  demoteMember,
+  closeCrew,
 } from "../utils/api/crews";
 
 type Member = {
@@ -25,6 +30,7 @@ type Member = {
 type Applicant = { id: string; nickname: string; level?: string };
 
 export default function CrewDetailScreen() {
+  const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
   const [crewName, setCrewName] = useState("서울 러닝 크루");
@@ -76,11 +82,10 @@ export default function CrewDetailScreen() {
 
       {/* 헤더 */}
       <View style={s.blueHeader}>
-        <Text style={s.headerTime}>9:41</Text>
         <View style={s.headerTop}>
           <Text style={s.headerTitle}>크루</Text>
-          <TouchableOpacity style={s.searchIcon}>
-            <Text style={s.searchIconText}>🔍</Text>
+          <TouchableOpacity style={s.searchIcon} onPress={() => {}}>
+            <Ionicons name="search" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -114,43 +119,7 @@ export default function CrewDetailScreen() {
           </View>
         </View>
 
-        {/* 가입 신청 (관리자만) */}
-        {isAdmin && pending.length > 0 && (
-          <View style={s.applicationCard}>
-            <Text style={s.applicationTitle}>가입 신청</Text>
-            {pending.map((a) => (
-              <View key={a.id} style={s.applicationRow}>
-                <View style={s.applicantInfo}>
-                  <View style={s.applicantAvatar} />
-                  <View>
-                    <Text style={s.applicantName}>{a.nickname}</Text>
-                    <Text style={s.applicantLevel}>{a.level}</Text>
-                  </View>
-                </View>
-                <View style={s.applicationBtns}>
-                  <TouchableOpacity
-                    style={[s.applicationBtn, s.approveBtn]}
-                    onPress={async () => {
-                      await approveRequest(a.id);
-                      await refresh();
-                    }}
-                  >
-                    <Text style={s.approveBtnText}>승인</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.applicationBtn, s.rejectBtn]}
-                    onPress={async () => {
-                      await rejectRequest(a.id);
-                      await refresh();
-                    }}
-                  >
-                    <Text style={s.rejectBtnText}>거부</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
+        {/* 가입 신청은 통계 탭 내부로 이동 */}
 
         {/* 탭 메뉴 */}
         <View style={s.tabContainer}>
@@ -189,6 +158,45 @@ export default function CrewDetailScreen() {
         {/* 통계 탭 내용 */}
         {selectedTab === "통계" && (
           <>
+            {/* 가입 신청 (관리자만) */}
+            {isAdmin && pending.length > 0 && (
+              <View style={s.applicationCard}>
+                <Text style={s.applicationTitle}>가입 신청</Text>
+                {pending.map((a) => (
+                  <View key={a.id} style={s.applicationRow}>
+                    <View style={s.applicantInfo}>
+                      <View style={s.applicantAvatar} />
+                      <View>
+                        <Text style={s.applicantName}>{a.nickname}</Text>
+                        <Text style={s.applicantLevel}>{a.level}</Text>
+                      </View>
+                    </View>
+                    <View style={s.applicationBtns}>
+                      <TouchableOpacity
+                        style={[s.iconBtn, s.approveIconBtn]}
+                        onPress={async () => {
+                          await approveRequest(a.id);
+                          await refresh();
+                        }}
+                        accessibilityLabel="승인"
+                      >
+                        <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.iconBtn, s.rejectIconBtn]}
+                        onPress={async () => {
+                          await rejectRequest(a.id);
+                          await refresh();
+                        }}
+                        accessibilityLabel="거부"
+                      >
+                        <Ionicons name="close-circle" size={24} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
             {/* 크루 통계 */}
             <View style={s.statsSection}>
               <View style={s.statsSectionHeader}>
@@ -250,28 +258,91 @@ export default function CrewDetailScreen() {
                     {m.role === "ADMIN" ? " (관리자)" : ""}
                   </Text>
                 </View>
-                {isAdmin && m.role !== "ADMIN" && (
-                  <TouchableOpacity
-                    style={s.kickBtn}
-                    onPress={() => {
-                      Alert.alert("확인", `${m.nickname} 님을 내보낼까요?`, [
-                        { text: "취소", style: "cancel" },
-                        {
-                          text: "내보내기",
-                          style: "destructive",
-                          onPress: async () => {
-                            await removeMember(m.id);
-                            await refresh();
-                          },
-                        },
-                      ]);
-                    }}
-                  >
-                    <Text style={s.kickBtnText}>내보내기</Text>
-                  </TouchableOpacity>
+                {isAdmin && (
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {m.role !== "ADMIN" ? (
+                      <TouchableOpacity
+                        style={s.roundIconBtn}
+                        onPress={async () => {
+                          await promoteMember(m.id);
+                          await refresh();
+                        }}
+                        accessibilityLabel="관리자 지정"
+                      >
+                        <Ionicons name="star" size={18} color="#F59E0B" />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={s.roundIconBtn}
+                        onPress={async () => {
+                          await demoteMember(m.id);
+                          await refresh();
+                        }}
+                        accessibilityLabel="권한 해제"
+                      >
+                        <Ionicons name="star-outline" size={18} color="#6B7280" />
+                      </TouchableOpacity>
+                    )}
+                    {m.role !== "ADMIN" && (
+                      <TouchableOpacity
+                        style={s.roundIconBtn}
+                        onPress={() => {
+                          Alert.alert("확인", `${m.nickname} 님을 내보낼까요?`, [
+                            { text: "취소", style: "cancel" },
+                            {
+                              text: "내보내기",
+                              style: "destructive",
+                              onPress: async () => {
+                                await removeMember(m.id);
+                                await refresh();
+                              },
+                            },
+                          ]);
+                        }}
+                        accessibilityLabel="내보내기"
+                      >
+                        <Ionicons name="person-remove" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
               </View>
             ))}
+          </View>
+        )}
+
+        {/* 설정 탭 내용 */}
+        {selectedTab === "설정" && (
+          <View style={s.settingsSection}>
+            <Text style={s.sectionTitle}>크루 설정</Text>
+            {isAdmin ? (
+              <TouchableOpacity
+                style={s.closeCrewBtn}
+                onPress={() => {
+                  Alert.alert(
+                    "크루 폐쇄",
+                    "정말로 크루를 폐쇄하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                    [
+                      { text: "취소", style: "cancel" },
+                      {
+                        text: "폐쇄",
+                        style: "destructive",
+                        onPress: async () => {
+                          await closeCrew();
+                          Alert.alert("완료", "크루가 폐쇄되었습니다.");
+                          navigation.goBack();
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="trash" size={18} color="#fff" />
+                <Text style={s.closeCrewBtnText}>크루 폐쇄</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ color: "#6B7280" }}>관리자만 접근 가능한 메뉴입니다.</Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -368,15 +439,9 @@ const s = StyleSheet.create({
   },
   applicantLevel: { fontSize: 12, color: "#666" },
   applicationBtns: { flexDirection: "row", gap: 8 },
-  applicationBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-  },
-  approveBtn: { backgroundColor: "#00C896" },
-  rejectBtn: { backgroundColor: "#FF6B6B" },
-  approveBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  rejectBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  iconBtn: { padding: 6, borderRadius: 999, backgroundColor: "#F3F4F6" },
+  approveIconBtn: { backgroundColor: "#ECFDF5" },
+  rejectIconBtn: { backgroundColor: "#FEF2F2" },
 
   // 탭
   tabContainer: {
@@ -520,4 +585,25 @@ const s = StyleSheet.create({
     borderRadius: 8,
   },
   kickBtnText: { color: "#111827", fontSize: 13, fontWeight: "600" },
+  roundIconBtn: { backgroundColor: "#F3F4F6", padding: 8, borderRadius: 999 },
+
+  // 설정 섹션
+  settingsSection: {
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+  },
+  closeCrewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#EF4444",
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  closeCrewBtnText: { color: "#fff", fontSize: 14, fontWeight: "800" },
 });

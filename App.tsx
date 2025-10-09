@@ -3,6 +3,7 @@ import * as WebBrowser from "expo-web-browser";
 WebBrowser.maybeCompleteAuthSession();
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "./types/types";
@@ -37,12 +38,16 @@ import TabBarAdapter from "./components/Layout/TabBarAdapter";
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+const extra: any = (Constants?.expoConfig as any)?.extra ?? {};
+const CREW_MOCK = Boolean(extra?.crewMockEnabled) ||
+  (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_CREW_MOCK === "1");
+
 function MainTabs() {
   return (
     <Tab.Navigator
       tabBar={(props) => <TabBarAdapter {...props} />}
       screenOptions={{ headerShown: false }}
-      initialRouteName="LiveRunningScreen"
+      initialRouteName={CREW_MOCK ? "Crew" : "LiveRunningScreen"}
     >
       <Tab.Screen name="Profile" component={Profile} />
       <Tab.Screen name="Crew" component={CrewScreen} />
@@ -57,7 +62,7 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Onboading"
+        initialRouteName={CREW_MOCK ? "MainTabs" : "Onboading"}
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Onboading" component={Onboading} />

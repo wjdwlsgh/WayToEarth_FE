@@ -1,5 +1,6 @@
 import React from "react";
-import { View, TextInput, StyleSheet, TouchableOpacity, Text } from "react-native";
+import { View, TextInput, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   value: string;
@@ -20,7 +21,7 @@ export default function SearchBar({ value, onChangeText, onSearch }: Props) {
         onSubmitEditing={onSearch}
       />
       <TouchableOpacity onPress={onSearch} style={s.btn}>
-        <Text style={s.icon}>🔍</Text>
+        <Ionicons name="search" size={20} color="#111" />
       </TouchableOpacity>
     </View>
   );
@@ -37,6 +38,4 @@ const s = StyleSheet.create({
   },
   input: { flex: 1, paddingVertical: 14, fontSize: 15, color: "#000" },
   btn: { padding: 4 },
-  icon: { fontSize: 20 },
 });
-

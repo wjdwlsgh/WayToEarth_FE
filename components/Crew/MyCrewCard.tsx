@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   name: string;
@@ -11,7 +12,10 @@ type Props = {
 export default function MyCrewCard({ name, description, progress, onPress }: Props) {
   return (
     <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
-      <View style={s.badge}><Text style={s.badgeText}>내 크루</Text></View>
+      <View style={s.badge}>
+        <Ionicons name="people" size={12} color="#fff" />
+        <Text style={s.badgeText}>내 크루</Text>
+      </View>
       <Text style={s.name}>{name}</Text>
       {!!description && <Text style={s.desc} numberOfLines={2}>{description}</Text>}
       {!!progress && <Text style={s.progress}>{progress}</Text>}
@@ -35,10 +39,12 @@ const s = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
     marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   badgeText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   name: { fontSize: 18, fontWeight: "800", color: "#1A365D", marginBottom: 4 },
   desc: { color: "#2A4365", marginBottom: 8 },
   progress: { color: "#1A365D", fontWeight: "600" },
 });
-
