@@ -1,5 +1,5 @@
 // utils/api/users.ts
-import { client } from "./client";
+import { client, mockEnabled } from "./client";
 import type { UserInfo } from "../../types/types";
 
 // 공통: 래퍼 응답 { success, data, ... } 언래핑 유틸
@@ -16,6 +16,17 @@ export async function checkNickname(rawNickname: string) {
       available: false,
       isDuplicate: true,
       message: "닉네임을 입력하세요.",
+    };
+  }
+
+  if (mockEnabled) {
+    const taken = ["admin", "test", "waytoearth"].includes(
+      nickname.toLowerCase()
+    );
+    return {
+      available: !taken,
+      isDuplicate: taken,
+      message: taken ? "이미 사용 중인 닉네임입니다." : "사용 가능",
     };
   }
 
@@ -68,6 +79,15 @@ function extractNumber(input: string | number) {
 
 /** 회원가입/온보딩 제출: Swagger 스펙에 맞춘 필드 전송 */
 export async function submitOnboarding(input: OnboardingInput) {
+  if (mockEnabled) {
+    return {
+      ok: true,
+      userId: 1,
+      nickname: input.nickname,
+      residence: input.residence,
+      weekly_goal_distance: input.weekly_goal_distance,
+    } as any;
+  }
   const payload = {
     nickname: (input.nickname ?? "").trim(),
     residence: (input.residence ?? "").trim(),
@@ -108,6 +128,21 @@ export type UserProfile = {
 };
 
 export async function getMyProfile(): Promise<UserProfile> {
+  if (mockEnabled) {
+    return {
+      id: 1,
+      nickname: "Demo User",
+      profile_image_url: null,
+      residence: "Seoul",
+      age_group: "20s",
+      gender: "male",
+      weekly_goal_distance: 10,
+      total_distance: 42.195,
+      total_running_count: 12,
+      created_at: new Date().toISOString(),
+      profile_image_key: null,
+    };
+  }
   const res = await client.get("/v1/users/me");
   return unwrap<UserProfile>(res.data);
 }
@@ -121,6 +156,14 @@ export type UserSummary = {
 };
 
 export async function getMySummary(): Promise<UserSummary> {
+  if (mockEnabled) {
+    return {
+      completion_rate: 0.6,
+      emblem_count: 3,
+      total_distance: 120.5,
+      total_running_count: 25,
+    };
+  }
   const res = await client.get("/v1/users/me/summary");
   return unwrap<UserSummary>(res.data);
 }

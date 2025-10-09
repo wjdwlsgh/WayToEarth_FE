@@ -1,9 +1,18 @@
 // utils/api/client.ts
 import axios, { AxiosResponse } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
+
+// Mock 모드 비활성화: 항상 실제 API 연동 사용
+const extra: any = (Constants?.expoConfig as any)?.extra ?? {};
+export const mockEnabled = false;
 
 export const client = axios.create({
-  baseURL: "https://api.waytoearth.cloud", // ✅ 반드시 https
+  baseURL:
+    (extra?.apiBaseUrl as string) ||
+    ((typeof process !== "undefined" &&
+      (process.env?.EXPO_PUBLIC_API_BASE_URL as string)) ||
+      "https://api.waytoearth.cloud"), // ✅ 기본값, app.config.js의 extra.apiBaseUrl 우선
   timeout: 10000,
 });
 
