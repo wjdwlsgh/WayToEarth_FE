@@ -266,9 +266,22 @@ export default function CrewDetailScreen() {
                     {m.role !== "ADMIN" ? (
                       <TouchableOpacity
                         style={s.roundIconBtn}
-                        onPress={async () => {
-                          await promoteMember(m.id);
-                          await refresh();
+                        onPress={() => {
+                          Alert.alert(
+                            "관리자 임명",
+                            `${m.nickname} 님을 매니저(관리자)로 임명하시겠습니까?`,
+                            [
+                              { text: "취소", style: "cancel" },
+                              {
+                                text: "임명",
+                                style: "default",
+                                onPress: async () => {
+                                  await promoteMember(m.id);
+                                  await refresh();
+                                },
+                              },
+                            ]
+                          );
                         }}
                         accessibilityLabel="관리자 지정"
                       >
