@@ -85,9 +85,10 @@ export default function CrewDetailScreen() {
       {/* 헤더 */}
       <View style={s.blueHeader}>
         <View style={s.headerTop}>
+          <View style={{ width: 24 }} />
           <Text style={s.headerTitle}>크루</Text>
           <TouchableOpacity style={s.searchIcon} onPress={() => {}}>
-            <Ionicons name="search" size={22} color="#fff" />
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -112,11 +113,11 @@ export default function CrewDetailScreen() {
             </View>
             <View style={s.statItem}>
               <Text style={s.statValue}>{crewInfo.meetCount}</Text>
-              <Text style={s.statLabel}>내 손위</Text>
+              <Text style={s.statLabel}>내 순위</Text>
             </View>
             <View style={s.statItem}>
               <Text style={s.statValue}>{crewInfo.totalMembers}</Text>
-              <Text style={s.statLabel}>대열 순위</Text>
+              <Text style={s.statLabel}>대결 승리</Text>
             </View>
           </View>
         </View>
@@ -175,24 +176,24 @@ export default function CrewDetailScreen() {
                     </View>
                     <View style={s.applicationBtns}>
                       <TouchableOpacity
-                        style={[s.iconBtn, s.approveIconBtn]}
+                        style={s.approvePill}
                         onPress={async () => {
                           await approveRequest(a.id);
                           await refresh();
                         }}
                         accessibilityLabel="승인"
                       >
-                        <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                        <Text style={s.approvePillText}>승인</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[s.iconBtn, s.rejectIconBtn]}
+                        style={s.rejectPill}
                         onPress={async () => {
                           await rejectRequest(a.id);
                           await refresh();
                         }}
                         accessibilityLabel="거부"
                       >
-                        <Ionicons name="close-circle" size={24} color="#EF4444" />
+                        <Text style={s.rejectPillText}>거부</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -485,9 +486,21 @@ const s = StyleSheet.create({
   },
   applicantLevel: { fontSize: 12, color: "#666" },
   applicationBtns: { flexDirection: "row", gap: 8 },
-  iconBtn: { padding: 6, borderRadius: 999, backgroundColor: "#F3F4F6" },
-  approveIconBtn: { backgroundColor: "#ECFDF5" },
-  rejectIconBtn: { backgroundColor: "#FEF2F2" },
+  // pill buttons for approve / reject
+  approvePill: {
+    backgroundColor: "#22C55E",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  approvePillText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  rejectPill: {
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  rejectPillText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
   // 탭
   tabContainer: {
