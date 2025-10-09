@@ -151,7 +151,7 @@ export default function CrewScreen() {
         onJoin={
           selected
             ? async (intro) => {
-                await joinExistingCrew(
+                const res = await joinExistingCrew(
                   {
                     id: selected.id || "",
                     name: selected.name,
@@ -161,6 +161,12 @@ export default function CrewScreen() {
                   intro
                 );
                 setPreviewOpen(false);
+                // 승인 대기 안내
+                if ((res as any)?.pending) {
+                  Alert.alert("신청 완료", "관리자 승인 후 크루에 참여할 수 있습니다.");
+                } else {
+                  Alert.alert("가입 완료", "크루에 가입되었습니다.");
+                }
               }
             : undefined
         }

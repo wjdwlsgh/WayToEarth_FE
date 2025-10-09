@@ -20,6 +20,7 @@ import {
   demoteMember,
   closeCrew,
   leaveCrew,
+  transferOwnership,
 } from "../utils/api/crews";
 
 type Member = {
@@ -282,6 +283,27 @@ export default function CrewDetailScreen() {
                         accessibilityLabel="권한 해제"
                       >
                         <Ionicons name="star-outline" size={18} color="#6B7280" />
+                      </TouchableOpacity>
+                    )}
+                    {m.role !== "ADMIN" && (
+                      <TouchableOpacity
+                        style={s.roundIconBtn}
+                        onPress={() => {
+                          Alert.alert("권한 이임", `${m.nickname} 님에게 운영 권한을 이임하시겠습니까?`, [
+                            { text: "취소", style: "cancel" },
+                            {
+                              text: "이임",
+                              style: "destructive",
+                              onPress: async () => {
+                                await transferOwnership(m.id);
+                                await refresh();
+                              },
+                            },
+                          ]);
+                        }}
+                        accessibilityLabel="권한 이임"
+                      >
+                        <Ionicons name="swap-horizontal" size={18} color="#3B82F6" />
                       </TouchableOpacity>
                     )}
                     {m.role !== "ADMIN" && (

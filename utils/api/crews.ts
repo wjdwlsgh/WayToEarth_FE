@@ -191,23 +191,26 @@ export async function createCrew(payload: {
   return data as Crew;
 }
 
-export async function joinCrew(crew: Crew, message?: string): Promise<Crew> {
+export type JoinResult = { pending: true; crewId: string } | Crew;
+
+export async function joinCrew(crew: Crew, message?: string): Promise<JoinResult> {
   if (mockEnabled) {
-    const joined: Crew = { ...crew, role: "MEMBER" };
-    await setMockMyCrew(joined);
-    await setMockMyCrewDetail({
-      crew: joined,
-      role: "MEMBER",
-      members: [
-        { id: "u1", nickname: "나", role: "MEMBER" },
-        { id: "u2", nickname: "민수", role: "MEMBER" },
-      ],
-      pending: [],
-    });
-    return joined;
+    // 모킹: 즉시 가입하지 않고, 관리자 승인 대기 상태로 처리
+    // 1) 관리자가 보는 대기열에 신청 추가 (동일 디바이스에서 관리자 화면 데모 목적)
+    const currentDetail = (await getMockMyCrewDetail()) as CrewDetail | null;
+    if (currentDetail && String(currentDetail.crew.id) === String(crew.id)) {
+      const nextNickname = `지원자-${Date.now().toString().slice(-4)}`;
+      currentDetail.pending = [
+        ...currentDetail.pending,
+        { id: `app-${Date.now()}`, nickname: nextNickname },
+      ];
+      await setMockMyCrewDetail(currentDetail);
+    }
+    // 2) 내 상태는 '가입 대기중'으로만 표시하고, 실제 멤버 편입은 승인 시에 수행
+    return { pending: true, crewId: crew.id };
   }
   const { data } = await client.post(`/v1/crews/${crew.id}/join`, message ? { message } : undefined);
-  return (data ?? crew) as Crew;
+  return (data ?? crew) as JoinResult;
 }
 
 export async function removeMember(userId: string): Promise<void> {
@@ -267,4 +270,18 @@ export async function closeCrew(): Promise<void> {
 export async function leaveCrew(): Promise<void> {
   if (mockEnabled) return mockLeaveCrew();
   await client.post(`/v1/crews/leave`);
+}
+
+// 운영진 권한 이임(소유권 이전): 선택한 멤버를 ADMIN으로, 나머지는 MEMBER로 정규화
+export async function transferOwnership(userId: string): Promise<void> {
+  if (mockEnabled) {
+    const detail = (await getMockMyCrewDetail()) as CrewDetail | null;
+    if (!detail) return;
+    detail.members = detail.members.map((m) => ({ ...m, role: m.id === userId ? "ADMIN" : "MEMBER" }));
+    // 현재 뷰 사용자의 role도 MEMBER로 강등되는 상황을 반영(단일 디바이스 데모)
+    detail.role = "MEMBER";
+    await setMockMyCrewDetail(detail);
+    return;
+  }
+  await client.post(`/v1/crews/members/${userId}/transfer-ownership`);
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import type { TopCrewItemData } from "../types/Crew";
 import type { Crew } from "../utils/api/crews";
-import { getMyCrew, listCrews, createCrew, joinCrew } from "../utils/api/crews";
+import { getMyCrew, listCrews, createCrew, joinCrew, type JoinResult } from "../utils/api/crews";
 
 const RAW_TOP_CREWS: TopCrewItemData[] = [
   { id: "2", rank: "1등 크루", name: "마리오 크루", distance: "1150km" },
@@ -63,7 +63,12 @@ export function useCrewData(searchText: string) {
   }, []);
 
   const joinExistingCrew = useCallback(async (crew: Crew, message?: string) => {
-    const joined = await joinCrew(crew, message);
+    const res: JoinResult = await joinCrew(crew, message);
+    if ((res as any)?.pending) {
+      // 승인 대기: 내 크루는 그대로 null 유지
+      return res;
+    }
+    const joined = res as Crew;
     setMyCrew(joined);
     setCrews((prev) => prev.filter((c) => String((c as any).id) !== String((joined as any).id)));
     return joined;
