@@ -10,6 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
 import {
   getMyCrewDetail,
@@ -35,6 +36,7 @@ export default function CrewDetailScreen() {
   const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
+  const [myUserId, setMyUserId] = useState<string>("");
   const [crewName, setCrewName] = useState("서울 러닝 크루");
   const [crewInfo, setCrewInfo] = useState({
     location: "활동 중",
@@ -74,6 +76,13 @@ export default function CrewDetailScreen() {
 
   useEffect(() => {
     refresh();
+    // 내 사용자 식별자 확보: 자기 자신에 대한 액션(내보내기 등) 숨김 처리용
+    (async () => {
+      try {
+        const me = await getMyProfile();
+        setMyUserId(String((me as any)?.id ?? ""));
+      } catch {}
+    })();
   }, []);
 
   const isAdmin = role === "ADMIN";
@@ -252,7 +261,9 @@ export default function CrewDetailScreen() {
         {selectedTab === "멤버" && (
           <View style={s.membersSection}>
             <Text style={s.sectionTitle}>멤버 목록</Text>
-            {members.map((m) => (
+            {members.map((m) => {
+              const isSelf = (myUserId && String(m.id) === String(myUserId)) || m.nickname === "나";
+              return (
               <View key={m.id} style={s.memberRow}>
                 <View style={s.memberInfo}>
                   <View style={s.memberAvatar} />
@@ -261,7 +272,7 @@ export default function CrewDetailScreen() {
                     {m.role === "ADMIN" ? " (관리자)" : ""}
                   </Text>
                 </View>
-                {isAdmin && (
+                {isAdmin && !isSelf && (
                   <View style={{ flexDirection: "row", gap: 8 }}>
                     {m.role !== "ADMIN" ? (
                       <TouchableOpacity
@@ -357,7 +368,8 @@ export default function CrewDetailScreen() {
                   </View>
                 )}
               </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
