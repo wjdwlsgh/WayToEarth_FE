@@ -36,6 +36,7 @@ export default function CrewDetailScreen() {
   const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
+  const [crewId, setCrewId] = useState<string>("");
   const [myUserId, setMyUserId] = useState<string>("");
   const [crewName, setCrewName] = useState("서울 러닝 크루");
   const [crewInfo, setCrewInfo] = useState({
@@ -65,6 +66,7 @@ export default function CrewDetailScreen() {
       const detail = await getMyCrewDetail();
       if (detail) {
         setCrewName(detail.crew.name);
+        setCrewId(String(detail.crew.id));
         setRole(detail.role);
         setMembers(detail.members as Member[]);
         setPending(detail.pending as Applicant[]);
@@ -96,7 +98,13 @@ export default function CrewDetailScreen() {
         <View style={s.headerTop}>
           <View style={{ width: 24 }} />
           <Text style={s.headerTitle}>크루</Text>
-          <TouchableOpacity style={s.searchIcon} onPress={() => {}}>
+          <TouchableOpacity
+            style={s.searchIcon}
+            onPress={() => {
+              const id = crewId || "0";
+              navigation.navigate("CrewChat", { crewId: id, crewName });
+            }}
+          >
             <Ionicons name="chatbubble-ellipses-outline" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
