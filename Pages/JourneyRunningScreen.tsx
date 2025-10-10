@@ -73,9 +73,19 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     })();
   }, []);
 
-  // 랜드마크 도달 시 방명록 작성 모달 표시
-  const handleLandmarkReached = useCallback((landmark: any) => {
+  // 랜드마크 도달 시 스탬프 수집 및 방명록 작성 모달 표시
+  const handleLandmarkReached = useCallback(async (landmark: any) => {
     console.log("[JourneyRunning] 랜드마크 도달:", landmark.name);
+
+    // 스탬프 수집 (자동)
+    try {
+      const { collectStamp } = await import("../utils/api/stamps");
+      await collectStamp(userId, parseInt(landmark.id));
+      console.log("[JourneyRunning] ✅ 스탬프 수집 완료:", landmark.name);
+    } catch (error) {
+      console.error("[JourneyRunning] ❌ 스탬프 수집 실패:", error);
+      // 스탬프 수집 실패해도 계속 진행 (방명록은 작성 가능)
+    }
 
     // 랜드마크를 LandmarkSummary 형식으로 변환
     const landmarkSummary: LandmarkSummary = {
@@ -92,7 +102,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     // 축하 알림 표시
     Alert.alert(
       `🎉 ${landmark.name} 도착!`,
-      "랜드마크에 방명록을 남겨보세요.",
+      "스탬프를 획득했습니다! 랜드마크에 방명록을 남겨보세요.",
       [
         {
           text: "나중에",
@@ -105,7 +115,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         { text: "방명록 작성", onPress: () => {} },
       ]
     );
-  }, []);
+  }, [userId]);
 
   const t = useJourneyRunning({
     journeyId,
