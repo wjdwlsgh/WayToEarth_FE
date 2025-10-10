@@ -109,7 +109,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
   const t = useJourneyRunning({
     journeyId,
-    userId,
+    userId: String(userId), // number를 string으로 변환
     totalDistanceM: totalDistanceKm * 1000,
     landmarks,
     journeyRoute,
