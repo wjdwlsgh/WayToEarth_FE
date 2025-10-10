@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import { StackActions } from "@react-navigation/native";
 import * as Location from "expo-location";
 import SafeLayout from "../components/Layout/SafeLayout";
 import {
@@ -216,22 +217,29 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         {
           text: "저장 안 함",
           style: "destructive",
-          onPress: async () => {
-            try {
-              // 즉시 메인 페이지로 이동 (화면 업데이트 전에)
+          onPress: () => {
+            // 먼저 네비게이션 실행 (동기) - 부모 스택에서 Main으로 교체 이동
+            const parent = navigation.getParent ? navigation.getParent() : null;
+            if (parent && typeof parent.dispatch === 'function') {
+              parent.dispatch(StackActions.replace("Main"));
+            } else if (typeof navigation.dispatch === 'function') {
+              navigation.dispatch(StackActions.replace("Main"));
+            } else {
               navigation.navigate("Main");
+            }
 
-              // 비동기로 정리 작업 수행
-              setTimeout(async () => {
+            // 그 후 비동기로 정리 (화면 전환 후에 실행)
+            requestAnimationFrame(async () => {
+              try {
                 await backgroundRunning.stopForegroundService();
                 await backgroundRunning.clearSession();
                 await t.stop();
-              }, 100);
-            } catch (e) {
-              console.error("러닝 종료 실패:", e);
-            } finally {
-              isStoppingRef.current = false;
-            }
+              } catch (e) {
+                console.error("러닝 정리 실패:", e);
+              } finally {
+                isStoppingRef.current = false;
+              }
+            });
           },
         },
         {
