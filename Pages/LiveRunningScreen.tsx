@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { StackActions } from "@react-navigation/native";
+import { navigationRef } from "../navigation/RootNavigation";
 import * as Location from "expo-location";
 import SafeLayout from "../components/Layout/SafeLayout";
 import {
@@ -45,6 +46,7 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
   // 러닝 세션 상태 업데이트 (일반 러닝)
   useEffect(() => {
     if (!t.isRunning) return;
+    if (isStoppingRef.current) return; // 종료 진행 중이면 저장/업데이트 중단
 
     const session = {
       type: 'general' as const,
@@ -217,22 +219,28 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         {
           text: "저장 안 함",
           style: "destructive",
-          onPress: () => {
-            // 먼저 네비게이션 실행 (동기) - 부모 스택에서 Main으로 교체 이동
-            const parent = navigation.getParent ? navigation.getParent() : null;
-            if (parent && typeof parent.dispatch === 'function') {
-              parent.dispatch(StackActions.replace("Main"));
-            } else if (typeof navigation.dispatch === 'function') {
-              navigation.dispatch(StackActions.replace("Main"));
+          onPress: async () => {
+            try {
+              // 탭바 보이도록 세션 키를 먼저 제거
+              await backgroundRunning.clearSession();
+            } catch {}
+
+            // 먼저 네비게이션 실행 (동기) - 루트 스택에서 MainTabs로 교체 이동
+            if (navigationRef.isReady()) {
+              navigationRef.dispatch(StackActions.replace("MainTabs"));
             } else {
-              navigation.navigate("Main");
+              const rootParent = navigation.getParent?.()?.getParent?.();
+              if (rootParent && typeof rootParent.dispatch === 'function') {
+                rootParent.dispatch(StackActions.replace("MainTabs"));
+              } else {
+                navigation.navigate("MainTabs", { screen: "LiveRunningScreen" });
+              }
             }
 
             // 그 후 비동기로 정리 (화면 전환 후에 실행)
             requestAnimationFrame(async () => {
               try {
                 await backgroundRunning.stopForegroundService();
-                await backgroundRunning.clearSession();
                 await t.stop();
               } catch (e) {
                 console.error("러닝 정리 실패:", e);
