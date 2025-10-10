@@ -146,42 +146,9 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
 
   const handleStartPress = () => (menuOpen ? closeMenu() : openMenu());
 
-  const handleRunningStart = useCallback(async () => {
-    console.log("[LiveRunning] start pressed -> prepare permissions");
+  const handleRunningStart = useCallback(() => {
+    console.log("[LiveRunning] start pressed -> show countdown");
     closeMenu();
-    try {
-      // 선행: 백그라운드 위치 권한 확보(안드 10+). 이 과정에서 설정/권한 UI로 나가면 AppState가 background가 됨.
-      const bg = await Location.getBackgroundPermissionsAsync();
-      if (bg.status !== "granted") {
-        const req = await Location.requestBackgroundPermissionsAsync();
-        console.log("[LiveRunning] request BG location perm:", req.status);
-      }
-    } catch (e) {
-      console.warn("[LiveRunning] BG perm check fail:", e);
-    }
-
-    // 권한 UI에서 돌아오는 동안 background일 수 있음 → active까지 잠깐 대기(최대 1.5s)
-    if (AppState.currentState !== "active") {
-      await new Promise<void>((resolve) => {
-        let resolved = false;
-        const timeout = setTimeout(() => {
-          if (!resolved) {
-            resolved = true;
-            resolve();
-          }
-        }, 1500);
-        const sub = AppState.addEventListener("change", (s) => {
-          if (!resolved && s === "active") {
-            resolved = true;
-            clearTimeout(timeout as any);
-            sub.remove();
-            resolve();
-          }
-        });
-      });
-    }
-
-    console.log("[LiveRunning] show countdown (AppState:", AppState.currentState, ")");
     setCountdownVisible(true);
   }, []);
 

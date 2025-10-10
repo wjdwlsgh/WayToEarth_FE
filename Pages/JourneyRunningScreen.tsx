@@ -29,6 +29,7 @@ import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";
 import { apiComplete } from "../utils/api/running";
 import type { LandmarkSummary } from "../types/guestbook";
+import { getMyProfile } from "../utils/api/users";
 
 type RouteParams = {
   route: {
@@ -57,8 +58,20 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   const landmarks = params.landmarks || [];
   const journeyRoute = params.journeyRoute || [];
 
-  // 임시 userId (실제로는 전역 상태나 auth에서 가져오기)
-  const userId = "user123";
+  // 로그인된 사용자 ID
+  const [userId, setUserId] = useState<number>(1);
+
+  // 사용자 프로필 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const profile = await getMyProfile();
+        setUserId(profile.id);
+      } catch (err) {
+        console.warn("[JourneyRunning] 사용자 프로필 로드 실패:", err);
+      }
+    })();
+  }, []);
 
   // 랜드마크 도달 시 방명록 작성 모달 표시
   const handleLandmarkReached = useCallback((landmark: any) => {
@@ -195,12 +208,14 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     backgroundRunning.requestNotificationPermission().catch(() => {});
   }, [t, backgroundRunning]);
 
-  // 랜드마크 마커 클릭 핸들러
+  // 랜드마크 마커 클릭 핸들러 - 스토리 페이지로 이동
   const handleLandmarkMarkerPress = useCallback((landmark: any) => {
     console.log("[JourneyRunning] 랜드마크 마커 클릭:", landmark.name);
-    setMenuLandmark(landmark);
-    setLandmarkMenuVisible(true);
-  }, []);
+    navigation?.navigate("LandmarkStoryScreen", {
+      landmarkId: parseInt(landmark.id),
+      userId: userId,
+    });
+  }, [navigation, userId]);
 
   const handleComplete = useCallback(async () => {
     try {

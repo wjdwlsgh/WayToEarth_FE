@@ -8,10 +8,36 @@ import {
   Easing,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import * as Location from "expo-location";
 
 export default function Main() {
   const nav = useNavigation<any>();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // 메인 페이지 진입 시 위치 권한 미리 요청
+  useEffect(() => {
+    const requestLocationPermissions = async () => {
+      try {
+        // 포어그라운드 권한
+        const fg = await Location.getForegroundPermissionsAsync();
+        if (fg.status !== 'granted') {
+          await Location.requestForegroundPermissionsAsync();
+        }
+
+        // 백그라운드 권한 (안드로이드 10+)
+        const bg = await Location.getBackgroundPermissionsAsync();
+        if (bg.status !== 'granted') {
+          await Location.requestBackgroundPermissionsAsync();
+        }
+
+        console.log('[Main] 위치 권한 미리 요청 완료');
+      } catch (e) {
+        console.warn('[Main] 위치 권한 요청 실패:', e);
+      }
+    };
+
+    requestLocationPermissions();
+  }, []);
 
   // 애니메이션 값
   const fade = useRef(new Animated.Value(0)).current;

@@ -242,7 +242,7 @@ export default function ProfileScreen({
             </View>
           </View>
 
-          {/* 엠블럼: 카드형 메뉴 (단일 카드) */}
+          {/* 엠블럼 & 방명록: 카드형 메뉴 */}
           <View style={styles.menuSection}>
             <TouchableOpacity
               style={styles.menuItem}
@@ -256,6 +256,17 @@ export default function ProfileScreen({
               }
             >
               <Text style={styles.menuTitle}>엠블럼 컬렉션</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              activeOpacity={0.6}
+              onPress={() => navigation.navigate("MyGuestbookScreen")}
+            >
+              <Text style={styles.menuTitle}>내 방명록</Text>
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
           </View>

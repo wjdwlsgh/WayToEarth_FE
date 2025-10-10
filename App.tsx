@@ -46,6 +46,7 @@ import TabBarAdapter from "./components/Layout/TabBarAdapter";
 import LandmarkGuestbookScreen from "./Pages/LandmarkGuestbookScreen";
 import MyGuestbookScreen from "./Pages/MyGuestbookScreen";
 import GuestbookScreen from "./Pages/GuestbookScreen";
+import LandmarkStoryScreen from "./Pages/LandmarkStoryScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -179,6 +180,13 @@ export default function App() {
         <Stack.Screen
           name="MyGuestbookScreen"
           component={MyGuestbookScreen}
+          options={{ headerShown: false }}
+        />
+
+        {/* 랜드마크 스토리 화면 */}
+        <Stack.Screen
+          name="LandmarkStoryScreen"
+          component={LandmarkStoryScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

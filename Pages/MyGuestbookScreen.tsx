@@ -15,12 +15,13 @@ import {
   getMyGuestbooks,
   getGuestbookErrorMessage,
 } from "../utils/api/guestbook";
+import { getMyProfile } from "../utils/api/users";
 import type { GuestbookResponse } from "../types/guestbook";
 
 interface MyGuestbookScreenProps {
   route: {
-    params: {
-      userId: number;
+    params?: {
+      userId?: number;
     };
   };
   navigation: any;
@@ -37,19 +38,40 @@ export default function MyGuestbookScreen({
   route,
   navigation,
 }: MyGuestbookScreenProps) {
-  const { userId } = route.params;
+  const [userId, setUserId] = useState<number | null>(null);
 
   const [guestbooks, setGuestbooks] = useState<GuestbookResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 사용자 프로필 로드
   useEffect(() => {
-    loadGuestbooks();
+    (async () => {
+      try {
+        const paramUserId = route.params?.userId;
+        if (paramUserId) {
+          setUserId(paramUserId);
+        } else {
+          const profile = await getMyProfile();
+          setUserId(profile.id);
+        }
+      } catch (err) {
+        console.error("[MyGuestbook] 사용자 프로필 로드 실패:", err);
+        setError("사용자 정보를 불러올 수 없습니다.");
+      }
+    })();
   }, []);
 
+  // userId가 설정되면 방명록 로드
+  useEffect(() => {
+    if (userId) {
+      loadGuestbooks();
+    }
+  }, [userId]);
+
   const loadGuestbooks = async () => {
-    if (loading) return;
+    if (loading || !userId) return;
 
     setLoading(true);
     setError(null);
