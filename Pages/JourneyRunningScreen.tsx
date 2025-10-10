@@ -218,71 +218,115 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   }, [navigation, userId]);
 
   const handleComplete = useCallback(async () => {
-    try {
-      console.log("[JourneyRunning] 완료 처리 시작:", {
-        sessionId: t.sessionId,
-        distance: t.distance,
-        elapsedSec: t.elapsedSec,
-        routeLength: t.route.length,
-      });
-
-      const avgPaceSec =
-        t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
-          ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
-          : null;
-
-      const now = Math.floor(Date.now() / 1000);
-      const routePoints = t.route.map((p, i) => ({
-        latitude: p.latitude,
-        longitude: p.longitude,
-        sequence: i + 1,
-        t: now, // 타임스탬프 추가
-      }));
-
-      console.log("[JourneyRunning] apiComplete 호출 직전:", {
-        sessionId: t.sessionId,
-        distanceMeters: Math.round(t.distance * 1000),
-        durationSeconds: t.elapsedSec,
-        averagePaceSeconds: avgPaceSec,
-        calories: Math.round(t.kcal),
-        routePointsCount: routePoints.length,
-        title: journeyTitle,
-      });
-
-      // 러닝 완료 API 호출
-      const { runId, data } = await apiComplete({
-        sessionId: t.sessionId as string,
-        distanceMeters: Math.round(t.distance * 1000),
-        durationSeconds: t.elapsedSec,
-        averagePaceSeconds: avgPaceSec,
-        calories: Math.round(t.kcal),
-        routePoints,
-        endedAt: Date.now(),
-        title: journeyTitle,
-      });
-
-      console.log("[JourneyRunning] apiComplete 응답:", { runId, data });
-
-      // 백그라운드 서비스 중지 및 세션 정리
-      await backgroundRunning.stopForegroundService();
-      await backgroundRunning.clearSession();
-
-      // 여정 진행률 업데이트
-      await t.completeJourneyRun();
-
-      console.log("[JourneyRunning] 완료 처리 성공, 요약 화면으로 이동");
-
-      // 여정 러닝은 종료 후 여정 상세(진행률/경로 확인) 화면으로 이동
-      navigation.navigate("JourneyRouteDetail", { id: journeyId });
-    } catch (e) {
-      console.error("[JourneyRunning] 여정 러닝 완료 실패:", e);
-      console.error("[JourneyRunning] 에러 상세:", JSON.stringify(e, null, 2));
-      Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
-    } finally {
-      // 러닝 트래커 정리(백그라운드 위치 업데이트 종료 보장)
-      await t.stop();
+    // 먼저 일시정지 상태로 전환
+    if (!t.isPaused) {
+      t.pause();
     }
-  }, [navigation, t, journeyTitle]);
+
+    // 저장 여부 확인
+    Alert.alert(
+      "러닝 종료",
+      "러닝 기록을 저장하시겠습니까?",
+      [
+        {
+          text: "취소",
+          style: "cancel",
+          onPress: () => {
+            // 다시 재개
+            if (t.isPaused) {
+              t.resume();
+            }
+          },
+        },
+        {
+          text: "저장 안 함",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // 백그라운드 서비스 중지 및 세션 정리
+              await backgroundRunning.stopForegroundService();
+              await backgroundRunning.clearSession();
+              await t.stop();
+
+              // 여정 상세 화면으로 이동
+              navigation.navigate("JourneyRouteDetail", { id: journeyId });
+            } catch (e) {
+              console.error("[JourneyRunning] 러닝 종료 실패:", e);
+            }
+          },
+        },
+        {
+          text: "저장",
+          onPress: async () => {
+            try {
+              console.log("[JourneyRunning] 완료 처리 시작:", {
+                sessionId: t.sessionId,
+                distance: t.distance,
+                elapsedSec: t.elapsedSec,
+                routeLength: t.route.length,
+              });
+
+              const avgPaceSec =
+                t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
+                  ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
+                  : null;
+
+              const now = Math.floor(Date.now() / 1000);
+              const routePoints = t.route.map((p, i) => ({
+                latitude: p.latitude,
+                longitude: p.longitude,
+                sequence: i + 1,
+                t: now, // 타임스탬프 추가
+              }));
+
+              console.log("[JourneyRunning] apiComplete 호출 직전:", {
+                sessionId: t.sessionId,
+                distanceMeters: Math.round(t.distance * 1000),
+                durationSeconds: t.elapsedSec,
+                averagePaceSeconds: avgPaceSec,
+                calories: Math.round(t.kcal),
+                routePointsCount: routePoints.length,
+                title: journeyTitle,
+              });
+
+              // 러닝 완료 API 호출
+              const { runId, data } = await apiComplete({
+                sessionId: t.sessionId as string,
+                distanceMeters: Math.round(t.distance * 1000),
+                durationSeconds: t.elapsedSec,
+                averagePaceSeconds: avgPaceSec,
+                calories: Math.round(t.kcal),
+                routePoints,
+                endedAt: Date.now(),
+                title: journeyTitle,
+              });
+
+              console.log("[JourneyRunning] apiComplete 응답:", { runId, data });
+
+              // 백그라운드 서비스 중지 및 세션 정리
+              await backgroundRunning.stopForegroundService();
+              await backgroundRunning.clearSession();
+
+              // 여정 진행률 업데이트
+              await t.completeJourneyRun();
+
+              console.log("[JourneyRunning] 완료 처리 성공, 요약 화면으로 이동");
+
+              // 여정 러닝은 종료 후 여정 상세(진행률/경로 확인) 화면으로 이동
+              navigation.navigate("JourneyRouteDetail", { id: journeyId });
+
+              // 러닝 트래커 정리(백그라운드 위치 업데이트 종료 보장)
+              await t.stop();
+            } catch (e) {
+              console.error("[JourneyRunning] 여정 러닝 완료 실패:", e);
+              console.error("[JourneyRunning] 에러 상세:", JSON.stringify(e, null, 2));
+              Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
+            }
+          },
+        },
+      ]
+    );
+  }, [navigation, t, journeyTitle, backgroundRunning, journeyId]);
 
   const elapsedLabel = useMemo(() => {
     const m = Math.floor(t.elapsedSec / 60);

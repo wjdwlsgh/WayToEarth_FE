@@ -191,46 +191,94 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
   const completeRun = useCallback(async () => {
     if (isStoppingRef.current) return;
     isStoppingRef.current = true;
-    try {
-      const avgPaceSec =
-        t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
-          ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
-          : null;
-      const routePoints = t.route.map((p, i) => ({ latitude: p.latitude, longitude: p.longitude, sequence: i + 1 }));
-      const { runId } = await apiComplete({
-        sessionId: t.sessionId as string,
-        distanceMeters: Math.round(t.distance * 1000),
-        durationSeconds: t.elapsedSec,
-        averagePaceSeconds: avgPaceSec,
-        calories: Math.round(t.kcal),
-        routePoints,
-        endedAt: Date.now(),
-        title: "오늘의 러닝",
-      });
 
-      // 백그라운드 서비스 중지 및 세션 정리
-      await backgroundRunning.stopForegroundService();
-      await backgroundRunning.clearSession();
-
-      await t.stop();
-      navigation.navigate("RunSummary", {
-        runId,
-        defaultTitle: "오늘의 러닝",
-        distanceKm: t.distance,
-        paceLabel: t.paceLabel,
-        kcal: Math.round(t.kcal),
-        elapsedSec: t.elapsedSec,
-        elapsedLabel: `${Math.floor(t.elapsedSec / 60)}:${String(t.elapsedSec % 60).padStart(2, "0")}`,
-        routePath: t.route,
-        sessionId: (t.sessionId as string) ?? "",
-      });
-    } catch (e) {
-      console.error("러닝 완료/저장 실패:", e);
-      Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
-    } finally {
-      setTimeout(() => (isStoppingRef.current = false), 800);
+    // 먼저 일시정지 상태로 전환
+    if (!t.isPaused) {
+      t.pause();
     }
-  }, [navigation, t]);
+
+    // 저장 여부 확인
+    Alert.alert(
+      "러닝 종료",
+      "러닝 기록을 저장하시겠습니까?",
+      [
+        {
+          text: "취소",
+          style: "cancel",
+          onPress: () => {
+            isStoppingRef.current = false;
+            // 다시 재개
+            if (t.isPaused) {
+              t.resume();
+            }
+          },
+        },
+        {
+          text: "저장 안 함",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // 백그라운드 서비스 중지 및 세션 정리
+              await backgroundRunning.stopForegroundService();
+              await backgroundRunning.clearSession();
+              await t.stop();
+
+              // 메인 화면으로 이동
+              navigation.navigate("Main");
+            } catch (e) {
+              console.error("러닝 종료 실패:", e);
+            } finally {
+              isStoppingRef.current = false;
+            }
+          },
+        },
+        {
+          text: "저장",
+          onPress: async () => {
+            try {
+              const avgPaceSec =
+                t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
+                  ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
+                  : null;
+              const routePoints = t.route.map((p, i) => ({ latitude: p.latitude, longitude: p.longitude, sequence: i + 1 }));
+              const { runId } = await apiComplete({
+                sessionId: t.sessionId as string,
+                distanceMeters: Math.round(t.distance * 1000),
+                durationSeconds: t.elapsedSec,
+                averagePaceSeconds: avgPaceSec,
+                calories: Math.round(t.kcal),
+                routePoints,
+                endedAt: Date.now(),
+                title: "오늘의 러닝",
+              });
+
+              // 백그라운드 서비스 중지 및 세션 정리
+              await backgroundRunning.stopForegroundService();
+              await backgroundRunning.clearSession();
+
+              await t.stop();
+              navigation.navigate("RunSummary", {
+                runId,
+                defaultTitle: "오늘의 러닝",
+                distanceKm: t.distance,
+                paceLabel: t.paceLabel,
+                kcal: Math.round(t.kcal),
+                elapsedSec: t.elapsedSec,
+                elapsedLabel: `${Math.floor(t.elapsedSec / 60)}:${String(t.elapsedSec % 60).padStart(2, "0")}`,
+                routePath: t.route,
+                sessionId: (t.sessionId as string) ?? "",
+              });
+            } catch (e) {
+              console.error("러닝 완료/저장 실패:", e);
+              Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
+            } finally {
+              isStoppingRef.current = false;
+            }
+          },
+        },
+      ]
+    );
+  }, [navigation, t, backgroundRunning]);
 
   React.useEffect(() => {
     if (!targetDistanceKm) return;
