@@ -47,8 +47,17 @@ export default function TabBarAdapter({
   useEffect(() => {
     refreshHidden();
     const sub = AppState.addEventListener("change", () => refreshHidden());
-    return () => sub.remove();
-  }, [route?.name]);
+
+    // 화면 포커스 시에도 체크 (러닝 종료 후 다른 탭으로 이동 시)
+    const unsubscribeFocus = navigation.addListener("state", () => {
+      refreshHidden();
+    });
+
+    return () => {
+      sub.remove();
+      unsubscribeFocus();
+    };
+  }, [route?.name, navigation]);
 
   const onTabPress = (key: string) => {
     const target = KEY_TO_ROUTE[key];

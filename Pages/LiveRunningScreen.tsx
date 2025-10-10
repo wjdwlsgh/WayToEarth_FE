@@ -218,13 +218,15 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
           style: "destructive",
           onPress: async () => {
             try {
-              // 백그라운드 서비스 중지 및 세션 정리
-              await backgroundRunning.stopForegroundService();
-              await backgroundRunning.clearSession();
-              await t.stop();
-
-              // 메인 화면으로 이동
+              // 즉시 메인 페이지로 이동 (화면 업데이트 전에)
               navigation.navigate("Main");
+
+              // 비동기로 정리 작업 수행
+              setTimeout(async () => {
+                await backgroundRunning.stopForegroundService();
+                await backgroundRunning.clearSession();
+                await t.stop();
+              }, 100);
             } catch (e) {
               console.error("러닝 종료 실패:", e);
             } finally {
