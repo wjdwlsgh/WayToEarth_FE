@@ -47,6 +47,12 @@ export function useJourneyRunning({
   useEffect(() => {
     const loadInitialProgress = async () => {
       try {
+        console.log("[useJourneyRunning] 📥 진행률 로드 시작:", {
+          userId,
+          journeyId,
+          totalDistanceKm: (totalDistanceM / 1000).toFixed(2),
+        });
+
         // 랜드마크 기준으로 다음 랜드마크까지 거리 계산 (간소화)
         const nextLm = landmarks.find((lm) => !lm.reached);
         const nextLandmarkDistM = nextLm?.distanceM ?? 0;
@@ -57,6 +63,13 @@ export function useJourneyRunning({
           totalDistanceM,
           nextLandmarkDistM
         );
+
+        console.log("[useJourneyRunning] ✅ 서버에서 불러온 진행률:", {
+          progressM: progress.progressM,
+          progressKm: (progress.progressM / 1000).toFixed(2),
+          percent: progress.percent.toFixed(2),
+          message: progress.message,
+        });
 
         initialProgressM.current = progress.progressM;
         setProgressM(progress.progressM);
@@ -74,8 +87,13 @@ export function useJourneyRunning({
         // 다음 랜드마크 설정
         const next = landmarks.find((lm) => progress.progressM < lm.distanceM);
         setNextLandmark(next || null);
+
+        console.log("[useJourneyRunning] 📌 초기화 완료:", {
+          reachedLandmarks: Array.from(reached),
+          nextLandmark: next?.name || "없음",
+        });
       } catch (error) {
-        console.error("진행률 로드 실패:", error);
+        console.error("[useJourneyRunning] ❌ 진행률 로드 실패:", error);
       }
     };
 
@@ -152,21 +170,33 @@ export function useJourneyRunning({
     try {
       const deltaM = runTracker.distance * 1000;
 
-      // 서버에 진행률 업데이트
-      const nextLm = landmarks.find((lm) => progressM < lm.distanceM);
-      const nextLandmarkDistM = nextLm?.distanceM ?? 0;
+      console.log("[useJourneyRunning] 💾 진행률 저장 시작:", {
+        userId,
+        journeyId,
+        이번러닝거리: `${(deltaM / 1000).toFixed(2)}km`,
+        기존진행: `${(initialProgressM.current / 1000).toFixed(2)}km`,
+        새진행: `${((initialProgressM.current + deltaM) / 1000).toFixed(2)}km`,
+      });
 
-      await userJourneysApi.progress(
+      // 서버에 진행률 업데이트
+      const result = await userJourneysApi.progress(
         userId,
         journeyId,
         totalDistanceM,
         deltaM
       );
 
+      console.log("[useJourneyRunning] ✅ 진행률 저장 완료:", {
+        progressM: result.progressM,
+        progressKm: (result.progressM / 1000).toFixed(2),
+        percent: result.percent.toFixed(2),
+        message: result.message,
+      });
+
       runTracker.stop();
       hasStarted.current = false;
     } catch (error) {
-      console.error("여정 진행률 업데이트 실패:", error);
+      console.error("[useJourneyRunning] ❌ 여정 진행률 업데이트 실패:", error);
       throw error;
     }
   }, [

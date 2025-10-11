@@ -1,5 +1,6 @@
 // utils/api/stamps.ts
-// 스탬프/방명록 목 API
+// 스탬프/방명록 API
+import { client } from "./client";
 import type { JourneyId } from "../../types/journey";
 
 type ClaimBody = {
@@ -12,6 +13,34 @@ type ClaimBody = {
   rating?: number;
   text?: string;
 };
+
+/**
+ * 스탬프 수집 (랜드마크 도달 시)
+ *
+ * @param userId 사용자 ID
+ * @param landmarkId 랜드마크 ID
+ * @returns 스탬프 수집 결과
+ */
+export async function collectStamp(
+  userId: number,
+  landmarkId: number
+): Promise<{ success: boolean; stampId?: number }> {
+  try {
+    console.log("[API] 스탬프 수집 요청:", { userId, landmarkId });
+
+    const { data } = await client.post<{ success: boolean; stampId?: number }>(
+      `/v1/stamps/collect`,
+      { landmarkId },
+      { params: { userId } }
+    );
+
+    console.log("[API] 스탬프 수집 응답:", data);
+    return data;
+  } catch (error) {
+    console.error("[API] 스탬프 수집 실패:", error);
+    throw error;
+  }
+}
 
 export async function claimStamp(body: ClaimBody) {
   await new Promise((r) => setTimeout(r, 120));

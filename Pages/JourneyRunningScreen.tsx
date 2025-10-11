@@ -29,6 +29,7 @@ import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";
 import { apiComplete } from "../utils/api/running";
 import type { LandmarkSummary } from "../types/guestbook";
+import { getMyProfile } from "../utils/api/users";
 
 type RouteParams = {
   route: {
@@ -57,12 +58,34 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   const landmarks = params.landmarks || [];
   const journeyRoute = params.journeyRoute || [];
 
-  // 임시 userId (실제로는 전역 상태나 auth에서 가져오기)
-  const userId = "user123";
+  // 로그인된 사용자 ID
+  const [userId, setUserId] = useState<number>(1);
 
-  // 랜드마크 도달 시 방명록 작성 모달 표시
-  const handleLandmarkReached = useCallback((landmark: any) => {
+  // 사용자 프로필 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const profile = await getMyProfile();
+        setUserId(profile.id);
+      } catch (err) {
+        console.warn("[JourneyRunning] 사용자 프로필 로드 실패:", err);
+      }
+    })();
+  }, []);
+
+  // 랜드마크 도달 시 스탬프 수집 및 방명록 작성 모달 표시
+  const handleLandmarkReached = useCallback(async (landmark: any) => {
     console.log("[JourneyRunning] 랜드마크 도달:", landmark.name);
+
+    // 스탬프 수집 (자동)
+    try {
+      const { collectStamp } = await import("../utils/api/stamps");
+      await collectStamp(userId, parseInt(landmark.id));
+      console.log("[JourneyRunning] ✅ 스탬프 수집 완료:", landmark.name);
+    } catch (error) {
+      console.error("[JourneyRunning] ❌ 스탬프 수집 실패:", error);
+      // 스탬프 수집 실패해도 계속 진행 (방명록은 작성 가능)
+    }
 
     // 랜드마크를 LandmarkSummary 형식으로 변환
     const landmarkSummary: LandmarkSummary = {
@@ -79,7 +102,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     // 축하 알림 표시
     Alert.alert(
       `🎉 ${landmark.name} 도착!`,
-      "랜드마크에 방명록을 남겨보세요.",
+      "스탬프를 획득했습니다! 랜드마크에 방명록을 남겨보세요.",
       [
         {
           text: "나중에",
@@ -92,11 +115,11 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         { text: "방명록 작성", onPress: () => {} },
       ]
     );
-  }, []);
+  }, [userId]);
 
   const t = useJourneyRunning({
     journeyId,
-    userId,
+    userId: String(userId), // number를 string으로 변환
     totalDistanceM: totalDistanceKm * 1000,
     landmarks,
     journeyRoute,
@@ -195,79 +218,125 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     backgroundRunning.requestNotificationPermission().catch(() => {});
   }, [t, backgroundRunning]);
 
-  // 랜드마크 마커 클릭 핸들러
+  // 랜드마크 마커 클릭 핸들러 - 스토리 페이지로 이동
   const handleLandmarkMarkerPress = useCallback((landmark: any) => {
     console.log("[JourneyRunning] 랜드마크 마커 클릭:", landmark.name);
-    setMenuLandmark(landmark);
-    setLandmarkMenuVisible(true);
-  }, []);
+    navigation?.navigate("LandmarkStoryScreen", {
+      landmarkId: parseInt(landmark.id),
+      userId: userId,
+    });
+  }, [navigation, userId]);
 
   const handleComplete = useCallback(async () => {
-    try {
-      console.log("[JourneyRunning] 완료 처리 시작:", {
-        sessionId: t.sessionId,
-        distance: t.distance,
-        elapsedSec: t.elapsedSec,
-        routeLength: t.route.length,
-      });
-
-      const avgPaceSec =
-        t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
-          ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
-          : null;
-
-      const now = Math.floor(Date.now() / 1000);
-      const routePoints = t.route.map((p, i) => ({
-        latitude: p.latitude,
-        longitude: p.longitude,
-        sequence: i + 1,
-        t: now, // 타임스탬프 추가
-      }));
-
-      console.log("[JourneyRunning] apiComplete 호출 직전:", {
-        sessionId: t.sessionId,
-        distanceMeters: Math.round(t.distance * 1000),
-        durationSeconds: t.elapsedSec,
-        averagePaceSeconds: avgPaceSec,
-        calories: Math.round(t.kcal),
-        routePointsCount: routePoints.length,
-        title: journeyTitle,
-      });
-
-      // 러닝 완료 API 호출
-      const { runId, data } = await apiComplete({
-        sessionId: t.sessionId as string,
-        distanceMeters: Math.round(t.distance * 1000),
-        durationSeconds: t.elapsedSec,
-        averagePaceSeconds: avgPaceSec,
-        calories: Math.round(t.kcal),
-        routePoints,
-        endedAt: Date.now(),
-        title: journeyTitle,
-      });
-
-      console.log("[JourneyRunning] apiComplete 응답:", { runId, data });
-
-      // 백그라운드 서비스 중지 및 세션 정리
-      await backgroundRunning.stopForegroundService();
-      await backgroundRunning.clearSession();
-
-      // 여정 진행률 업데이트
-      await t.completeJourneyRun();
-
-      console.log("[JourneyRunning] 완료 처리 성공, 요약 화면으로 이동");
-
-      // 여정 러닝은 종료 후 여정 상세(진행률/경로 확인) 화면으로 이동
-      navigation.navigate("JourneyRouteDetail", { id: journeyId });
-    } catch (e) {
-      console.error("[JourneyRunning] 여정 러닝 완료 실패:", e);
-      console.error("[JourneyRunning] 에러 상세:", JSON.stringify(e, null, 2));
-      Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
-    } finally {
-      // 러닝 트래커 정리(백그라운드 위치 업데이트 종료 보장)
-      await t.stop();
+    // 먼저 일시정지 상태로 전환
+    if (!t.isPaused) {
+      t.pause();
     }
-  }, [navigation, t, journeyTitle]);
+
+    // 저장 여부 확인
+    Alert.alert(
+      "러닝 종료",
+      "러닝 기록을 저장하시겠습니까?",
+      [
+        {
+          text: "취소",
+          style: "cancel",
+          onPress: () => {
+            // 다시 재개
+            if (t.isPaused) {
+              t.resume();
+            }
+          },
+        },
+        {
+          text: "저장 안 함",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // 백그라운드 서비스 중지 및 세션 정리
+              await backgroundRunning.stopForegroundService();
+              await backgroundRunning.clearSession();
+              await t.stop();
+
+              // 여정 상세 화면으로 이동
+              navigation.navigate("JourneyRouteDetail", { id: journeyId });
+            } catch (e) {
+              console.error("[JourneyRunning] 러닝 종료 실패:", e);
+            }
+          },
+        },
+        {
+          text: "저장",
+          onPress: async () => {
+            try {
+              console.log("[JourneyRunning] 완료 처리 시작:", {
+                sessionId: t.sessionId,
+                distance: t.distance,
+                elapsedSec: t.elapsedSec,
+                routeLength: t.route.length,
+              });
+
+              const avgPaceSec =
+                t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
+                  ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
+                  : null;
+
+              const now = Math.floor(Date.now() / 1000);
+              const routePoints = t.route.map((p, i) => ({
+                latitude: p.latitude,
+                longitude: p.longitude,
+                sequence: i + 1,
+                t: now, // 타임스탬프 추가
+              }));
+
+              console.log("[JourneyRunning] apiComplete 호출 직전:", {
+                sessionId: t.sessionId,
+                distanceMeters: Math.round(t.distance * 1000),
+                durationSeconds: t.elapsedSec,
+                averagePaceSeconds: avgPaceSec,
+                calories: Math.round(t.kcal),
+                routePointsCount: routePoints.length,
+                title: journeyTitle,
+              });
+
+              // 러닝 완료 API 호출
+              const { runId, data } = await apiComplete({
+                sessionId: t.sessionId as string,
+                distanceMeters: Math.round(t.distance * 1000),
+                durationSeconds: t.elapsedSec,
+                averagePaceSeconds: avgPaceSec,
+                calories: Math.round(t.kcal),
+                routePoints,
+                endedAt: Date.now(),
+                title: journeyTitle,
+              });
+
+              console.log("[JourneyRunning] apiComplete 응답:", { runId, data });
+
+              // 백그라운드 서비스 중지 및 세션 정리
+              await backgroundRunning.stopForegroundService();
+              await backgroundRunning.clearSession();
+
+              // 여정 진행률 업데이트
+              await t.completeJourneyRun();
+
+              console.log("[JourneyRunning] 완료 처리 성공, 요약 화면으로 이동");
+
+              // 여정 러닝은 종료 후 여정 상세(진행률/경로 확인) 화면으로 이동
+              navigation.navigate("JourneyRouteDetail", { id: journeyId });
+
+              // 러닝 트래커 정리(백그라운드 위치 업데이트 종료 보장)
+              await t.stop();
+            } catch (e) {
+              console.error("[JourneyRunning] 여정 러닝 완료 실패:", e);
+              console.error("[JourneyRunning] 에러 상세:", JSON.stringify(e, null, 2));
+              Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
+            }
+          },
+        },
+      ]
+    );
+  }, [navigation, t, journeyTitle, backgroundRunning, journeyId]);
 
   const elapsedLabel = useMemo(() => {
     const m = Math.floor(t.elapsedSec / 60);

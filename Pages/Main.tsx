@@ -8,10 +8,37 @@ import {
   Easing,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import * as Location from "expo-location";
+import MapRoute from "../components/Running/MapRoute";
 
 export default function Main() {
   const nav = useNavigation<any>();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // 메인 페이지 진입 시 위치 권한 미리 요청
+  useEffect(() => {
+    const requestLocationPermissions = async () => {
+      try {
+        // 포어그라운드 권한
+        const fg = await Location.getForegroundPermissionsAsync();
+        if (fg.status !== 'granted') {
+          await Location.requestForegroundPermissionsAsync();
+        }
+
+        // 백그라운드 권한 (안드로이드 10+)
+        const bg = await Location.getBackgroundPermissionsAsync();
+        if (bg.status !== 'granted') {
+          await Location.requestBackgroundPermissionsAsync();
+        }
+
+        console.log('[Main] 위치 권한 미리 요청 완료');
+      } catch (e) {
+        console.warn('[Main] 위치 권한 요청 실패:', e);
+      }
+    };
+
+    requestLocationPermissions();
+  }, []);
 
   // 애니메이션 값
   const fade = useRef(new Animated.Value(0)).current;
@@ -98,7 +125,15 @@ export default function Main() {
 
   return (
     <View style={s.container}>
-      {/* 지도는 이 화면에선 배경만 깔려있다고 가정 (필요시 MapRoute 넣어도 됨) */}
+      {/* 배경 지도 표시: 현재 위치 기준 (터치 비활성화) */}
+      <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+        <MapRoute
+          route={[]}
+          last={null}
+          useCurrentLocationOnMount
+          liveMode
+        />
+      </View>
 
       {/* 반투명 오버레이 (메뉴 열렸을 때만) */}
       {menuOpen && (
@@ -164,6 +199,7 @@ const s = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.06)",
+    zIndex: 5,
   },
   bottomWrap: {
     position: "absolute",
@@ -172,6 +208,8 @@ const s = StyleSheet.create({
     bottom: 40,
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 10,
+    elevation: 10,
   },
   mainFab: {
     width: 120,
