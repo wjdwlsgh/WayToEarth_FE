@@ -13,11 +13,12 @@ import {
   Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import BottomNavigation from "../components/Layout/BottomNav";
+import BottomNavigation, { BOTTOM_NAV_MIN_HEIGHT } from "../components/Layout/BottomNav";
 import { useBottomNav } from "../hooks/useBottomNav";
 import { useWebSocket, ChatMessage } from "../hooks/useWebSocket";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { crewAPI } from "../utils/api/crew";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // WebSocket polyfill 확인
 console.log('WebSocket 확인:');
@@ -28,6 +29,7 @@ console.log('- WebSocket:', !!WebSocket);
 const { width } = Dimensions.get("window");
 
 export default function ChatScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
   const [crewId, setCrewId] = useState<number | null>(route?.params?.crewId ?? null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -149,12 +151,17 @@ export default function ChatScreen({ navigation, route }: any) {
   });
 
   // 토큰 로드 후 초기 히스토리 로드
+  const initialRequestedRef = useRef(false);
+  // crewId 변경 시 초기 요청 플래그 리셋
+  useEffect(() => { initialRequestedRef.current = false; }, [crewId]);
   useEffect(() => {
-    if (token && crewId && !isHistoryLoading && messages.length === 0) {
-      console.log('초기 채팅 히스토리 로드 시작');
-      loadInitialHistory();
-    }
-  }, [token, crewId, isHistoryLoading, messages.length, loadInitialHistory]);
+    if (!token || !crewId) return;
+    if (initialRequestedRef.current) return;
+    if (isHistoryLoading) return;
+    console.log('초기 채팅 히스토리 로드 시작');
+    initialRequestedRef.current = true;
+    loadInitialHistory();
+  }, [token, crewId, isHistoryLoading, loadInitialHistory]);
 
   // 디버깅용: 상태 모니터링
   useEffect(() => {
@@ -414,7 +421,7 @@ export default function ChatScreen({ navigation, route }: any) {
         </ScrollView>
 
         {/* Input Area */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { marginBottom: (insets.bottom || 0) + BOTTOM_NAV_MIN_HEIGHT + 8 }]}>
           <View style={styles.textarea}>
             <TextInput
               style={styles.textInput}
