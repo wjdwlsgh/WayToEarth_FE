@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { listRoutes, type RouteSummary } from '../../utils/api/journeyRoutes';
 
 export default function useRouteList() {
-  const [data, setData] = useState<RouteSummary[] | null>(null);
+  const [data, setData] = useState<RouteSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -12,7 +12,8 @@ export default function useRouteList() {
     setLoading(true);
     listRoutes()
       .then((res) => {
-        if (mounted) setData(res);
+        if (!mounted) return;
+        setData(Array.isArray(res) ? res : []);
       })
       .catch((e) => mounted && setError(e as Error))
       .finally(() => mounted && setLoading(false));
