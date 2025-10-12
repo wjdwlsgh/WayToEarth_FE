@@ -1,5 +1,6 @@
 // utils/api/stamps.ts
-// 목데이터 제거. 서버 연동 전까지는 명시적으로 미구현 에러를 던집니다.
+// 스탬프/방명록 API (실서버 연동)
+import { client } from "./client";
 import type { JourneyId } from "../../types/journey";
 
 export type ClaimBody = {
@@ -13,8 +14,22 @@ export type ClaimBody = {
   text?: string;
 };
 
-export async function claimStamp(_body: ClaimBody) {
-  throw new Error("스탬프 수집 API 연동 필요");
+export async function collectStamp(
+  userId: number,
+  landmarkId: number
+): Promise<{ success: boolean; stampId?: number }> {
+  const { data } = await client.post<{ success: boolean; stampId?: number }>(
+    `/v1/stamps/collect`,
+    { landmarkId },
+    { params: { userId } }
+  );
+  return data;
+}
+
+export async function claimStamp(body: ClaimBody) {
+  const userId = 0; // TODO: 현재 사용자 ID 연동
+  const res = await collectStamp(userId, Number(body.landmarkId));
+  return { granted: Boolean(res.success), stampId: `st_${res.stampId ?? ''}`, newTotalStamps: 0 } as any;
 }
 
 export async function getGuestbook(

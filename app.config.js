@@ -26,7 +26,17 @@ export default {
     },
 
     android: {
-      package: "cloud.waytoearth", // ✅ 이미 있어서 OK
+      package: "cloud.waytoearth",
+      googleServicesFile: "./google-services.json",
+      // Android 권한: 백그라운드 위치/정밀 위치/FG 서비스/알림
+      permissions: [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+      ],
       config: { googleMaps: { apiKey: process.env.ANDROID_MAPS_KEY } },
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
@@ -51,6 +61,8 @@ export default {
         "@react-native-seoul/kakao-login",
         { kakaoAppKey: process.env.KAKAO_NATIVE_APP_KEY },
       ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
     ],
 
     extra: {

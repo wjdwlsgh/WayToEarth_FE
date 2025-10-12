@@ -2,11 +2,10 @@
 import axios, { AxiosResponse } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// 유지 호환: 일부 코드에서 참조하므로 false로 고정 내보냄
-export const mockEnabled = false;
+// 목데이터 사용 중단: 항상 실서버 연동
 
 export const client = axios.create({
-  baseURL: "https://api.waytoearth.cloud", // ✅ 반드시 https
+  baseURL: "https://api.waytoearth.cloud",
   timeout: 10000,
 });
 

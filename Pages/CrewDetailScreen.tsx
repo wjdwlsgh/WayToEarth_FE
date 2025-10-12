@@ -25,6 +25,10 @@ import {
   transferOwnership,
 } from "../utils/api/crews";
 import { getCrewMonthlySummary, getCrewMemberRanking } from "../utils/api/crewStats";
+import { Ionicons } from "@expo/vector-icons";
+import { getMyProfile } from "../utils/api/users";
+import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Member = {
   id: string;

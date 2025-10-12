@@ -31,7 +31,16 @@ export default function RouteListScreen({ navigation }: any) {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>여정 리스트</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>여정 리스트</Text>
+          <TouchableOpacity
+            style={styles.guestbookButton}
+            onPress={() => navigation?.navigate?.('GuestbookScreen')}
+          >
+            <Text style={styles.guestbookIcon}>📝</Text>
+            <Text style={styles.guestbookText}>방명록</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.tabContainer}>
           {tabs.map((tab) => (
@@ -107,7 +116,35 @@ export default function RouteListScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: { backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 16 },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16
+  },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  guestbookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8b4513',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  guestbookIcon: {
+    fontSize: 16,
+  },
+  guestbookText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
   tabContainer: { flexDirection: 'row' },
   tab: { paddingHorizontal: 12, paddingVertical: 8, marginRight: 8, borderRadius: 20 },
   activeTab: { backgroundColor: '#EEF2FF' },

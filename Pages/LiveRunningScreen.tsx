@@ -1,4 +1,7 @@
-import React, { useMemo, useRef, useState, useCallback } from "react";
+import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import { StackActions } from "@react-navigation/native";
+import { navigationRef } from "../navigation/RootNavigation";
+import * as Location from "expo-location";
 import SafeLayout from "../components/Layout/SafeLayout";
 import {
   StyleSheet,
@@ -8,18 +11,24 @@ import {
   Pressable,
   Animated,
   Easing,
+  AppState,
 } from "react-native";
 import MapRoute from "../components/Running/MapRoute";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
 import { useLiveRunTracker } from "../hooks/useLiveRunTracker";
+import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiComplete } from "../utils/api/running"; // ✅ 추가
 
 export default function LiveRunningScreen({ navigation, route }: { navigation: any; route?: any }) {
   const targetDistanceKm = (route?.params?.targetDistanceKm as number | undefined) ?? undefined;
   const t = useLiveRunTracker();
+
+  // 백그라운드 러닝 훅
+  const backgroundRunning = useBackgroundRunning();
+
   const insets = useSafeAreaInsets();
   const bottomSafe = Math.max(insets.bottom, 12);
   const FAB_BASE = 100;
@@ -33,6 +42,54 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
   const progress = useRef(new Animated.Value(0)).current;
 
   const [mapReady, setMapReady] = useState(false);
+
+  // 러닝 세션 상태 업데이트 (일반 러닝)
+  useEffect(() => {
+    if (!t.isRunning) return;
+    if (isStoppingRef.current) return; // 종료 진행 중이면 저장/업데이트 중단
+
+    const session = {
+      type: 'general' as const,
+      sessionId: t.sessionId,
+      startTime: Date.now() - (t.elapsedSec * 1000),
+      distanceKm: t.distance,
+      durationSeconds: t.elapsedSec,
+      isRunning: t.isRunning,
+      isPaused: t.isPaused,
+    };
+
+    // Foreground Service 업데이트
+    backgroundRunning.updateForegroundService(session);
+
+    // 세션 상태 저장 (백그라운드 복원용)
+    backgroundRunning.saveSession(session);
+  }, [t.isRunning, t.distance, t.elapsedSec, t.isPaused]);
+
+  // 러닝 시작 시 Foreground Service 시작
+  useEffect(() => {
+    if (t.isRunning) {
+      const session = {
+        type: 'general' as const,
+        sessionId: t.sessionId,
+        startTime: Date.now() - (t.elapsedSec * 1000),
+        distanceKm: t.distance,
+        durationSeconds: t.elapsedSec,
+        isRunning: true,
+        isPaused: t.isPaused,
+      };
+      backgroundRunning.startForegroundService(session);
+    }
+  }, [t.isRunning]);
+
+  // 컴포넌트 언마운트 시 세션 정리
+  useEffect(() => {
+    return () => {
+      if (!t.isRunning) {
+        backgroundRunning.stopForegroundService();
+        backgroundRunning.clearSession();
+      }
+    };
+  }, []);
 
   const fade = progress.interpolate({
     inputRange: [0, 1],
@@ -93,16 +150,25 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
   const handleStartPress = () => (menuOpen ? closeMenu() : openMenu());
 
   const handleRunningStart = useCallback(() => {
+    console.log("[LiveRunning] start pressed -> show countdown");
     closeMenu();
     setCountdownVisible(true);
   }, []);
 
-  const handleCountdownDone = useCallback(() => {
+  const handleCountdownDone = useCallback(async () => {
+    console.log("[LiveRunning] countdown done");
+    console.log("[LiveRunning] AppState at start:", AppState.currentState);
     setCountdownVisible(false);
+
+    // 즉시 시작 시도 (권한은 내부에서 처리)
     requestAnimationFrame(() => {
+      console.log("[LiveRunning] calling t.start()");
       t.start();
     });
-  }, [t]);
+
+    // 권한 요청은 비동기로 병렬 처리 (UI 차단 방지)
+    backgroundRunning.requestNotificationPermission().catch(() => {});
+  }, [t, backgroundRunning]);
 
   const elapsedLabel = useMemo(() => {
     const m = Math.floor(t.elapsedSec / 60);
@@ -128,41 +194,109 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
   const completeRun = useCallback(async () => {
     if (isStoppingRef.current) return;
     isStoppingRef.current = true;
-    try {
-      const avgPaceSec =
-        t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
-          ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
-          : null;
-      const routePoints = t.route.map((p, i) => ({ latitude: p.latitude, longitude: p.longitude, sequence: i + 1 }));
-      const { runId } = await apiComplete({
-        sessionId: t.sessionId as string,
-        distanceMeters: Math.round(t.distance * 1000),
-        durationSeconds: t.elapsedSec,
-        averagePaceSeconds: avgPaceSec,
-        calories: Math.round(t.kcal),
-        routePoints,
-        endedAt: Date.now(),
-        title: "오늘의 러닝",
-      });
-      t.stop();
-      navigation.navigate("RunSummary", {
-        runId,
-        defaultTitle: "오늘의 러닝",
-        distanceKm: t.distance,
-        paceLabel: t.paceLabel,
-        kcal: Math.round(t.kcal),
-        elapsedSec: t.elapsedSec,
-        elapsedLabel: `${Math.floor(t.elapsedSec / 60)}:${String(t.elapsedSec % 60).padStart(2, "0")}`,
-        routePath: t.route,
-        sessionId: (t.sessionId as string) ?? "",
-      });
-    } catch (e) {
-      console.error("러닝 완료/저장 실패:", e);
-      Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
-    } finally {
-      setTimeout(() => (isStoppingRef.current = false), 800);
+
+    // 먼저 일시정지 상태로 전환
+    if (!t.isPaused) {
+      t.pause();
     }
-  }, [navigation, t]);
+
+    // 저장 여부 확인
+    Alert.alert(
+      "러닝 종료",
+      "러닝 기록을 저장하시겠습니까?",
+      [
+        {
+          text: "취소",
+          style: "cancel",
+          onPress: () => {
+            isStoppingRef.current = false;
+            // 다시 재개
+            if (t.isPaused) {
+              t.resume();
+            }
+          },
+        },
+        {
+          text: "저장 안 함",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // 탭바 보이도록 세션 키를 먼저 제거
+              await backgroundRunning.clearSession();
+            } catch {}
+
+            // 먼저 네비게이션 실행 (동기) - 루트 스택에서 MainTabs로 교체 이동
+            if (navigationRef.isReady()) {
+              navigationRef.dispatch(StackActions.replace("MainTabs"));
+            } else {
+              const rootParent = navigation.getParent?.()?.getParent?.();
+              if (rootParent && typeof rootParent.dispatch === 'function') {
+                rootParent.dispatch(StackActions.replace("MainTabs"));
+              } else {
+                navigation.navigate("MainTabs", { screen: "LiveRunningScreen" });
+              }
+            }
+
+            // 그 후 비동기로 정리 (화면 전환 후에 실행)
+            requestAnimationFrame(async () => {
+              try {
+                await backgroundRunning.stopForegroundService();
+                await t.stop();
+              } catch (e) {
+                console.error("러닝 정리 실패:", e);
+              } finally {
+                isStoppingRef.current = false;
+              }
+            });
+          },
+        },
+        {
+          text: "저장",
+          onPress: async () => {
+            try {
+              const avgPaceSec =
+                t.distance > 0 && Number.isFinite(t.elapsedSec / t.distance)
+                  ? Math.floor(t.elapsedSec / Math.max(t.distance, 0.000001))
+                  : null;
+              const routePoints = t.route.map((p, i) => ({ latitude: p.latitude, longitude: p.longitude, sequence: i + 1 }));
+              const { runId } = await apiComplete({
+                sessionId: t.sessionId as string,
+                distanceMeters: Math.round(t.distance * 1000),
+                durationSeconds: t.elapsedSec,
+                averagePaceSeconds: avgPaceSec,
+                calories: Math.round(t.kcal),
+                routePoints,
+                endedAt: Date.now(),
+                title: "오늘의 러닝",
+              });
+
+              // 백그라운드 서비스 중지 및 세션 정리
+              await backgroundRunning.stopForegroundService();
+              await backgroundRunning.clearSession();
+
+              await t.stop();
+              navigation.navigate("RunSummary", {
+                runId,
+                defaultTitle: "오늘의 러닝",
+                distanceKm: t.distance,
+                paceLabel: t.paceLabel,
+                kcal: Math.round(t.kcal),
+                elapsedSec: t.elapsedSec,
+                elapsedLabel: `${Math.floor(t.elapsedSec / 60)}:${String(t.elapsedSec % 60).padStart(2, "0")}`,
+                routePath: t.route,
+                sessionId: (t.sessionId as string) ?? "",
+              });
+            } catch (e) {
+              console.error("러닝 완료/저장 실패:", e);
+              Alert.alert("저장 실패", "네트워크 또는 서버 오류가 발생했어요.");
+            } finally {
+              isStoppingRef.current = false;
+            }
+          },
+        },
+      ]
+    );
+  }, [navigation, t, backgroundRunning]);
 
   React.useEffect(() => {
     if (!targetDistanceKm) return;
@@ -309,7 +443,8 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
               <Pressable
                 onPress={() => {
                   closeMenu();
-                  navigation.navigate("JourneyLoading");
+                  // 여정 리스트 화면으로 이동
+                  navigation.navigate("JourneyRouteList");
                 }}
                 style={{
                   width: 100,

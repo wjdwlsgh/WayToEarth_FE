@@ -63,16 +63,27 @@ export default function FeedComposeScreen({ route, navigation }: any) {
     }
     try {
       setSubmitting(true);
+      console.log("[FeedCompose] 피드 생성 시도 - runId:", normalizedRunId);
+      console.log("[FeedCompose] content:", content);
+      console.log("[FeedCompose] photoUrl:", photoUrl);
       await createFeed({ runningRecordId: normalizedRunId, content, photoUrl });
       Alert.alert("공유 완료", "피드가 업로드되었습니다.");
-      navigation.navigate("Feed");
+      // 탭 네비게이터의 Feed 탭으로 이동 (중첩 네비게이션)
+      try {
+        navigation.navigate("MainTabs", { screen: "Feed" });
+      } catch {
+        // 폴백: 탭 루트로 이동
+        navigation.navigate("MainTabs");
+      }
     } catch (e: any) {
       console.error("[FeedCompose] createFeed error =>", e?.message ?? e);
+      console.error("[FeedCompose] error response =>", e?.response?.data);
+      console.error("[FeedCompose] error status =>", e?.response?.status);
       // 401/403 별도 안내
       const msg =
         e?.response?.status === 401 || e?.response?.status === 403
           ? "로그인이 만료되었어요. 다시 로그인해 주세요."
-          : "네트워크 또는 서버 오류가 발생했어요.";
+          : `네트워크 또는 서버 오류가 발생했어요.\nrunId: ${normalizedRunId}`;
       Alert.alert("게시 실패", msg);
     } finally {
       setSubmitting(false);

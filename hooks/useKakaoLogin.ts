@@ -3,8 +3,11 @@ import { useCallback } from "react";
 import { Alert, Platform, NativeModules } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { kakaoLoginWithSDK } from "../utils/api/auth";
-import { mockEnabled } from "../utils/api/client";
 import { useNavigation } from "@react-navigation/native";
+import {
+  registerForPushNotificationsAsync,
+  sendTokenToServer,
+} from "../utils/notifications";
 
 type RNKakao = {
   isKakaoTalkLoginAvailable?: () => Promise<boolean>;
@@ -20,14 +23,6 @@ export default function useKakaoLogin() {
 
   return useCallback(async () => {
     try {
-      // Mock 모드: 네이티브/외부 네트워크 호출을 모두 우회
-      if (mockEnabled) {
-        await AsyncStorage.setItem("jwtToken", "mock-jwt-token");
-        // 온보딩 완료된 유저로 가정 → 러닝 화면으로
-        navigation.reset({ index: 0, routes: [{ name: "LiveRunningScreen" }] });
-        return;
-      }
-
       const Kakao = NativeModules.RNKakaoLogins as RNKakao | undefined;
 
       if (
@@ -71,6 +66,12 @@ export default function useKakaoLogin() {
       if (!jwtToken) throw new Error("서버에서 JWT 토큰을 받지 못했습니다.");
 
       await AsyncStorage.setItem("jwtToken", String(jwtToken));
+
+      // FCM 토큰 등록
+      const fcmToken = await registerForPushNotificationsAsync();
+      if (fcmToken) {
+        await sendTokenToServer(fcmToken);
+      }
 
       // ✅ 라우팅: 이미 회원가입 완료 → 러닝 화면, 미완료 → Register
       if (isOnboardingCompleted) {

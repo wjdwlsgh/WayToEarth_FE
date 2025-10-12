@@ -1,13 +1,20 @@
 // App.tsx
 import * as WebBrowser from "expo-web-browser";
 WebBrowser.maybeCompleteAuthSession();
-import React from "react";
+import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
-import Constants from "expo-constants";
+import { navigationRef } from "./navigation/RootNavigation";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "./types/types";
 import "./global.css";
+import {
+  registerForPushNotificationsAsync,
+  sendTokenToServer,
+  setupNotificationListeners,
+  setupTokenRefreshListener,
+} from "./utils/notifications";
 
 import Onboading from "./Pages/Onboading";
 import Login from "./Pages/Login";
@@ -20,6 +27,7 @@ import JourneyRouteListScreen from "./Pages/JourneyRouteListScreen";
 import JourneyRouteDetailScreen from "./Pages/JourneyRouteDetailScreen";
 import JourneyLoadingScreen from "./Pages/JourneyLoadingScreen";
 import JourneyGuideScreen from "./Pages/JourneyGuideScreen";
+import JourneyRunningScreen from "./Pages/JourneyRunningScreen";
 import Feed from "./Pages/SendFeed";
 import Feed2 from "./Pages/FeedScreen2";
 import FeedDetail from "./Pages/FeedDetail";
@@ -29,41 +37,82 @@ import ProfileEdit from "./Pages/ProfileEditScreen";
 import Emblem from "./Pages/EmblemCollectionScreen";
 import Record from "./Pages/RecordScreen";
 import RecordDetailScreen from "./Pages/RecordDetailScreen";
+import AIFeedbackScreen from "./Pages/AIFeedbackScreen";
 import UserInfoInputScreen from "./Pages/UserInfoInputScreen";
 import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
-import CrewScreen from "./Pages/CrewScreen";
+// import CrewScreen from "./Pages/CrewScreen";
 import CrewDetailScreen from "./Pages/CrewDetailScreen";
-import CrewChatScreen from "./Pages/ChatScreen";
 import TabBarAdapter from "./components/Layout/TabBarAdapter";
+import LandmarkGuestbookScreen from "./Pages/LandmarkGuestbookScreen";
+import MyGuestbookScreen from "./Pages/MyGuestbookScreen";
+import GuestbookScreen from "./Pages/GuestbookScreen";
+import LandmarkStoryScreen from "./Pages/LandmarkStoryScreen";
+import ChatScreen from "./Pages/ChatScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const extra: any = (Constants?.expoConfig as any)?.extra ?? {};
-const CREW_MOCK = Boolean(extra?.crewMockEnabled) ||
-  (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_CREW_MOCK === "1");
-
+// MainTabs: 하단 탭 네비게이터 (팀원 구조)
 function MainTabs() {
   return (
     <Tab.Navigator
       tabBar={(props) => <TabBarAdapter {...props} />}
       screenOptions={{ headerShown: false }}
-      initialRouteName={CREW_MOCK ? "Crew" : "LiveRunningScreen"}
     >
-      <Tab.Screen name="Profile" component={Profile} />
-      <Tab.Screen name="Crew" component={CrewScreen} />
       <Tab.Screen name="LiveRunningScreen" component={LiveRunningScreen} />
       <Tab.Screen name="Feed" component={Feed2} />
       <Tab.Screen name="Record" component={Record} />
+      {/* <Tab.Screen name="Crew" component={CrewScreen} /> */}
+      <Tab.Screen name="Profile" component={Profile} />
     </Tab.Navigator>
   );
 }
 
 export default function App() {
+  useEffect(() => {
+    // Firebase FCM 토큰 등록 (Expo 서버 거치지 않음)
+    (async () => {
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        // 백엔드에 토큰 전송 (로그인 후에 호출하는 것이 더 좋음)
+        // await sendTokenToServer(token);
+        console.log("Firebase FCM 토큰 발급 완료:", token);
+      }
+    })();
+
+    // 알림 리스너 설정
+    const cleanupListeners = setupNotificationListeners();
+
+    // 토큰 갱신 리스너 설정
+    const cleanupTokenRefresh = setupTokenRefreshListener();
+
+    return () => {
+      cleanupListeners();
+      cleanupTokenRefresh();
+    };
+  }, []);
+
+  // 알림 탭 등으로 저장된 보류 네비게이션 처리
+  const handleNavReady = async () => {
+    try {
+      const raw = await AsyncStorage.getItem("@pending_nav");
+      if (raw) {
+        const { target, params } = JSON.parse(raw);
+        AsyncStorage.removeItem("@pending_nav").catch(() => {});
+        // target은 'live' | 'journey'
+        if (target === 'journey') {
+          navigationRef.navigate('JourneyRunningScreen' as never, (params || {}) as never);
+        } else {
+          navigationRef.navigate('MainTabs' as never, { screen: 'LiveRunningScreen', ...(params || {}) } as never);
+        }
+      }
+    } catch {}
+  };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} onReady={handleNavReady}>
       <Stack.Navigator
-        initialRouteName={CREW_MOCK ? "MainTabs" : "Onboading"}
+        initialRouteName={"Onboading"}
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Onboading" component={Onboading} />
@@ -72,7 +121,8 @@ export default function App() {
         <Stack.Screen name="LoginSuccess" component={LoginSuccessScreen} />
         <Stack.Screen name="Main" component={Main} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
-        {/* 여정 러닝: 로딩/가이드/리스트/디테일 */}
+
+        {/* 여정 러닝: 로딩/가이드/리스트/디테일/실행 */}
         <Stack.Screen name="JourneyLoading" component={JourneyLoadingScreen} />
         <Stack.Screen name="JourneyGuide" component={JourneyGuideScreen} />
         <Stack.Screen
@@ -83,14 +133,22 @@ export default function App() {
           name="JourneyRouteDetail"
           component={JourneyRouteDetailScreen}
         />
+        <Stack.Screen
+          name="JourneyRunningScreen"
+          component={JourneyRunningScreen}
+        />
         <Stack.Screen name="RunningComplete" component={RunningComplete} />
         <Stack.Screen
           name="RunSummary"
           component={RunSummaryScreen}
           options={{ headerShown: false }}
         />
+
         {/* Feed/Profile/Record/Crew/LiveRunningScreen는 MainTabs로 이동 */}
         <Stack.Screen name="FeedDetail" component={FeedDetail} />
+        {/* Crew Chat Screen */}
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
+        <Stack.Screen name="CrewChat" component={ChatScreen} />
         {/* 공유 작성 화면(FeedCompose) 등록: RunSummary에서 사용 */}
         <Stack.Screen
           name="FeedCompose"
@@ -100,14 +158,41 @@ export default function App() {
         <Stack.Screen name="Emblem" component={Emblem} />
         <Stack.Screen name="ProfileEdit" component={ProfileEdit} />
         <Stack.Screen name="CrewDetail" component={CrewDetailScreen} />
-        <Stack.Screen name="CrewChat" component={CrewChatScreen} />
 
         {/* 하단 탭 대상 라우트들은 MainTabs 내부 */}
         <Stack.Screen
           name="RecordDetailScreen"
           component={RecordDetailScreen}
         />
+        <Stack.Screen
+          name="AIFeedbackScreen"
+          component={AIFeedbackScreen}
+        />
         <Stack.Screen name="UserInfoInput" component={UserInfoInputScreen} />
+
+        {/* 방명록 화면들 */}
+        <Stack.Screen
+          name="GuestbookScreen"
+          component={GuestbookScreen}
+          options={{ title: "방명록 피드" }}
+        />
+        <Stack.Screen
+          name="LandmarkGuestbookScreen"
+          component={LandmarkGuestbookScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="MyGuestbookScreen"
+          component={MyGuestbookScreen}
+          options={{ headerShown: false }}
+        />
+
+        {/* 랜드마크 스토리 화면 */}
+        <Stack.Screen
+          name="LandmarkStoryScreen"
+          component={LandmarkStoryScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
