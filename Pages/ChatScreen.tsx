@@ -13,10 +13,12 @@ import {
   Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import BottomNavigation from "../components/Layout/BottomNav";
+import BottomNavigation, { BOTTOM_NAV_MIN_HEIGHT } from "../components/Layout/BottomNav";
 import { useBottomNav } from "../hooks/useBottomNav";
 import { useWebSocket, ChatMessage } from "../hooks/useWebSocket";
 import { useChatHistory } from "../hooks/useChatHistory";
+import { crewAPI } from "../utils/api/crew";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // WebSocket polyfill 확인
 console.log('WebSocket 확인:');
@@ -26,10 +28,11 @@ console.log('- WebSocket:', !!WebSocket);
 
 const { width } = Dimensions.get("window");
 
-export default function ChatScreen({ navigation }: any) {
+export default function ChatScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
-  const [crewId] = useState(1);
-  const [currentUserId] = useState(1); // TODO: 실제 사용자 ID로 변경
+  const [crewId, setCrewId] = useState<number | null>(route?.params?.crewId ?? null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const { activeTab, onTabPress } = useBottomNav("crew");
   const [token, setToken] = useState<string | null>(null);
@@ -51,10 +54,10 @@ export default function ChatScreen({ navigation }: any) {
     deleteMessage,
     addNewMessage,
     clearMessages
-  } = useChatHistory({ crewId, currentUserId });
+  } = useChatHistory({ crewId: crewId ?? 0, currentUserId: currentUserId ?? undefined });
 
   // 🔒 보안 개선: URL에 토큰을 포함하지 않음 (Authorization 헤더 사용)
-  const websocketUrl = `wss://api.waytoearth.cloud/ws/crew/${crewId}/chat`;
+  const websocketUrl = crewId ? `wss://api.waytoearth.cloud/ws/crew/${crewId}/chat` : null;
 
   // JWT 토큰 로드
   useEffect(() => {
@@ -76,6 +79,8 @@ export default function ChatScreen({ navigation }: any) {
             console.log('토큰 만료 시간:', new Date(payload.exp * 1000));
             console.log('현재 시간:', new Date());
             console.log('토큰 유효:', new Date(payload.exp * 1000) > new Date());
+            const uid = payload?.userId ?? payload?.id ?? (payload?.sub ? parseInt(payload.sub, 10) : null);
+            if (typeof uid === 'number' && !Number.isNaN(uid)) setCurrentUserId(uid);
           } catch (e) {
             console.error('토큰 파싱 실패:', e);
           }
@@ -94,9 +99,39 @@ export default function ChatScreen({ navigation }: any) {
     };
   }, []);
 
+  // crewId 결정: route params → 저장된 선택값 → 내 크루 목록 첫 번째
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (crewId != null) {
+        try { await AsyncStorage.setItem('@selected_crew_id', String(crewId)); } catch {}
+        return;
+      }
+      try {
+        const saved = await AsyncStorage.getItem('@selected_crew_id');
+        if (!cancelled && saved && !Number.isNaN(parseInt(saved, 10))) {
+          setCrewId(parseInt(saved, 10));
+          return;
+        }
+      } catch {}
+      try {
+        const res = await crewAPI.getMyCrews(0, 20);
+        const first = res?.content?.[0];
+        if (!cancelled && first?.id) {
+          setCrewId(first.id);
+          try { await AsyncStorage.setItem('@selected_crew_id', String(first.id)); } catch {}
+        }
+      } catch (e) {
+        console.warn('[ChatScreen] 내 크루 목록 조회 실패:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [route?.params?.crewId]);
+
   const { isConnected, connectionError, sendMessage: sendWsMessage, disconnect } = useWebSocket({
-    url: token ? websocketUrl : null, // 토큰이 있을 때만 연결 시도
+    url: token && websocketUrl ? websocketUrl : null, // 토큰과 크루 ID가 있을 때만 연결 시도
     token,
+    currentUserId,
     onMessage: (newMessage) => {
       console.log('[ChatScreen] 새 메시지 수신:', newMessage);
       addNewMessage(newMessage);
@@ -116,12 +151,17 @@ export default function ChatScreen({ navigation }: any) {
   });
 
   // 토큰 로드 후 초기 히스토리 로드
+  const initialRequestedRef = useRef(false);
+  // crewId 변경 시 초기 요청 플래그 리셋
+  useEffect(() => { initialRequestedRef.current = false; }, [crewId]);
   useEffect(() => {
-    if (token && !isHistoryLoading && messages.length === 0) {
-      console.log('초기 채팅 히스토리 로드 시작');
-      loadInitialHistory();
-    }
-  }, [token, isHistoryLoading, messages.length, loadInitialHistory]);
+    if (!token || !crewId) return;
+    if (initialRequestedRef.current) return;
+    if (isHistoryLoading) return;
+    console.log('초기 채팅 히스토리 로드 시작');
+    initialRequestedRef.current = true;
+    loadInitialHistory();
+  }, [token, crewId, isHistoryLoading, loadInitialHistory]);
 
   // 디버깅용: 상태 모니터링
   useEffect(() => {
@@ -381,7 +421,7 @@ export default function ChatScreen({ navigation }: any) {
         </ScrollView>
 
         {/* Input Area */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { marginBottom: (insets.bottom || 0) + BOTTOM_NAV_MIN_HEIGHT + 8 }]}>
           <View style={styles.textarea}>
             <TextInput
               style={styles.textInput}

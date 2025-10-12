@@ -15,6 +15,7 @@ export interface ChatMessage {
 interface UseWebSocketProps {
   url: string | null;
   token: string | null;
+  currentUserId?: number | null;
   onMessage?: (message: ChatMessage) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
@@ -24,6 +25,7 @@ interface UseWebSocketProps {
 export const useWebSocket = ({
   url,
   token,
+  currentUserId,
   onMessage,
   onConnect,
   onDisconnect,
@@ -116,7 +118,9 @@ export const useWebSocket = ({
             messageType: data.messageType || 'TEXT',
             senderName: data.senderName || '알 수 없음',
             timestamp: data.timestamp || new Date().toISOString(),
-            isOwn: data.senderId?.toString() === '1', // 현재 사용자 ID와 비교 (임시로 1 사용)
+            isOwn: currentUserId != null
+              ? String(data.senderId) === String(currentUserId)
+              : false,
           };
           onMessage?.(message);
         } catch (error) {

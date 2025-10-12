@@ -47,6 +47,7 @@ import LandmarkGuestbookScreen from "./Pages/LandmarkGuestbookScreen";
 import MyGuestbookScreen from "./Pages/MyGuestbookScreen";
 import GuestbookScreen from "./Pages/GuestbookScreen";
 import LandmarkStoryScreen from "./Pages/LandmarkStoryScreen";
+import ChatScreen from "./Pages/ChatScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -145,6 +146,8 @@ export default function App() {
 
         {/* Feed/Profile/Record/Crew/LiveRunningScreen는 MainTabs로 이동 */}
         <Stack.Screen name="FeedDetail" component={FeedDetail} />
+        {/* Crew Chat Screen */}
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
         {/* 공유 작성 화면(FeedCompose) 등록: RunSummary에서 사용 */}
         <Stack.Screen
           name="FeedCompose"
