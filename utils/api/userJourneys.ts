@@ -1,8 +1,8 @@
 // utils/api/userJourneys.ts
-// 유저별 여정 진행 상태 목 API
+// 목데이터 제거. 서버 연동 전까지는 명시적으로 미구현 에러를 던집니다.
 import type { JourneyId, UserJourneyState } from "../../types/journey";
 
-type ProgressResponse = {
+export type ProgressResponse = {
   progressM: number;
   lastLandmarkOrder: number;
   nextLandmarkDistM: number;
@@ -11,84 +11,27 @@ type ProgressResponse = {
   message: string;
 };
 
-const stateByUserJourney = new Map<string, UserJourneyState>();
-const todayByUserJourney = new Map<string, number>(); // 간단 today delta 저장
-
-function key(userId: string, journeyId: JourneyId) {
-  return `${userId}::${journeyId}`;
-}
-
-function wait(ms = 150) {
-  return new Promise((res) => setTimeout(res, ms));
-}
-
-export async function start(userId: string, journeyId: JourneyId): Promise<UserJourneyState> {
-  await wait();
-  const k = key(userId, journeyId);
-  const now = new Date().toISOString();
-  const existing = stateByUserJourney.get(k);
-  if (existing) return existing;
-  const s: UserJourneyState = {
-    userId,
-    journeyId,
-    progressM: 0,
-    lastLandmarkOrder: 0,
-    runsCount: 0,
-    startedAt: now,
-    completedAt: null,
-  };
-  stateByUserJourney.set(k, s);
-  todayByUserJourney.set(k, 0);
-  return s;
+export async function start(
+  _userId: string,
+  _journeyId: JourneyId
+): Promise<UserJourneyState> {
+  throw new Error("여정 진행 시작 API 연동 필요");
 }
 
 export async function getState(
-  userId: string,
-  journeyId: JourneyId,
-  totalM: number,
-  nextLandmarkDistM: number
+  _userId: string,
+  _journeyId: JourneyId,
+  _totalM: number,
+  _nextLandmarkDistM: number
 ): Promise<ProgressResponse> {
-  await wait();
-  const k = key(userId, journeyId);
-  const s = stateByUserJourney.get(k);
-  const today = todayByUserJourney.get(k) ?? 0;
-  const progressM = s?.progressM ?? 0;
-  const percent = totalM > 0 ? Math.min(100, (progressM / totalM) * 100) : 0;
-  return {
-    progressM,
-    lastLandmarkOrder: s?.lastLandmarkOrder ?? 0,
-    nextLandmarkDistM,
-    percent,
-    todayRunM: today,
-    message: `오늘 ${(today / 1000).toFixed(2)}km를 뛰어 총 ${(progressM / 1000).toFixed(2)}km 진행`,
-  };
+  throw new Error("여정 진행 상태 조회 API 연동 필요");
 }
 
 export async function progress(
-  userId: string,
-  journeyId: JourneyId,
-  totalM: number,
-  deltaM: number
+  _userId: string,
+  _journeyId: JourneyId,
+  _totalM: number,
+  _deltaM: number
 ): Promise<ProgressResponse> {
-  await wait();
-  const k = key(userId, journeyId);
-  const s = stateByUserJourney.get(k);
-  if (!s) throw new Error("journey not started");
-  const newProgress = Math.min(totalM, Math.max(0, (s.progressM ?? 0) + Math.max(0, deltaM)));
-  s.progressM = newProgress;
-  s.runsCount += 1;
-  stateByUserJourney.set(k, s);
-  const today = (todayByUserJourney.get(k) ?? 0) + Math.max(0, deltaM);
-  todayByUserJourney.set(k, today);
-  const percent = totalM > 0 ? Math.min(100, (newProgress / totalM) * 100) : 0;
-  const remaining = Math.max(0, totalM - newProgress);
-  return {
-    progressM: newProgress,
-    lastLandmarkOrder: s.lastLandmarkOrder,
-    nextLandmarkDistM: remaining, // 간소화(실제는 세그먼트별 계산)
-    percent,
-    todayRunM: today,
-    message: `오늘 ${(today / 1000).toFixed(2)}km를 뛰어 총 ${(newProgress / 1000).toFixed(2)}km 진행`,
-  };
+  throw new Error("여정 진행 업데이트 API 연동 필요");
 }
-
