@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, SafeAreaView, StatusBar, ScrollView, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  StatusBar,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getMyProfile } from "../utils/api/users";
-import { getCrewMonthlySummary, getCrewMemberRanking } from "../utils/api/crewStats";
 import {
   getMyCrewDetail,
   removeMember,
@@ -16,6 +24,11 @@ import {
   leaveCrew,
   transferOwnership,
 } from "../utils/api/crews";
+import { getCrewMonthlySummary, getCrewMemberRanking } from "../utils/api/crewStats";
+import { Ionicons } from "@expo/vector-icons";
+import { getMyProfile } from "../utils/api/users";
+import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Member = {
   id: string;

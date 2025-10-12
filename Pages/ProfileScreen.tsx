@@ -40,33 +40,6 @@ export default function ProfileScreen({
   const [refreshing, setRefreshing] = useState(false);
   const retriedRef = React.useRef(false);
 
-  // 백그라운드 진동 알림 설정
-  const [vibeEnabled, setVibeEnabled] = useState(true);
-  const [vibeIntervalM, setVibeIntervalM] = useState(1000);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem("@run_vibration_settings");
-        if (raw) {
-          const s = JSON.parse(raw);
-          if (typeof s?.enabled === 'boolean') setVibeEnabled(s.enabled);
-          if (typeof s?.intervalM === 'number' && s.intervalM > 0) setVibeIntervalM(s.intervalM);
-        }
-      } catch {}
-    })();
-  }, []);
-
-  const saveVibeSettings = useCallback(async (next: { enabled?: boolean; intervalM?: number }) => {
-    try {
-      const enabled = typeof next.enabled === 'boolean' ? next.enabled : vibeEnabled;
-      const intervalM = typeof next.intervalM === 'number' ? next.intervalM : vibeIntervalM;
-      setVibeEnabled(enabled);
-      setVibeIntervalM(intervalM);
-      await AsyncStorage.setItem("@run_vibration_settings", JSON.stringify({ enabled, intervalM }));
-    } catch {}
-  }, [vibeEnabled, vibeIntervalM]);
-
   const fetchData = useCallback(async () => {
     try {
       const [meRes, sumRes] = await Promise.all([
@@ -314,27 +287,6 @@ export default function ProfileScreen({
 
           <View style={styles.menuSpacer} />
 
-          {/* 알림 설정 */}
-          <View style={styles.menuSection}>
-            <View style={styles.menuItem}>
-              <Text style={styles.menuTitle}>백그라운드 진동 알림</Text>
-              <TouchableOpacity onPress={() => saveVibeSettings({ enabled: !vibeEnabled })} accessibilityLabel="백그라운드 진동 토글">
-                <Text style={[styles.toggle, vibeEnabled ? styles.toggleOn : styles.toggleOff]}>{vibeEnabled ? '켜짐' : '꺼짐'}</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.menuDivider} />
-            <View style={[styles.menuItem, { justifyContent: 'space-between' }]}>
-              <Text style={styles.menuTitle}>진동 주기</Text>
-              <View style={styles.pillGroup}>
-                {[500, 1000, 2000].map((m) => (
-                  <TouchableOpacity key={m} style={[styles.pill, vibeIntervalM === m && styles.pillActive]} onPress={() => saveVibeSettings({ intervalM: m })}>
-                    <Text style={[styles.pillText, vibeIntervalM === m && styles.pillTextActive]}>{m >= 1000 ? `${m/1000}km` : `${m}m`}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-
           {/* 로그아웃 */}
           <View style={styles.menuSection}>
             <TouchableOpacity
@@ -534,16 +486,6 @@ const styles = StyleSheet.create({
     color: "#C0C0C0",
     fontWeight: "300",
   },
-
-  // 알림 설정 보조 스타일
-  toggle: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, overflow: 'hidden', fontWeight: '700' },
-  toggleOn: { backgroundColor: '#DCFCE7', color: '#166534' },
-  toggleOff: { backgroundColor: '#F3F4F6', color: '#374151' },
-  pillGroup: { flexDirection: 'row', gap: 8 },
-  pill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: '#F3F4F6' },
-  pillActive: { backgroundColor: '#EEF2FF' },
-  pillText: { color: '#374151', fontWeight: '600' },
-  pillTextActive: { color: '#4F46E5' },
 
   // 하단 여백
   bottomSpacing: { height: 120 },

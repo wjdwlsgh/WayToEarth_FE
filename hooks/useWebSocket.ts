@@ -22,7 +22,15 @@ interface UseWebSocketProps {
   onError?: (error: any) => void;
 }
 
-export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, onDisconnect, onError }: UseWebSocketProps) => {
+export const useWebSocket = ({
+  url,
+  token,
+  currentUserId,
+  onMessage,
+  onConnect,
+  onDisconnect,
+  onError,
+}: UseWebSocketProps) => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -32,6 +40,8 @@ export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, 
   const isConnectingRef = useRef(false);
 
   const disconnect = useCallback(() => {
+    console.log('WebSocket 연결 해제 시작');
+
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -40,14 +50,23 @@ export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, 
       try { socketRef.current.close(1000, 'User disconnected'); } catch {}
       socketRef.current = null;
     }
+
+    if (socketRef.current) {
+      socketRef.current.close(1000, 'User disconnected');
+      socketRef.current = null;
+    }
+
     setIsConnected(false);
     reconnectAttemptsRef.current = 0;
     isConnectingRef.current = false;
     setConnectionError(null);
+    console.log('WebSocket 연결 해제 완료');
   }, []);
 
   const connect = useCallback(() => {
-    if (isConnectingRef.current || socketRef.current?.readyState === WebSocket.OPEN) return;
+    if (isConnectingRef.current || socketRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
     if (!url || !token) {
       setConnectionError('URL 또는 토큰이 없습니다');
       return;
@@ -56,14 +75,56 @@ export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, 
       isConnectingRef.current = true;
       let socket: WebSocket;
       try {
-        // @ts-ignore: RN impl may support headers
+        // Preferred: Authorization header
+        // Note: Header support may vary across RN/WebSocket implementations
+        // @ts-ignore
         socket = new WebSocket(url, [], { headers: { Authorization: `Bearer ${token}` } });
-      } catch (_) {
+      } catch (headerError) {
+        // Fallback: Sec-WebSocket-Protocol
         const protocolToken = token.replace(/\./g, '_');
         socket = new WebSocket(url, [`Bearer.${protocolToken}`]);
       }
 
       socket.onopen = () => {
+      console.log('이미 연결 중이거나 연결된 상태입니다');
+      return;
+    }
+
+    if (!url || !token) {
+      console.log('WebSocket 연결 대기 중:', { url: !!url, token: !!token });
+      setConnectionError('URL 또는 토큰이 없습니다');
+      return;
+    }
+
+    try {
+      isConnectingRef.current = true;
+      console.log('WebSocket 연결 시도:', url);
+      console.log('토큰 길이:', token.length);
+      console.log('토큰 앞부분:', token.substring(0, 20) + '...');
+
+      // 🔒 보안 개선: Authorization 헤더 사용 (URL 쿼리 파라미터 대신)
+      // React Native에서 헤더 지원이 제한적일 수 있으므로 두 가지 방법 모두 시도
+      let socket;
+
+      try {
+        // 방법 1: Authorization 헤더 사용 (권장)
+        socket = new WebSocket(url, [], {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        console.log('WebSocket 연결 - Authorization 헤더 사용');
+      } catch (headerError) {
+        console.log('Authorization 헤더 실패, Sec-WebSocket-Protocol 시도:', headerError);
+
+        // 방법 2: Sec-WebSocket-Protocol 사용 (백업)
+        const protocolToken = token.replace(/\./g, '_'); // 점(.)을 언더바로 치환
+        socket = new WebSocket(url, [`Bearer.${protocolToken}`]);
+        console.log('WebSocket 연결 - Sec-WebSocket-Protocol 사용');
+      }
+
+      socket.onopen = () => {
+        console.log('WebSocket 연결 성공');
         setIsConnected(true);
         setConnectionError(null);
         reconnectAttemptsRef.current = 0;
@@ -75,32 +136,58 @@ export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, 
         try {
           const data = JSON.parse((event as any).data);
           const ts = data.timestamp || data.sentAt || new Date().toISOString();
-          const type = data.messageType || 'TEXT';
-          const sender = data.senderName || '알 수 없음';
+          const fallbackKey = `${data.messageType || 'TEXT'}:${data.senderName || ''}:${ts}`;
           const message: ChatMessage = {
-            id: data.messageId?.toString() || `${type}:${sender}:${ts}`,
+            id: data.messageId?.toString() || fallbackKey,
             message: data.message,
-            messageType: type,
-            senderName: sender,
+            messageType: data.messageType || 'TEXT',
+            senderName: data.senderName || '알 수 없음',
             timestamp: ts,
-            isOwn: currentUserId != null ? String(data.senderId) === String(currentUserId) : false,
+            isOwn: false,
             readByUsers: data.readCount,
             isRead: data.read,
           };
           onMessage?.(message);
         } catch (error) {
-          console.error('메시지 파싱 오류:', error);
           onError?.(error);
+          const data = JSON.parse(event.data);
+          console.log('받은 메시지:', data);
+
+          const message: ChatMessage = {
+            id: data.messageId?.toString() || Date.now().toString(),
+            message: data.message,
+            messageType: data.messageType || 'TEXT',
+            senderName: data.senderName || '알 수 없음',
+            timestamp: data.timestamp || new Date().toISOString(),
+            isOwn: currentUserId != null
+              ? String(data.senderId) === String(currentUserId)
+              : false,
+          };
+          onMessage?.(message);
+        } catch (error) {
+          console.error('메시지 파싱 오류:', error);
         }
       };
 
       socket.onclose = (event) => {
+        console.log('WebSocket 연결 종료:', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean
+        });
+
         setIsConnected(false);
         socketRef.current = null;
         isConnectingRef.current = false;
         onDisconnect?.();
         if (event.code !== 1000 && event.code !== 1002 && event.code !== 1008 && reconnectAttemptsRef.current < maxReconnectAttempts) {
           const timeout = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 10000);
+
+        // 인증 오류(1002, 1008)나 정상 종료(1000)가 아닌 경우만 재연결 시도
+        if (event.code !== 1000 && event.code !== 1002 && event.code !== 1008 && reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const timeout = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 10000);
+          console.log(`${timeout}ms 후 재연결 시도 (${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
+
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttemptsRef.current += 1;
             connect();
@@ -109,10 +196,18 @@ export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, 
           if (event.code === 1002 || event.code === 1008) setConnectionError('인증에 실패했습니다. 다시 로그인해주세요.');
           else if (event.code === 1006) setConnectionError('연결이 예기치 않게 끊어졌습니다.');
           else setConnectionError(`연결이 끊어졌습니다 (코드: ${event.code})`);
+          if (event.code === 1002 || event.code === 1008) {
+            setConnectionError('인증에 실패했습니다. 다시 로그인해주세요.');
+          } else if (event.code === 1006) {
+            setConnectionError('연결이 예기치 않게 끊어졌습니다.');
+          } else {
+            setConnectionError(`연결이 끊어졌습니다 (코드: ${event.code})`);
+          }
         }
       };
 
       socket.onerror = (error) => {
+        console.error('WebSocket 오류:', error);
         setConnectionError('연결 오류가 발생했습니다');
         isConnectingRef.current = false;
         onError?.(error);
@@ -120,11 +215,13 @@ export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, 
 
       socketRef.current = socket;
     } catch (error) {
+      console.error('WebSocket 연결 실패:', error);
       setConnectionError('연결에 실패했습니다');
       isConnectingRef.current = false;
       onError?.(error);
     }
-  }, [url, token, currentUserId, onMessage, onConnect, onDisconnect, onError]);
+  }, [url, token, onConnect, onDisconnect, onError]);
+  }, [url, token, onMessage, onConnect, onDisconnect, onError]);
 
   const sendMessage = useCallback((message: string, messageType: 'TEXT' | 'ANNOUNCEMENT' = 'TEXT') => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
@@ -134,6 +231,16 @@ export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, 
     try {
       const payload = { message: message.trim(), messageType };
       socketRef.current.send(JSON.stringify(payload));
+      return true;
+    } catch (error) {
+
+    try {
+      const chatMessage = {
+        message: message.trim(),
+        messageType,
+      };
+
+      socketRef.current.send(JSON.stringify(chatMessage));
       return true;
     } catch (error) {
       console.error('메시지 전송 실패:', error);
@@ -148,19 +255,9 @@ export const useWebSocket = ({ url, token, currentUserId, onMessage, onConnect, 
       return () => clearTimeout(timer);
     }
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      if (socketRef.current) {
-        try { socketRef.current.close(1000, 'Component unmounted'); } catch {}
-        socketRef.current = null;
-      }
-    };
-  }, [url, token, connect]);
-
-  return { isConnected, connectionError, connect, disconnect, sendMessage, reconnectAttempts: reconnectAttemptsRef.current };
-};
+      // 토큰 로드 후 약간의 지연을 두고 연결 시도
+      const timer = setTimeout(() => {
+        connect();
       }, 1000);
 
       return () => clearTimeout(timer);

@@ -26,15 +26,6 @@ export type JourneyLandmark = {
   imageUrl?: string;
 };
 
-export type JourneyRoute = {
-  id: number;
-  latitude: number;
-  longitude: number;
-  sequence: number;
-  altitude?: number;
-  description?: string | null;
-};
-
 // 프론트 호환 타입
 export type RouteSummary = {
   id: RouteId;
@@ -70,7 +61,7 @@ function mapJourneyToSummary(j: Journey): RouteSummary {
     title: j.title,
     description: j.description,
     distance: `${j.totalDistanceKm}Km`,
-    duration: `${j.estimatedDays}일`,
+    duration: `${j.estimatedDays}일",
     difficulty: difficultyMap[j.difficulty] || "보통",
     completed: 0,
     total: j.completedUserCount || 0,
@@ -145,4 +136,5 @@ export async function getJourneyRoutes(journeyId: RouteId): Promise<JourneyRoute
 export async function getJourneyLandmarks(journeyId: RouteId): Promise<JourneyLandmark[]> {
   const response = await client.get<JourneyLandmark[]>(`/v1/landmarks/journey/${journeyId}`);
   return response.data;
+>>>>>>> upstream/main
 }
