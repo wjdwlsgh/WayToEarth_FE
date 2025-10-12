@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getMyCrewDetail,
   removeMember,
@@ -23,6 +24,7 @@ import {
   leaveCrew,
   transferOwnership,
 } from "../utils/api/crews";
+import { getCrewMonthlySummary, getCrewMemberRanking } from "../utils/api/crewStats";
 
 type Member = {
   id: string;
@@ -34,31 +36,24 @@ type Applicant = { id: string; nickname: string; level?: string };
 
 export default function CrewDetailScreen() {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
   const [crewId, setCrewId] = useState<string>("");
   const [myUserId, setMyUserId] = useState<string>("");
-  const [crewName, setCrewName] = useState("서울 러닝 크루");
+  const [crewName, setCrewName] = useState("");
   const [crewInfo, setCrewInfo] = useState({
-    location: "활동 중",
-    members: "멤버 24명",
-    manager: "관리자",
-    totalDistance: "156km",
-    meetCount: "3회",
-    totalMembers: "2송",
+    members: "",
+    roleLabel: "",
+    totalDistance: "0km",
+    activeMembers: "0명",
   });
   const [members, setMembers] = useState<Member[]>([]);
-  const [pending, setPending] = useState<Applicant[]>([
-    { id: "1", nickname: "김러너", level: "함께 레이스 4'30\"" },
-    { id: "2", nickname: "박조거", level: "함께 레이스 5'00\"" },
-  ]);
+  const [pending, setPending] = useState<Applicant[]>([]);
   const [selectedTab, setSelectedTab] = useState<"통계" | "멤버" | "설정">(
     "통계"
   );
-  const [mvpMember, setMvpMember] = useState({
-    name: "정진호",
-    distance: "28.5km",
-  });
+  const [mvpMember, setMvpMember] = useState<{ name: string; distance: string } | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -70,6 +65,26 @@ export default function CrewDetailScreen() {
         setRole(detail.role);
         setMembers(detail.members as Member[]);
         setPending(detail.pending as Applicant[]);
+        // 월간 요약/멤버 랭킹 조회
+        try {
+          const now = new Date();
+          const month = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+          const [summary, ranking] = await Promise.all([
+            getCrewMonthlySummary(String(detail.crew.id), month).catch(() => null),
+            getCrewMemberRanking(String(detail.crew.id), { month, limit: 1 }).catch(() => []),
+          ]);
+          const dist = summary?.totalDistance ?? 0;
+          const active = summary?.totalActiveMembers ?? detail.members.length;
+          setCrewInfo({
+            members: `멤버 ${detail.members.length}명`,
+            roleLabel: `내 역할 ${detail.role === "ADMIN" ? "관리자" : "멤버"}`,
+            totalDistance: formatKm(dist),
+            activeMembers: `${active}명`,
+          });
+          const top = ranking?.[0];
+          if (top) setMvpMember({ name: top.userName, distance: formatKm(top.totalDistance) });
+          else setMvpMember(null);
+        } catch {}
       }
     } finally {
       setLoading(false);
@@ -89,20 +104,43 @@ export default function CrewDetailScreen() {
 
   const isAdmin = role === "ADMIN";
 
+  function formatKm(n: number | string) {
+    const v = typeof n === "string" ? Number(n) : n;
+    if (!isFinite(v as any)) return "0km";
+    const r = Math.round((v as number) * 10) / 10;
+    return r % 1 === 0 ? `${r | 0}km` : `${r}km`;
+  }
+
   return (
     <SafeAreaView style={s.container}>
       <StatusBar barStyle="light-content" />
 
       {/* 헤더 */}
-      <View style={s.blueHeader}>
+      <View style={[s.blueHeader, { paddingTop: insets.top + 8 }]}>
         <View style={s.headerTop}>
           <View style={{ width: 24 }} />
           <Text style={s.headerTitle}>크루</Text>
           <TouchableOpacity
             style={s.searchIcon}
             onPress={() => {
-              const id = crewId || "0";
-              navigation.navigate("CrewChat", { crewId: id, crewName });
+              Alert.alert("채팅 이동", crewId ? `크루(${crewName || ''}) 채팅으로 이동 시도` : "크루 정보를 불러오지 못했습니다.");
+              if (!crewId) {
+                Alert.alert("채팅 이동 불가", "크루 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+                return;
+              }
+              const params: any = { crewId: crewId, crewName };
+              const state: any = (navigation as any)?.getState?.();
+              const canHere = Array.isArray(state?.routeNames) && state.routeNames.includes("CrewChat");
+              if (canHere) {
+                (navigation as any).navigate("CrewChat", params);
+              } else {
+                const parent = (navigation as any)?.getParent?.();
+                if (parent) {
+                  parent.navigate("CrewChat", params);
+                } else {
+                  Alert.alert("채팅 이동 불가", "네비게이션 경로를 찾을 수 없습니다.");
+                }
+              }
             }}
           >
             <Ionicons name="chatbubble-ellipses-outline" size={22} color="#fff" />
@@ -118,7 +156,8 @@ export default function CrewDetailScreen() {
             <View style={s.crewHeaderText}>
               <Text style={s.crewName}>{crewName}</Text>
               <Text style={s.crewSubInfo}>
-                {crewInfo.location} • {crewInfo.members} • {crewInfo.manager}
+                {crewInfo.members}
+                {crewInfo.roleLabel ? ` • ${crewInfo.roleLabel}` : ""}
               </Text>
             </View>
           </View>
@@ -126,15 +165,11 @@ export default function CrewDetailScreen() {
           <View style={s.statsRow}>
             <View style={s.statItem}>
               <Text style={s.statValue}>{crewInfo.totalDistance}</Text>
-              <Text style={s.statLabel}>이번 달</Text>
+              <Text style={s.statLabel}>월간 총 거리</Text>
             </View>
             <View style={s.statItem}>
-              <Text style={s.statValue}>{crewInfo.meetCount}</Text>
-              <Text style={s.statLabel}>내 순위</Text>
-            </View>
-            <View style={s.statItem}>
-              <Text style={s.statValue}>{crewInfo.totalMembers}</Text>
-              <Text style={s.statLabel}>대결 승리</Text>
+              <Text style={s.statValue}>{crewInfo.activeMembers}</Text>
+              <Text style={s.statLabel}>활동 멤버</Text>
             </View>
           </View>
         </View>
@@ -231,19 +266,11 @@ export default function CrewDetailScreen() {
                 </View>
               </View>
 
-              <View style={s.statsCards}>
-                <View style={s.statsCard}>
-                  <Text style={s.statsCardValue}>486km</Text>
-                  <Text style={s.statsCardLabel}>총 누적 거리</Text>
-                </View>
-                <View style={s.statsCard}>
-                  <Text style={s.statsCardValue}>18회</Text>
-                  <Text style={s.statsCardLabel}>그룹 러닝</Text>
-                </View>
-              </View>
+            {/* 월간 요약을 추가 카드로 확장하려면 여기서 확장 */}
             </View>
 
             {/* MVP 섹션 */}
+            {mvpMember && (
             <View style={s.mvpSection}>
               <View style={s.mvpHeader}>
                 <Text style={s.mvpTitle}>🏆 이번 주 MVP</Text>
@@ -253,15 +280,14 @@ export default function CrewDetailScreen() {
                 <View style={s.mvpAvatar} />
                 <View style={s.mvpInfo}>
                   <Text style={s.mvpName}>{mvpMember.name}</Text>
-                  <Text style={s.mvpDistance}>
-                    주간 거리: {mvpMember.distance}
-                  </Text>
+                  <Text style={s.mvpDistance}>월간 거리: {mvpMember.distance}</Text>
                 </View>
                 <View style={s.mvpBadge}>
                   <Text style={s.mvpBadgeText}>MVP</Text>
                 </View>
               </View>
             </View>
+            )}
           </>
         )}
 
@@ -400,7 +426,7 @@ export default function CrewDetailScreen() {
                         onPress: async () => {
                           await closeCrew(crewId);
                           Alert.alert("완료", "크루가 폐쇄되었습니다.");
-                          navigation.goBack();
+                          navigation.navigate("Crew" as never);
                         },
                       },
                     ]
@@ -423,9 +449,22 @@ export default function CrewDetailScreen() {
                         text: "탈퇴",
                         style: "destructive",
                         onPress: async () => {
-                          await leaveCrew(crewId);
-                          Alert.alert("완료", "크루에서 탈퇴했습니다.");
-                          navigation.goBack();
+                          try {
+                            await leaveCrew(crewId);
+                            Alert.alert("완료", "크루에서 탈퇴했습니다.");
+                            navigation.navigate("Crew" as never);
+                          } catch (e: any) {
+                            const msg = e?.response?.data?.message || e?.message || "잠시 후 다시 시도해주세요.";
+                            // 서버 정책: 크루장은 탈퇴 불가. 해당 문구를 명확히 안내
+                            if (/크루장|OWNER|소유자/.test(String(msg))) {
+                              Alert.alert(
+                                "탈퇴 불가",
+                                "크루장은 바로 탈퇴할 수 없습니다. 멤버에게 소유권을 양도한 뒤 탈퇴하거나, 크루를 폐쇄하세요."
+                              );
+                            } else {
+                              Alert.alert("탈퇴 실패", msg);
+                            }
+                          }
                         },
                       },
                     ]
@@ -436,6 +475,8 @@ export default function CrewDetailScreen() {
                 <Text style={s.closeCrewBtnText}>크루 탈퇴</Text>
               </TouchableOpacity>
             )}
+
+            {/* 관리자는 크루 폐쇄만 제공. 별도 탈퇴 버튼/플로우 노출하지 않음 */}
           </View>
         )}
       </ScrollView>
@@ -700,6 +741,11 @@ const s = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     padding: 16,
+  },
+  helperText: {
+    fontSize: 12,
+    color: "#6B7280",
+    lineHeight: 18,
   },
   closeCrewBtn: {
     flexDirection: "row",
