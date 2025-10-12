@@ -1,5 +1,5 @@
 // utils/api/auth.ts
-import { client, mockEnabled } from "./client";
+import { client } from "./client";
 
 type KakaoMe = {
   id: number;
@@ -23,15 +23,6 @@ export type LoginResponse = {
 };
 
 export const kakaoLogin = async (code: string, redirectUri: string) => {
-  if (mockEnabled) {
-    return {
-      userId: 1,
-      jwtToken: "mock-jwt-token",
-      isNewUser: false,
-      isOnboardingCompleted: true,
-      tokenType: "Bearer",
-    } as LoginResponse;
-  }
   const res = await client.post<LoginResponse>("/v1/auth/kakao", {
     code,
     redirectUri,
@@ -60,14 +51,12 @@ export const kakaoLoginWithSDK = async (accessToken: string) => {
   if (!kakaoId) throw new Error("카카오 사용자 ID를 가져오지 못했습니다.");
 
   // 2) 서버 로그인 요청 (POST /v1/auth/kakao)
+  // Swagger: KakaoLoginRequest requires { accessToken, kakaoId }
   const payload = {
-    kakaoId, // ✅ 서버 DTO @NotNull
-    accessToken, // ✅ 서버 검증/재조회용
+    kakaoId,
+    accessToken,
     isMobile: true,
-    // email: me.kakao_account?.email,
-    // nickname: me.properties?.nickname,
-    // profileImage: me.properties?.profile_image,
-  };
+  } as const;
 
   const res = await client.post<LoginResponse>("/v1/auth/kakao", payload);
 
@@ -82,14 +71,6 @@ export const kakaoLoginWithSDK = async (accessToken: string) => {
     body?.data?.token;
 
   if (!jwt) {
-    if (mockEnabled) {
-      return {
-        jwtToken: "mock-jwt-token",
-        isOnboardingCompleted: true,
-        userId: 1,
-        isNewUser: false,
-      } as LoginResponse;
-    }
     throw new Error(
       `서버에서 JWT 토큰을 받지 못했습니다. resp=${JSON.stringify(body)}`
     );

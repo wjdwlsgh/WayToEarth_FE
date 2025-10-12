@@ -82,10 +82,11 @@ export default function useKakaoLogin() {
         navigation.reset({ index: 0, routes: [{ name: "Register" }] });
       }
     } catch (e: any) {
-      console.log("Kakao login error →", e, e?.code, e?.message);
+      const detail = e?.response?.data ? JSON.stringify(e.response.data) : e?.message;
+      console.log("Kakao login error →", e, e?.code, e?.message, detail);
       Alert.alert(
         "카카오 로그인 실패",
-        [e?.code, e?.message || String(e)].filter(Boolean).join(" ")
+        [e?.code, e?.message, detail].filter(Boolean).join(" ")
       );
       try {
         const Kakao = NativeModules.RNKakaoLogins as RNKakao | undefined;

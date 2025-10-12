@@ -26,7 +26,7 @@ export default {
     },
 
     android: {
-      package: "com.waytoearth", // ✅ 이미 있어서 OK
+      package: "cloud.waytoearth", // ✅ 이미 있어서 OK
       config: { googleMaps: { apiKey: process.env.ANDROID_MAPS_KEY } },
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
@@ -56,7 +56,8 @@ export default {
     extra: {
       kakaoNativeAppKey: process.env.KAKAO_NATIVE_APP_KEY,
       kakaoRestApiKey: process.env.KAKAO_REST_API_KEY,
-      apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || "https://api.waytoearth.cloud",
+      apiBaseUrl:
+        process.env.EXPO_PUBLIC_API_BASE_URL || "https://api.waytoearth.cloud",
       mockEnabled: process.env.EXPO_PUBLIC_API_MOCK === "1",
       crewMockEnabled: false, // 실제 크루 API 연동 사용
       eas: { projectId: "7a5e6a60-69ad-4ddc-8301-9aaf03e404a6" },

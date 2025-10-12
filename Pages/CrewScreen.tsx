@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import TopCrewItem from "../components/Crew/TopCrewItem";
 import CrewCard from "../components/Crew/CrewCard";
 import SearchBar from "../components/Crew/SearchBar";
@@ -45,6 +46,33 @@ export default function CrewScreen() {
       {/* 헤더 */}
       <View style={s.header}>
         <Text style={s.headerTime}>9:41</Text>
+        {myCrew && (
+          <TouchableOpacity
+            accessibilityLabel="크루 채팅"
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={() => {
+              Alert.alert("채팅 이동", "내 크루 채팅으로 이동 시도");
+              const params: any = {
+                crewId: String((myCrew as any).id),
+                crewName: (myCrew as any).name,
+              };
+              const state: any = (navigation as any)?.getState?.();
+              const canHere = Array.isArray(state?.routeNames) && state.routeNames.includes("CrewChat");
+              if (canHere) {
+                (navigation as any).navigate("CrewChat", params);
+              } else {
+                const parent = (navigation as any)?.getParent?.();
+                if (parent) {
+                  parent.navigate("CrewChat", params);
+                } else {
+                  Alert.alert("채팅 이동 불가", "네비게이션 경로를 찾을 수 없습니다.");
+                }
+              }
+            }}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
@@ -63,6 +91,7 @@ export default function CrewScreen() {
                   <TopCrewItem
                     rank={c.rank}
                     distance={c.distance}
+                    name={c.name}
                     size={size}
                     onPress={() => {}}
                   />
@@ -137,7 +166,13 @@ export default function CrewScreen() {
         visible={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (name, description) => {
-          await createMyCrew(name, description);
+          try {
+            if (!name?.trim()) return;
+            await createMyCrew(name, description);
+          } catch (e: any) {
+            const msg = e?.response?.data?.message || e?.message || "크루 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";
+            Alert.alert("생성 실패", msg);
+          }
         }}
       />
 
@@ -151,21 +186,31 @@ export default function CrewScreen() {
         onJoin={
           selected
             ? async (intro) => {
-                const res = await joinExistingCrew(
-                  {
-                    id: selected.id || "",
-                    name: selected.name,
-                    description: selected.description || "",
-                    progress: selected.progress || "0/0",
-                  },
-                  intro
-                );
-                setPreviewOpen(false);
-                // 승인 대기 안내
-                if ((res as any)?.pending) {
-                  Alert.alert("신청 완료", "관리자 승인 후 크루에 참여할 수 있습니다.");
-                } else {
-                  Alert.alert("가입 완료", "크루에 가입되었습니다.");
+                try {
+                  const res = await joinExistingCrew(
+                    {
+                      id: selected.id || "",
+                      name: selected.name,
+                      description: selected.description || "",
+                      progress: selected.progress || "0/0",
+                    },
+                    intro
+                  );
+                  setPreviewOpen(false);
+                  // 승인 대기 안내
+                  if ((res as any)?.pending) {
+                    Alert.alert(
+                      "신청 완료",
+                      "관리자 승인 후 크루에 참여할 수 있습니다."
+                    );
+                  } else {
+                    Alert.alert("가입 완료", "크루에 가입되었습니다.");
+                  }
+                } catch (e: any) {
+                  const msg = e?.code === "JOIN_PENDING_EXISTS"
+                    ? "이미 해당 크루에 가입 신청이 접수되어 있습니다. 승인/거절 결과를 기다려주세요."
+                    : (e?.response?.data?.message || e?.message || "가입 신청에 실패했습니다.");
+                  Alert.alert("신청 불가", msg);
                 }
               }
             : undefined
@@ -177,7 +222,7 @@ export default function CrewScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-  header: { backgroundColor: "#4A90E2", padding: 16, paddingTop: 8 },
+  header: { backgroundColor: "#4A90E2", padding: 16, paddingTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerTime: { color: "#fff", fontSize: 14, fontWeight: "600" },
   topWrap: {
     flexDirection: "row",

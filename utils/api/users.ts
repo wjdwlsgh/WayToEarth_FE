@@ -1,5 +1,5 @@
 // utils/api/users.ts
-import { client, mockEnabled } from "./client";
+import { client } from "./client";
 import type { UserInfo } from "../../types/types";
 
 // 공통: 래퍼 응답 { success, data, ... } 언래핑 유틸
@@ -19,23 +19,11 @@ export async function checkNickname(rawNickname: string) {
     };
   }
 
-  if (mockEnabled) {
-    const taken = ["admin", "test", "waytoearth"].includes(
-      nickname.toLowerCase()
-    );
-    return {
-      available: !taken,
-      isDuplicate: taken,
-      message: taken ? "이미 사용 중인 닉네임입니다." : "사용 가능",
-    };
-  }
-
   try {
     const { data } = await client.get("/v1/users/check-nickname", {
       params: { nickname },
     });
 
-    // 서버가 available(Boolean) 또는 isDuplicate(Boolean)을 주는 경우를 모두 대응
     const available =
       typeof data?.available === "boolean"
         ? data.available
@@ -49,7 +37,6 @@ export async function checkNickname(rawNickname: string) {
         (available ? "사용 가능" : "이미 사용 중인 닉네임입니다."),
     };
   } catch (e: any) {
-    // 장애 시엔 보수적으로 '중복으로 간주'하거나, 정책에 따라 사용 가능 처리 가능
     return {
       available: false,
       isDuplicate: true,
@@ -79,15 +66,6 @@ function extractNumber(input: string | number) {
 
 /** 회원가입/온보딩 제출: Swagger 스펙에 맞춘 필드 전송 */
 export async function submitOnboarding(input: OnboardingInput) {
-  if (mockEnabled) {
-    return {
-      ok: true,
-      userId: 1,
-      nickname: input.nickname,
-      residence: input.residence,
-      weekly_goal_distance: input.weekly_goal_distance,
-    } as any;
-  }
   const payload = {
     nickname: (input.nickname ?? "").trim(),
     residence: (input.residence ?? "").trim(),
@@ -128,21 +106,6 @@ export type UserProfile = {
 };
 
 export async function getMyProfile(): Promise<UserProfile> {
-  if (mockEnabled) {
-    return {
-      id: 1,
-      nickname: "Demo User",
-      profile_image_url: null,
-      residence: "Seoul",
-      age_group: "20s",
-      gender: "male",
-      weekly_goal_distance: 10,
-      total_distance: 42.195,
-      total_running_count: 12,
-      created_at: new Date().toISOString(),
-      profile_image_key: null,
-    };
-  }
   const res = await client.get("/v1/users/me");
   return unwrap<UserProfile>(res.data);
 }
@@ -156,14 +119,6 @@ export type UserSummary = {
 };
 
 export async function getMySummary(): Promise<UserSummary> {
-  if (mockEnabled) {
-    return {
-      completion_rate: 0.6,
-      emblem_count: 3,
-      total_distance: 120.5,
-      total_running_count: 25,
-    };
-  }
   const res = await client.get("/v1/users/me/summary");
   return unwrap<UserSummary>(res.data);
 }

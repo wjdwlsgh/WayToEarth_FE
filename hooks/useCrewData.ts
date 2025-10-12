@@ -1,35 +1,68 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import type { TopCrewItemData } from "../types/Crew";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Crew } from "../utils/api/crews";
 import { getMyCrew, listCrews, createCrew, joinCrew, type JoinResult } from "../utils/api/crews";
+import { getTopCrewsByDistance } from "../utils/api/crewStats";
 
-const RAW_TOP_CREWS: TopCrewItemData[] = [
-  { id: "2", rank: "1등 크루", name: "마리오 크루", distance: "1150km" },
-  { id: "1", rank: "2등 크루", name: "산책 크루", distance: "950km" },
-  { id: "3", rank: "3등 크루", name: "초록 크루", distance: "685km" },
-];
+import type { TopCrewItemData } from "../types/Crew";
+// Top crew mock data removed. If server provides a ranking API,
+// fetch and map it here; otherwise leave empty for now.
 
 export function useCrewData(searchText: string) {
   const [myCrew, setMyCrew] = useState<Crew | null>(null);
   const [crews, setCrews] = useState<Crew[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const PENDING_KEY = "crew.pending.join.ids";
+  const [pendingJoins, setPendingJoins] = useState<Set<string>>(new Set());
+
+  // load pending join ids from storage
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = (await AsyncStorage.getItem(PENDING_KEY)) || "[]";
+        const arr = JSON.parse(raw) as string[];
+        setPendingJoins(new Set((arr || []).map(String)));
+      } catch {}
+    })();
+  }, []);
+
+  const persistPending = useCallback(async (setIds: Set<string>) => {
+    try {
+      await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(Array.from(setIds)));
+    } catch {}
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [m, list] = await Promise.all([
-        getMyCrew(),
-        listCrews(searchText),
-      ]);
-      setMyCrew(m);
+      const now = new Date();
+      const month = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+      // 각 호출을 독립적으로 보호
+      const mPromise = getMyCrew().catch(() => null);
+      const listPromise = listCrews(searchText).catch(() => [] as Crew[]);
+      const topPromise = getTopCrewsByDistance({ month, limit: 3 }).catch(() => []);
+      const [m, list, top] = await Promise.all([mPromise, listPromise, topPromise]);
+      setMyCrew(m ?? null);
+      // 가입이 승인되어 내 크루가 생겼다면 대기중 목록 초기화
+      if (m) {
+        const cleared = new Set<string>();
+        setPendingJoins(cleared);
+        persistPending(cleared);
+      }
+      // 상단 랭킹
+      (top && top.length) ? setTopCrews(top) : setTopCrews([]);
       // 내 크루가 목록에 있으면 중복 제거 (id 타입 차이 방지용 String 비교)
       const myId = m ? String((m as any).id) : "";
       const filtered = (list ?? []).filter((c) => String((c as any).id) !== myId);
       setCrews(filtered);
     } catch (e: any) {
       setError(e?.message || "크루 정보를 불러오지 못했습니다.");
+      // 오류 시 이전 myCrew가 남아 빈 상태 표시가 안되는 문제 방지
+      setMyCrew(null);
+      // 리스트는 최소한 비워서 UI 진행
+      setCrews([]);
     } finally {
       setLoading(false);
     }
@@ -39,7 +72,7 @@ export function useCrewData(searchText: string) {
     refresh();
   }, [refresh]);
 
-  const topCrews = RAW_TOP_CREWS;
+  const [topCrews, setTopCrews] = useState<TopCrewItemData[]>([]);
 
   // 화면에서는 내 크루를 별도로 노출하므로,
   // 목록(crews)에는 항상 내 크루를 제외한 항목만 유지
@@ -63,16 +96,30 @@ export function useCrewData(searchText: string) {
   }, []);
 
   const joinExistingCrew = useCallback(async (crew: Crew, message?: string) => {
+    const id = String((crew as any).id);
+    if (pendingJoins.has(id)) {
+      const err = new Error("이미 해당 크루에 가입 신청이 접수되어 있습니다. 승인 또는 거절될 때까지 기다려주세요.");
+      (err as any).code = "JOIN_PENDING_EXISTS";
+      throw err;
+    }
     const res: JoinResult = await joinCrew(crew, message);
     if ((res as any)?.pending) {
       // 승인 대기: 내 크루는 그대로 null 유지
+      const next = new Set(pendingJoins);
+      next.add(id);
+      setPendingJoins(next);
+      persistPending(next);
       return res;
     }
     const joined = res as Crew;
     setMyCrew(joined);
     setCrews((prev) => prev.filter((c) => String((c as any).id) !== String((joined as any).id)));
+    // 승인 즉시 가입이 된다면 pending 목록 비움
+    const cleared = new Set<string>();
+    setPendingJoins(cleared);
+    persistPending(cleared);
     return joined;
-  }, []);
+  }, [pendingJoins, persistPending]);
 
   return { topCrews, crews: finalList, myCrew, loading, error, refresh, ensureMyCrew, createMyCrew, joinExistingCrew };
 }

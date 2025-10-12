@@ -1,6 +1,12 @@
 import React, { useState } from "react";
-import { Modal, View, Text, StyleSheet, TouchableOpacity, TextInput } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+} from "react-native";
 
 type Props = {
   visible: boolean;
@@ -8,48 +14,78 @@ type Props = {
   name: string;
   description?: string;
   progress?: string;
-  onJoin?: (intro?: string) => Promise<void> | void;
+  onJoin?: (intro?: string) => void | Promise<void>;
 };
 
-export default function CrewPreviewSheet({ visible, onClose, name, description, progress, onJoin }: Props) {
+export default function CrewPreviewSheet({
+  visible,
+  onClose,
+  name,
+  description,
+  progress,
+  onJoin,
+}: Props) {
   const [intro, setIntro] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!onJoin || loading) return;
+    try {
+      setLoading(true);
+      await onJoin(intro.trim());
+      setIntro("");
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={s.overlay}>
         <View style={s.sheet}>
           <View style={s.handle} />
-          <TouchableOpacity style={s.closeBtn} onPress={onClose} accessibilityLabel="닫기">
-            <Ionicons name="close" size={20} color="#111" />
-          </TouchableOpacity>
-
-          <Text style={s.headerTitle}>가입 신청</Text>
-          <View style={{ height: 8 }} />
-          <Text style={s.label}>한줄 소개</Text>
+          <Text style={s.title}>가입 신청</Text>
+          <View style={s.card}>
+            <View style={s.row}>
+              <Text style={s.name}>{name}</Text>
+              {progress ? <Text style={s.progress}>{progress}</Text> : null}
+            </View>
+            {description ? (
+              <Text style={s.desc} numberOfLines={3}>
+                {description}
+              </Text>
+            ) : null}
+          </View>
           <TextInput
-            style={s.textarea}
-            placeholder="안녕하세요 저는 진지한 러닝을 원합니다."
-            placeholderTextColor="#A3A3A3"
+            style={[s.input, { height: 90 }]}
+            placeholder="소개/한마디 (선택)"
             value={intro}
             onChangeText={setIntro}
             multiline
-            numberOfLines={4}
-            textAlignVertical="top"
           />
-
-          <TouchableOpacity
-            style={s.primaryCta}
-            onPress={async () => {
-              if (onJoin) await onJoin(intro.trim());
-              setIntro("");
-              onClose();
-            }}
-          >
-            <Text style={s.primaryCtaText}>가입 신청하기</Text>
-          </TouchableOpacity>
-
-          {/* 참고 정보 (선택): 기존 설명/진행률 */}
-          {!!description && <Text style={s.desc}>{description}</Text>}
-          {!!progress && <Text style={s.progress}>진행률 {progress}</Text>}
+          <View style={s.rowBtns}>
+            <TouchableOpacity
+              style={[s.btn, s.cancel]}
+              onPress={onClose}
+              disabled={loading}
+            >
+              <Text style={s.cancelText}>닫기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.btn, s.primary, loading && { opacity: 0.6 }]}
+              onPress={submit}
+            >
+              <Text style={s.primaryText}>
+                {loading ? "신청중…" : "가입 신청하기"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -57,28 +93,52 @@ export default function CrewPreviewSheet({ visible, onClose, name, description, 
 }
 
 const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
-  handle: { alignSelf: "center", width: 44, height: 5, borderRadius: 999, backgroundColor: "#E5E7EB", marginBottom: 12 },
-  closeBtn: { position: 'absolute', right: 14, top: 14, padding: 6, borderRadius: 999, backgroundColor: '#F5F5F5' },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#111' },
-  label: { fontSize: 16, fontWeight: '700', color: '#111', marginBottom: 8 },
-  textarea: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 120,
-    color: '#111',
-    marginBottom: 16,
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
   },
-  primaryCta: { backgroundColor: '#111111', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 12 },
-  primaryCtaText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  desc: { color: "#374151", marginBottom: 8 },
-  progress: { color: "#111827", fontWeight: "700", marginBottom: 12 },
-  row: { flexDirection: "row", gap: 10 },
+  sheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+  },
+  handle: {
+    alignSelf: "center",
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "#E5E7EB",
+    marginBottom: 12,
+  },
+  title: { fontSize: 18, fontWeight: "800", marginBottom: 12 },
+  card: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  name: { fontSize: 16, fontWeight: "800", color: "#111827" },
+  progress: { fontSize: 12, color: "#6B7280", fontWeight: "700" },
+  desc: { marginTop: 6, fontSize: 13, color: "#6B7280" },
+  input: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    marginBottom: 12,
+  },
+  rowBtns: { flexDirection: "row", gap: 10 },
   btn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   cancel: { backgroundColor: "#F3F4F6" },
   cancelText: { color: "#374151", fontWeight: "700" },

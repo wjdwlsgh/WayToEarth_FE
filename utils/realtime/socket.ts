@@ -34,9 +34,10 @@ export async function createSocket(): Promise<SocketLike | null> {
     reconnectionDelay: 1000,
     reconnectionDelayMax: 8000,
     timeout: 10000,
+    // Send token in handshake auth and also as query for compatibility
     auth: { token: token ? `Bearer ${token}` : undefined },
+    query: token ? { token: `Bearer ${token}` } : undefined,
   });
 
   return socket as SocketLike;
 }
-

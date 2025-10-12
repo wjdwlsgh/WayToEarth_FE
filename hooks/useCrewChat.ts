@@ -40,6 +40,15 @@ export function useCrewChat(crewId: string, seed?: ChatMessage[]) {
       s.on("connect", () => {
         s.emit("join", { room: `crew:${crewId}` });
       });
+      s.on?.("connect_error", (err: any) => {
+        console.log("[chat] connect_error", err?.message || err);
+      });
+      s.on?.("error", (err: any) => {
+        console.log("[chat] error", err?.message || err);
+      });
+      s.on?.("disconnect", (reason: any) => {
+        console.log("[chat] disconnect", reason);
+      });
       s.on("message:new", (m: ChatMessage) => {
         setMessages((prev) => {
           const next = [...prev, m];
@@ -101,4 +110,3 @@ export function useCrewChat(crewId: string, seed?: ChatMessage[]) {
 
   return { messages: data, send };
 }
-

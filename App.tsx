@@ -33,7 +33,7 @@ import UserInfoInputScreen from "./Pages/UserInfoInputScreen";
 import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
 import CrewScreen from "./Pages/CrewScreen";
 import CrewDetailScreen from "./Pages/CrewDetailScreen";
-import CrewChatScreen from "./Pages/CrewChatScreen";
+import CrewChatScreen from "./Pages/ChatScreen";
 import TabBarAdapter from "./components/Layout/TabBarAdapter";
 
 const Stack = createStackNavigator();

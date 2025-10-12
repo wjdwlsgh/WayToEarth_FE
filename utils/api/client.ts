@@ -1,18 +1,12 @@
 // utils/api/client.ts
 import axios, { AxiosResponse } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Constants from "expo-constants";
 
-// Mock 모드 비활성화: 항상 실제 API 연동 사용
-const extra: any = (Constants?.expoConfig as any)?.extra ?? {};
+// 유지 호환: 일부 코드에서 참조하므로 false로 고정 내보냄
 export const mockEnabled = false;
 
 export const client = axios.create({
-  baseURL:
-    (extra?.apiBaseUrl as string) ||
-    ((typeof process !== "undefined" &&
-      (process.env?.EXPO_PUBLIC_API_BASE_URL as string)) ||
-      "https://api.waytoearth.cloud"), // ✅ 기본값, app.config.js의 extra.apiBaseUrl 우선
+  baseURL: "https://api.waytoearth.cloud", // ✅ 반드시 https
   timeout: 10000,
 });
 
@@ -47,7 +41,16 @@ client.interceptors.response.use(
   (err) => {
     const status = err?.response?.status;
     const body = err?.response?.data;
-    console.log("[API ERR]", status, body);
+    const cfg = err?.config || {};
+    console.log(
+      "[API ERR]",
+      status,
+      body,
+      "method=",
+      cfg.method,
+      "url=",
+      cfg.baseURL ? cfg.baseURL + (cfg.url || "") : cfg.url
+    );
     return Promise.reject(err);
   }
 );

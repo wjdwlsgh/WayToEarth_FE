@@ -1,6 +1,11 @@
 import React from "react";
-import { View, TextInput, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  View,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+} from "react-native";
 
 type Props = {
   value: string;
@@ -10,32 +15,39 @@ type Props = {
 
 export default function SearchBar({ value, onChangeText, onSearch }: Props) {
   return (
-    <View style={s.container}>
+    <View style={s.row}>
       <TextInput
-        style={s.input}
-        placeholder="크루를 검색해 보세요"
-        placeholderTextColor="#999"
         value={value}
         onChangeText={onChangeText}
+        placeholder="크루 이름으로 검색"
+        style={s.input}
         returnKeyType="search"
         onSubmitEditing={onSearch}
       />
-      <TouchableOpacity onPress={onSearch} style={s.btn}>
-        <Ionicons name="search" size={20} color="#111" />
+      <TouchableOpacity style={s.btn} onPress={onSearch}>
+        <Text style={s.btnText}>검색</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 20,
+  row: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
   },
-  input: { flex: 1, paddingVertical: 14, fontSize: 15, color: "#000" },
-  btn: { padding: 4 },
+  btn: {
+    backgroundColor: "#111827",
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnText: { color: "#fff", fontWeight: "800" },
 });
