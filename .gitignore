@@ -42,3 +42,5 @@ gradle/
 # Local study materials: keep folder tracked but ignore its contents
 study/*
 !study/.gitkeep
+!study/docs/
+!study/docs/**
