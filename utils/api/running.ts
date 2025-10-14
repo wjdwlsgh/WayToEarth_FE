@@ -4,27 +4,16 @@ import { RoutePoint } from "./types";
 
 type RunningType = "SINGLE" | "JOURNEY";
 
-const isLocal = (sid?: string | null) =>
-  typeof sid === "string" && sid.startsWith("local_");
-
-// ✅ (DEV) 백엔드 미구현: 로컬 세션 생성
-export async function apiStartSession(payload?: { runningType?: RunningType }) {
-  return {
-    sessionId: `local_${Date.now()}`,
-    startedAt: new Date().toISOString(),
-    runningType: payload?.runningType ?? "SINGLE",
-    mocked: true,
-  };
-}
-
 // 실서버 세션 시작: /v1/running/start
 export async function apiStart(payload: {
   sessionId: string;
   runningType?: RunningType;
+  journeyId?: number;
 }) {
   const body = {
     sessionId: payload.sessionId,
     runningType: payload.runningType ?? "SINGLE",
+    ...(payload.journeyId != null ? { journeyId: payload.journeyId } : {}),
   };
   console.log("[API] 러닝 세션 시작 요청:", body);
   const { data } = await client.post("/v1/running/start", body);
@@ -40,10 +29,6 @@ export async function apiUpdate(payload: {
   calories: number;
   currentPoint: RoutePoint & { sequence: number };
 }) {
-  if (isLocal(payload.sessionId)) {
-    console.log("[API] 로컬 세션 업데이트 (mocked):", payload.sessionId);
-    return { ack: true, mocked: true };
-  }
   const body = {
     ...payload,
     averagePaceSeconds: payload.averagePaceSeconds ?? undefined, // null 회피
@@ -61,10 +46,6 @@ export async function apiUpdate(payload: {
 }
 
 export async function apiPause(payload: { sessionId: string }) {
-  if (isLocal(payload.sessionId)) {
-    console.log("[API] 로컬 세션 일시정지 (mocked):", payload.sessionId);
-    return { ack: true, status: "PAUSED", mocked: true };
-  }
   console.log("[API] 러닝 일시정지 요청:", payload);
   const { data } = await client.post("/v1/running/pause", payload);
   console.log("[API] 러닝 일시정지 응답:", data);
@@ -72,10 +53,6 @@ export async function apiPause(payload: { sessionId: string }) {
 }
 
 export async function apiResume(payload: { sessionId: string }) {
-  if (isLocal(payload.sessionId)) {
-    console.log("[API] 로컬 세션 재개 (mocked):", payload.sessionId);
-    return { ack: true, status: "RUNNING", mocked: true };
-  }
   console.log("[API] 러닝 재개 요청:", payload);
   const { data } = await client.post("/v1/running/resume", payload);
   console.log("[API] 러닝 재개 응답:", data);
@@ -110,11 +87,6 @@ export async function apiComplete(payload: {
   endedAt?: string | number;
   title?: string;
 }): Promise<{ runId: number | null; data?: CompletedRun }> {
-  // 로컬 세션(백엔드 실패 시)은 기록 저장 불가
-  if (isLocal(payload.sessionId)) {
-    console.warn("[API] 로컬 세션은 서버에 저장할 수 없습니다:", payload.sessionId);
-    return { runId: null, data: undefined };
-  }
 
   // endedAt ISO 통일
   const endedAtIso = (() => {

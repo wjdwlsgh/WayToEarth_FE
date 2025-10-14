@@ -79,10 +79,8 @@ export function useBackgroundRunning() {
     } catch {}
   };
 
-  // 내부: 진행 카드는 Expo Location foreground service로만 유지.
-  // Notifee ongoing 알림은 중복을 피하기 위해 비활성화(주석 처리)합니다.
+  // 내부: 진행 중 알림(알림 쉐이드 고정) 표시/갱신
   const renderOngoing = async (session: RunningSessionState, effectiveDurationSec?: number) => {
-    /*
     try {
       const title = session.type === 'journey' && session.journeyTitle
         ? `🏃 ${session.journeyTitle} 러닝 중`
@@ -95,7 +93,7 @@ export function useBackgroundRunning() {
       const body = session.type === 'journey'
         ? `진행 거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(dur)}`
         : `거리: ${session.distanceKm.toFixed(2)}km | 시간: ${formatDuration(dur)}`;
-      createNotificationChannels();
+      await createNotificationChannels();
       const notificationIdResult = await notifee.displayNotification({
         id: 'running_session',
         title,
@@ -109,17 +107,15 @@ export function useBackgroundRunning() {
           onlyAlertOnce: true,
           showTimestamp: true,
           pressAction: { id: 'default', launchActivity: 'default' },
-          asForegroundService: true,
+          // asForegroundService는 기기/설정에 따라 별도 서비스 등록 필요할 수 있어 비활성화
           color: session.isPaused ? '#FFA500' : '#00FF00',
           smallIcon: 'ic_launcher',
         },
       });
       notificationId.current = notificationIdResult;
     } catch (error) {
-      console.error('Failed to start foreground service:', error);
+      console.error('Failed to display ongoing notification:', error);
     }
-    */
-    return;
   };
 
   // 내부: 백그라운드 지속 알림을 1회 표시하고, 시간만 초단위 갱신
@@ -176,9 +172,11 @@ export function useBackgroundRunning() {
     if (Platform.OS !== 'android') return;
     // 권한 확인은 러닝 시작 시점에서 수행됨. 여기서는 지연 없이 표시만 시도.
     // 앱이 백그라운드일 때만 표시, 이미 표시했다면 무시
-    if (((isBackground || appState.current === 'background') && !bgNotiShownRef.current)) {
+    if ((isBackground || appState.current === 'background') && !bgNotiShownRef.current) {
       showBackgroundOngoing(session);
     }
+    // 백그라운드/포그라운드 모두 진행 중 알림을 고정 표시
+    await renderOngoing(session);
   };
 
   // 시간 포맷 헬퍼 함수
@@ -195,9 +193,11 @@ export function useBackgroundRunning() {
 
   // Foreground Service 업데이트
   const updateForegroundService = async (session: RunningSessionState, nextLandmark?: string) => {
-    // 세션만 갱신하고, 백그라운드 틱커가 제목/본문을 갱신
     await saveSession(session);
     lastSessionRef.current = session;
+    if (Platform.OS === 'android') {
+      await renderOngoing(session);
+    }
   };
 
   // Foreground Service 중지
@@ -205,7 +205,7 @@ export function useBackgroundRunning() {
     try {
       await notifee.cancelNotification('running_session');
       await notifee.cancelNotification('running_popup');
-      await notifee.stopForegroundService();
+      try { await notifee.stopForegroundService(); } catch {}
       notificationId.current = null;
       bgNotiShownRef.current = false;
       if (bgTickerRef.current) {
