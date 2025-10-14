@@ -8,10 +8,12 @@ type RunningType = "SINGLE" | "JOURNEY";
 export async function apiStart(payload: {
   sessionId: string;
   runningType?: RunningType;
+  journeyId?: number;
 }) {
   const body = {
     sessionId: payload.sessionId,
     runningType: payload.runningType ?? "SINGLE",
+    ...(payload.journeyId != null ? { journeyId: payload.journeyId } : {}),
   };
   console.log("[API] 러닝 세션 시작 요청:", body);
   const { data } = await client.post("/v1/running/start", body);

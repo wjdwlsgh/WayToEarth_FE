@@ -152,6 +152,8 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
   const handleRunningStart = useCallback(() => {
     console.log("[LiveRunning] start pressed -> show countdown");
     closeMenu();
+    // 카운트다운 동안 GPS 가열: 초기 위치 락 향상
+    try { (t as any).prime?.(); } catch {}
     setCountdownVisible(true);
   }, []);
 

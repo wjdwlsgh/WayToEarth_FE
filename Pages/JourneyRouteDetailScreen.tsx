@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Modal, ActivityIndicator } from 'react-native';
 import useRouteDetail from '../hooks/journey/useJourneyRouteDetail';
-import { getJourneyRoutes, getJourneyLandmarks, type RouteId, type JourneyRoute, type JourneyLandmark } from '../utils/api/journeyRoutes';
+import { getJourneyRoutes, type RouteId, type JourneyRoute } from '../utils/api/journeyRoutes';
+import { getJourneyLandmarks } from '../utils/api/landmarks';
+import type { LandmarkSummary as JourneyLandmark } from '../types/landmark';
 
 type RouteParams = { route: { params?: { id?: RouteId } } ; navigation?: any };
 
@@ -22,7 +24,7 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
     setLoadingJourneyData(true);
     Promise.all([
       getJourneyRoutes(id),
-      getJourneyLandmarks(id),
+      getJourneyLandmarks(Number(id)),
     ])
       .then(([routes, landmarks]) => {
         setRouteData(routes);
@@ -109,16 +111,22 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
               journeyId: String(id),
               journeyTitle: data.title,
               totalDistanceKm,
-              landmarks: landmarkData.map((lm) => ({
-                id: String(lm.id),
-                name: lm.name,
-                distance: `${lm.distanceFromStart.toFixed(1)}km 지점`,
-                distanceM: lm.distanceFromStart * 1000, // km → 미터 변환
-                position: {
-                  latitude: lm.latitude,
-                  longitude: lm.longitude,
-                },
-              })),
+              landmarks: landmarkData.map((lm) => {
+                // 일부 환경: distanceFromStart가 '정수 km'로 내려옴(예: 2,4,6,10)
+                const raw = Number(lm.distanceFromStart ?? 0);
+                const looksLikeIntegerKm = raw > 0 && raw <= totalDistanceKm + 1 && Math.abs(raw - Math.round(raw)) < 1e-9;
+                const meters = looksLikeIntegerKm ? raw * 1000 : raw;
+                return {
+                  id: String(lm.id),
+                  name: lm.name,
+                  distance: `${(meters / 1000).toFixed(1)}km 지점`,
+                  distanceM: meters,
+                  position: {
+                    latitude: lm.latitude,
+                    longitude: lm.longitude,
+                  },
+                };
+              }),
               journeyRoute: routeData
                 .sort((a, b) => a.sequence - b.sequence)
                 .map((r) => ({

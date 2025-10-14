@@ -50,9 +50,11 @@ type RouteParams = {
   navigation?: any;
 };
 
-export default function JourneyRunningScreen({ route, navigation }: RouteParams) {
+export default function JourneyRunningScreen(props?: RouteParams) {
+  const route = props?.route as any;
+  const navigation = props?.navigation as any;
   const params = route?.params || {};
-  const journeyId = params.journeyId || "1";
+  const journeyId = params.journeyId; // 반드시 전달되어야 함
   const journeyTitle = params.journeyTitle || "여정 러닝";
   const totalDistanceKm = params.totalDistanceKm || 42.5;
   const landmarks = params.landmarks || [];
@@ -135,6 +137,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   const [selectedLandmark, setSelectedLandmark] = useState<LandmarkSummary | null>(null);
   const [landmarkMenuVisible, setLandmarkMenuVisible] = useState(false);
   const [menuLandmark, setMenuLandmark] = useState<any>(null);
+  const [debugVisible, setDebugVisible] = useState(true);
 
   // 다음 랜드마크 계산
   // 도달한 랜드마크 ID 목록을 훅의 landmarksWithReached에서 파생
@@ -203,6 +206,8 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
   const handleStartPress = useCallback(() => {
     console.log("[JourneyRunning] start pressed -> show countdown");
+    // 카운트다운 동안 초기 위치를 예열해 정확도 확보
+    try { (t as any).prime?.(); } catch {}
     setCountdownVisible(true);
   }, []);
 
@@ -354,10 +359,10 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     distanceKm: (lm.distanceM / 1000).toFixed(2) + "km",
   })));
 
-  // 🔍 청와대 위치 확인 (첫 번째 랜드마크)
+  // 🔍 두 번째 랜드마크(예시) 위치 확인 로그
   if (landmarks.length > 1) {
     const landmark = landmarks[1]; // 청와대
-    console.log("[JourneyRunning] 🎯 청와대 위치:", {
+    console.log("[JourneyRunning] 🎯 두번째 랜드마크 위치:", {
       position: landmark.position,
       distanceM: landmark.distanceM,
     });
@@ -374,7 +379,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         closestIndex = idx;
       }
     });
-    console.log("[JourneyRunning] 🗺️ 청와대가 여정 경로의 몇 번째 포인트?:", {
+    console.log("[JourneyRunning] 🗺️ 랜드마크가 여정 경로의 몇 번째 포인트?:", {
       closestIndex,
       totalPoints: journeyRoute.length,
       percentage: ((closestIndex / (journeyRoute.length - 1)) * 100).toFixed(1) + "%",
@@ -386,6 +391,7 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
 
   // 진행률에 따른 여정 경로 상의 가상 위치 계산 (거리 기반으로 수정)
   const virtualLocation = useMemo(() => {
+    if (!t.progressReady) return null; // 진행률 로드 전에는 계산 생략
     if (journeyRoute.length === 0) return null;
     if (journeyRoute.length === 1) return journeyRoute[0];
 
@@ -394,11 +400,24 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     let currentSegmentStart = 0;
     let currentSegmentEnd = landmarks.length > 1 ? landmarks[1].distanceM : totalDistanceKm * 1000;
     let segmentStartIdx = 0;
-    let segmentEndIdx = landmarks.length > 1 ?
-      journeyRoute.findIndex(p =>
-        Math.abs(p.latitude - landmarks[1].position.latitude) < 0.0001 &&
-        Math.abs(p.longitude - landmarks[1].position.longitude) < 0.0001
-      ) : journeyRoute.length - 1;
+    let segmentEndIdx = 0;
+    if (landmarks.length > 1) {
+      const lm1 = landmarks[1] as any;
+      const hasPos = lm1 && lm1.position && typeof lm1.position.latitude === 'number' && typeof lm1.position.longitude === 'number';
+      if (hasPos) {
+        segmentEndIdx = journeyRoute.findIndex(p =>
+          Math.abs(p.latitude - lm1.position.latitude) < 0.0001 &&
+          Math.abs(p.longitude - lm1.position.longitude) < 0.0001
+        );
+      }
+      if (!hasPos || segmentEndIdx < 0) {
+        // 거리 비율로 근사 인덱스 산출
+        const ratio = Math.min(1, Math.max(0, (lm1.distanceM || 0) / (totalDistanceKm * 1000)));
+        segmentEndIdx = Math.floor(ratio * (journeyRoute.length - 1));
+      }
+    } else {
+      segmentEndIdx = journeyRoute.length - 1;
+    }
 
     // 현재 어느 랜드마크 구간에 있는지 찾기
     for (let i = 0; i < landmarks.length; i++) {
@@ -407,35 +426,47 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         currentSegmentEnd = landmarks[i].distanceM;
         currentSegmentStart = i > 0 ? landmarks[i - 1].distanceM : 0;
 
-        // 해당 랜드마크와 가장 가까운 경로 포인트 찾기
-        const landmark = landmarks[i];
-        let minDist = 999999;
-        segmentEndIdx = journeyRoute.length - 1; // 기본값: 마지막 포인트
-        journeyRoute.forEach((point, idx) => {
-          const dist = Math.sqrt(
-            Math.pow(point.latitude - landmark.position.latitude, 2) +
-            Math.pow(point.longitude - landmark.position.longitude, 2)
-          );
-          if (dist < minDist) {
-            minDist = dist;
-            segmentEndIdx = idx;
-          }
-        });
-
-        if (i > 0) {
-          const prevLandmark = landmarks[i - 1];
-          minDist = 999999;
-          segmentStartIdx = 0; // 기본값: 첫 포인트
+        // 해당 랜드마크의 경로 인덱스 산출(좌표 있으면 최근접, 없으면 비율 근사)
+        const landmark = landmarks[i] as any;
+        const hasPos = landmark && landmark.position && typeof landmark.position.latitude === 'number' && typeof landmark.position.longitude === 'number';
+        if (hasPos) {
+          let minDist = 999999;
+          segmentEndIdx = journeyRoute.length - 1; // 기본값: 마지막 포인트
           journeyRoute.forEach((point, idx) => {
             const dist = Math.sqrt(
-              Math.pow(point.latitude - prevLandmark.position.latitude, 2) +
-              Math.pow(point.longitude - prevLandmark.position.longitude, 2)
+              Math.pow(point.latitude - landmark.position.latitude, 2) +
+              Math.pow(point.longitude - landmark.position.longitude, 2)
             );
             if (dist < minDist) {
               minDist = dist;
-              segmentStartIdx = idx;
+              segmentEndIdx = idx;
             }
           });
+        } else {
+          const ratio = Math.min(1, Math.max(0, (landmark?.distanceM || 0) / (totalDistanceKm * 1000)));
+          segmentEndIdx = Math.floor(ratio * (journeyRoute.length - 1));
+        }
+
+        if (i > 0) {
+          const prevLandmark = landmarks[i - 1] as any;
+          const hasPrev = prevLandmark && prevLandmark.position && typeof prevLandmark.position.latitude === 'number' && typeof prevLandmark.position.longitude === 'number';
+          if (hasPrev) {
+            let minDist = 999999;
+            segmentStartIdx = 0; // 기본값: 첫 포인트
+            journeyRoute.forEach((point, idx) => {
+              const dist = Math.sqrt(
+                Math.pow(point.latitude - prevLandmark.position.latitude, 2) +
+                Math.pow(point.longitude - prevLandmark.position.longitude, 2)
+              );
+              if (dist < minDist) {
+                minDist = dist;
+                segmentStartIdx = idx;
+              }
+            });
+          } else {
+            const ratioStart = Math.min(1, Math.max(0, (prevLandmark?.distanceM || 0) / (totalDistanceKm * 1000)));
+            segmentStartIdx = Math.floor(ratioStart * (journeyRoute.length - 1));
+          }
         } else {
           segmentStartIdx = 0; // 첫 번째 구간의 시작은 0
         }
@@ -465,8 +496,19 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
     const afterIndex = Math.min(beforeIndex + 1, journeyRoute.length - 1);
     const ratio = exactIndex - beforeIndex;
 
-    const pointA = journeyRoute[beforeIndex];
-    const pointB = journeyRoute[afterIndex];
+    const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+    const idxA = clamp(beforeIndex, 0, journeyRoute.length - 1);
+    const idxB = clamp(afterIndex, 0, journeyRoute.length - 1);
+    const pointA = journeyRoute[idxA];
+    const pointB = journeyRoute[idxB];
+
+    // 방어: 경로가 부족하거나 ratio가 비정상이면 안전한 포인트 반환
+    if (!pointA || !pointB || !Number.isFinite(ratio)) {
+      return {
+        location: pointA || journeyRoute[0],
+        routeIndex: idxA,
+      } as any;
+    }
 
     // 선형 보간
     const interpolated = {
@@ -494,6 +536,17 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
   const virtualLocationPoint = virtualLocation?.location || null;
   const virtualRouteIndex = virtualLocation?.routeIndex || 0;
 
+  // journeyId가 없으면 안전 중단
+  if (!journeyId) {
+    return (
+      <SafeLayout withBottomInset>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text>여정 정보가 올바르지 않습니다. 목록에서 다시 진입해주세요.</Text>
+        </View>
+      </SafeLayout>
+    );
+  }
+
   return (
     <SafeLayout withBottomInset>
       <JourneyMapRoute
@@ -506,8 +559,52 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
         onLandmarkPress={handleLandmarkMarkerPress}
       />
 
+      {/* 진행률 디버그 로그 오버레이 */}
+      {debugVisible && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 12,
+            right: 12,
+            bottom: 140,
+            borderRadius: 8,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            padding: 10,
+          }}
+        >
+          <Text style={{ color: "#9AE6B4", fontWeight: "800", marginBottom: 6 }}>[Progress Debug]</Text>
+          <Text style={{ color: "#E5E7EB", fontSize: 12 }}>percent: {t.progressPercent.toFixed(2)}%</Text>
+          <Text style={{ color: "#E5E7EB", fontSize: 12 }}>progressM: {Math.round(t.progressM)} m</Text>
+          <Text style={{ color: "#E5E7EB", fontSize: 12 }}>session: {(t.distance * 1000).toFixed(0)} m, elapsed: {t.elapsedSec}s, pace: {t.paceLabel}</Text>
+          {t.nextLandmark && (
+            <Text style={{ color: "#E5E7EB", fontSize: 12 }}>
+              next: {t.nextLandmark.name} ({(t.nextLandmark.distanceM / 1000).toFixed(2)} km)
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* 디버그 토글 버튼 */}
+      <Pressable
+        onPress={() => setDebugVisible((v) => !v)}
+        style={{
+          position: "absolute",
+          right: 12,
+          bottom: 100,
+          backgroundColor: debugVisible ? "#111827" : "#6B7280",
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+          borderRadius: 12,
+          opacity: 0.85,
+        }}
+        accessibilityLabel="디버그 로그 토글"
+      >
+        <Text style={{ color: "#fff", fontWeight: "800" }}>{debugVisible ? "LOG ON" : "LOG OFF"}</Text>
+      </Pressable>
+
       {/* 러닝 중이 아닐 때: 여정 진행률 카드 */}
-      {!t.isRunning && !t.isPaused && (
+      {!t.isRunning && !t.isPaused && t.progressReady && (
         <JourneyProgressCard
           progressPercent={t.progressPercent}
           currentDistanceKm={t.progressM / 1000}
@@ -643,6 +740,49 @@ export default function JourneyRunningScreen({ route, navigation }: RouteParams)
           style={styles.testButton}
         >
           <Text style={styles.testButtonText}>+10m</Text>
+        </Pressable>
+      </View>
+
+      {/* 서버 진행률 동기화(가상 주입) */}
+      <View style={[styles.testButtonContainer, { top: undefined, bottom: 160 }]}>
+        <Pressable
+          onPress={async () => {
+            try {
+              const r = await (t as any).syncServerProgress?.(50);
+              Alert.alert('서버 동기화', `+50m 반영됨. 진행 ${(r?.percent ?? 0).toFixed(2)}%`);
+            } catch (e: any) {
+              Alert.alert('실패', e?.response?.data?.message || '서버 반영 실패');
+            }
+          }}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>srv +50m</Text>
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            try {
+              const r = await (t as any).syncServerProgress?.(200);
+              Alert.alert('서버 동기화', `+200m 반영됨. 진행 ${(r?.percent ?? 0).toFixed(2)}%`);
+            } catch (e: any) {
+              Alert.alert('실패', e?.response?.data?.message || '서버 반영 실패');
+            }
+          }}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>srv +200m</Text>
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            try {
+              const r = await (t as any).refreshProgress?.();
+              Alert.alert('진행 재조회', `서버 진행 ${(r?.percent ?? 0).toFixed(2)}%`);
+            } catch (e: any) {
+              Alert.alert('실패', e?.response?.data?.message || '진행 재조회 실패');
+            }
+          }}
+          style={styles.testButton}
+        >
+          <Text style={styles.testButtonText}>srv refresh</Text>
         </Pressable>
       </View>
 

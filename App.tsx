@@ -40,7 +40,7 @@ import RecordDetailScreen from "./Pages/RecordDetailScreen";
 import AIFeedbackScreen from "./Pages/AIFeedbackScreen";
 import UserInfoInputScreen from "./Pages/UserInfoInputScreen";
 import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
-// import CrewScreen from "./Pages/CrewScreen";
+import CrewScreen from "./Pages/CrewScreen";
 import CrewDetailScreen from "./Pages/CrewDetailScreen";
 import TabBarAdapter from "./components/Layout/TabBarAdapter";
 import LandmarkGuestbookScreen from "./Pages/LandmarkGuestbookScreen";
@@ -62,7 +62,7 @@ function MainTabs() {
       <Tab.Screen name="LiveRunningScreen" component={LiveRunningScreen} />
       <Tab.Screen name="Feed" component={Feed2} />
       <Tab.Screen name="Record" component={Record} />
-      {/* <Tab.Screen name="Crew" component={CrewScreen} /> */}
+      <Tab.Screen name="Crew" component={CrewScreen} />
       <Tab.Screen name="Profile" component={Profile} />
     </Tab.Navigator>
   );

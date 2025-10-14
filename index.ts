@@ -1,6 +1,6 @@
 import { registerRootComponent } from "expo";
 import messaging from "@react-native-firebase/messaging";
-import notifee, { AndroidImportance, EventType } from "@notifee/react-native";
+// import notifee, { AndroidImportance, EventType } from "@notifee/react-native";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { navigationRef } from "./navigation/RootNavigation";
@@ -14,7 +14,9 @@ messaging().setBackgroundMessageHandler(async (remoteMessage) => {
 
   // Notifee로 백그라운드 알림 표시
   const hasNotification = !!remoteMessage.notification;
-  const hasData = !!remoteMessage.data && (remoteMessage.data.title || remoteMessage.data.body);
+  const hasData =
+    !!remoteMessage.data &&
+    (remoteMessage.data.title || remoteMessage.data.body);
   if (hasNotification || hasData) {
     // 채널 보장 (앱 종료 상태에서도 안전하게)
     try {
@@ -85,18 +87,21 @@ if (Platform.OS === "android") {
         try {
           // Decide target from saved running session
           const raw = await AsyncStorage.getItem("@running_session");
-          let target: 'live' | 'journey' = 'live';
+          let target: "live" | "journey" = "live";
           if (raw) {
             const session = JSON.parse(raw);
-            if (session?.type === 'journey') target = 'journey';
+            if (session?.type === "journey") target = "journey";
           }
 
           // If navigation is ready, navigate immediately; otherwise save pending target
           if (navigationRef.isReady()) {
-            if (target === 'journey') {
-              navigationRef.navigate('JourneyRunningScreen' as never);
+            if (target === "journey") {
+              navigationRef.navigate("JourneyRunningScreen" as never);
             } else {
-              navigationRef.navigate('MainTabs' as never, { screen: 'LiveRunningScreen' } as never);
+              navigationRef.navigate(
+                "MainTabs" as never,
+                { screen: "LiveRunningScreen" } as never
+              );
             }
           } else {
             await AsyncStorage.setItem(

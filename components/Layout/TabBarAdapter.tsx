@@ -6,7 +6,7 @@ import { AppState } from "react-native";
 
 const ROUTE_TO_KEY: Record<string, string> = {
   Profile: "profile",
-  ChatScreen: "crew",
+  Crew: "crew",
   LiveRunningScreen: "running",
   Feed: "feed",
   Record: "record",
@@ -14,7 +14,7 @@ const ROUTE_TO_KEY: Record<string, string> = {
 
 const KEY_TO_ROUTE: Record<string, string> = {
   profile: "Profile",
-  crew: "ChatScreen",
+  crew: "Crew",
   running: "LiveRunningScreen",
   feed: "Feed",
   record: "Record",
@@ -62,15 +62,6 @@ export default function TabBarAdapter({
   const onTabPress = (key: string) => {
     const target = KEY_TO_ROUTE[key];
     if (!target) return;
-    if (target === 'ChatScreen') {
-      const parent = (navigation as any).getParent?.();
-      if (parent && typeof parent.navigate === 'function') {
-        parent.navigate('ChatScreen' as never);
-      } else {
-        navigation.navigate('ChatScreen' as never);
-      }
-      return;
-    }
     navigation.navigate(target as never);
   };
 

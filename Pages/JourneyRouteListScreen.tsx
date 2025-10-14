@@ -22,7 +22,12 @@ export default function RouteListScreen({ navigation }: any) {
     }
   };
 
-  const getProgressPercentage = (completed: number, total: number) => {
+  const getProgressPercentage = (route: RouteSummary | any) => {
+    const p = Number(route?.userProgressPercent ?? NaN);
+    if (Number.isFinite(p)) return Math.round(Math.max(0, Math.min(100, p)));
+    // fallback to legacy ratio if present
+    const completed = Number((route as any).completed ?? 0);
+    const total = Number((route as any).total ?? 0);
     return total > 0 ? Math.round((completed / total) * 100) : 0;
   };
 
@@ -68,7 +73,7 @@ export default function RouteListScreen({ navigation }: any) {
                 </Text>
               </View>
               <View style={styles.progressBadge}>
-                <Text style={styles.progressText}>{getProgressPercentage(Number((route as any).completed ?? 0), Number((route as any).total ?? 0))}% 완료</Text>
+                <Text style={styles.progressText}>{getProgressPercentage(route)}% 완료</Text>
               </View>
               <TouchableOpacity style={styles.favoriteButton}>
                 <Text style={styles.favoriteIcon}>역사 탐방</Text>

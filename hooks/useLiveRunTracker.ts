@@ -43,6 +43,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   // ── refs
   const prev = useRef<LatLng | null>(null);
   const subRef = useRef<Location.LocationSubscription | null>(null);
+  const primeSubRef = useRef<Location.LocationSubscription | null>(null);
   const elapsedTimerRef = useRef<TimerId | null>(null);
   const mapCenterRef = useRef<((p: LatLng) => void) | undefined>(undefined);
   const appStateRef = useRef<string>(AppState.currentState);
@@ -109,9 +110,11 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status === "granted") {
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Low,
-          });
+          // 우선 가장 최근 위치가 있으면 활용(빠름)
+          const last = await Location.getLastKnownPositionAsync().catch(() => null);
+          const location = last ?? (await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          }));
           cachedLocationRef.current = {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
@@ -272,7 +275,7 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   };
 
   /** ✅ 최적화된 시작 */
-  const start = async () => {
+  const start = async (meta?: { journeyId?: string | number }) => {
     console.log("[RunTracker] start() invoked");
     if (isInitializing) return; // 중복 방지
     setIsInitializing(true);
@@ -322,6 +325,12 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
       setIsRunning(true);
       console.log("[RunTracker] state set to running");
       startElapsed();
+
+      // 2.0) 카운트다운 동안 가열(pre-warm) 스트림이 있다면 정리
+      try {
+        primeSubRef.current?.remove?.();
+      } catch {}
+      primeSubRef.current = null;
 
       // 2.1) 포어그라운드에서 백그라운드 위치 업데이트(FGS) 우선 시작
       try {
@@ -375,7 +384,8 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
           // 2. 백엔드에 세션 시작 알림
           const sess = await apiStart({
             sessionId: localSessionId,
-            runningType: runningType
+            runningType: runningType,
+            journeyId: meta?.journeyId != null ? Number(meta.journeyId) : undefined,
           });
 
           sessionIdRef.current = sess.sessionId ?? localSessionId;
@@ -386,10 +396,9 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
             response: sess
           });
         } catch (e) {
-          console.error("[RunTracker] 세션 생성 실패:", e);
-          console.error("[RunTracker] 에러 상세:", JSON.stringify(e, null, 2));
-          // 세션 생성 실패 시 실행 중단 및 상태 복구
-          setIsRunning(false);
+          console.error("[RunTracker] 세션 생성 실패(계속 진행):", e);
+          // 세션ID 없이 진행 (apiUpdate는 sid 없으면 skip). 완료 시에도 진행 저장은 여정 진행 API로 처리 가능.
+          sessionIdRef.current = null;
         }
       })();
 
@@ -457,6 +466,20 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
             const running = await Location.hasStartedLocationUpdatesAsync(WAY_LOCATION_TASK);
             if (!running) console.warn('[BG-LOC] not running after watch started');
           } catch {}
+
+          // Fallback: 시작 후 4초 내 첫 포인트가 없다면 강제 1회 측위
+          setTimeout(async () => {
+            try {
+              if (!prev.current && route.length === 0) {
+                const cur = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+                const p = { latitude: cur.coords.latitude, longitude: cur.coords.longitude } as LatLng;
+                prev.current = p;
+                setRoute([p]);
+                recentRef.current = [{ t: Date.now(), p }];
+                centerMap(p);
+              }
+            } catch {}
+          }, 4000);
         } catch (e) {
           console.warn("위치 스트림 설정 실패:", e);
         }
@@ -506,6 +529,8 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
   const stop = async () => {
     subRef.current?.remove?.();
     subRef.current = null;
+    try { primeSubRef.current?.remove?.(); } catch {}
+    primeSubRef.current = null;
     stopElapsed();
     setIsRunning(false);
     setIsPaused(false);
@@ -555,6 +580,42 @@ export function useLiveRunTracker(runningType: "SINGLE" | "JOURNEY" = "SINGLE") 
     pause,
     resume,
     stop,
+
+    // 카운트다운 동안 위치 가열: 더 정확한 초기 위치 확보를 위해
+    async prime() {
+      try {
+        let perm = await Location.getForegroundPermissionsAsync();
+        if (perm.status !== 'granted') {
+          perm = await Location.requestForegroundPermissionsAsync();
+          if (perm.status !== 'granted') return;
+        }
+        // 최신값 1회 확보
+        const last = await Location.getLastKnownPositionAsync().catch(() => null);
+        if (last) {
+          cachedLocationRef.current = {
+            latitude: last.coords.latitude,
+            longitude: last.coords.longitude,
+          };
+        }
+        // 짧은 워치로 위성 락 예열 (start()가 오면 정리됨)
+        try { primeSubRef.current?.remove?.(); } catch {}
+        primeSubRef.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Highest,
+            timeInterval: 1000,
+            distanceInterval: 1,
+          },
+          (loc) => {
+            cachedLocationRef.current = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            };
+            // 맵도 부드럽게 미리 이동
+            centerMap(cachedLocationRef.current);
+          }
+        );
+      } catch {}
+    },
 
     // 바인딩
     bindMapCenter,

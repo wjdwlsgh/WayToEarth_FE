@@ -16,7 +16,8 @@ TaskManager.defineTask(WAY_LOCATION_TASK, async ({ data, error }) => {
       console.warn('[BG-LOC] task error:', error);
       return;
     }
-    const locations = (data as Location.LocationUpdateEvent).locations;
+    // Expo SDK 53: data shape is { locations: LocationObject[] }
+    const locations = (data as { locations?: Location.LocationObject[] } | undefined)?.locations || [];
     if (!locations?.length) return;
     const last = locations[locations.length - 1];
     // Persist a simple record for diagnostics or future sync
@@ -32,4 +33,3 @@ TaskManager.defineTask(WAY_LOCATION_TASK, async ({ data, error }) => {
     console.warn('[BG-LOC] persist error:', e);
   }
 });
-

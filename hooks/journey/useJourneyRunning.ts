@@ -37,6 +37,7 @@ export function useJourneyRunning({
 
   const [progressM, setProgressM] = useState(0);
   const [progressPercent, setProgressPercent] = useState(0);
+  const [progressReady, setProgressReady] = useState(false);
   const [nextLandmark, setNextLandmark] = useState<JourneyLandmark | null>(null);
   const [reachedLandmarks, setReachedLandmarks] = useState<Set<string>>(new Set());
 
@@ -74,6 +75,7 @@ export function useJourneyRunning({
         initialProgressM.current = progress.progressM;
         setProgressM(progress.progressM);
         setProgressPercent(progress.percent);
+        setProgressReady(true);
 
         // 이미 도달한 랜드마크 표시
         const reached = new Set<string>();
@@ -93,7 +95,9 @@ export function useJourneyRunning({
           nextLandmark: next?.name || "없음",
         });
       } catch (error) {
-        console.error("[useJourneyRunning] ❌ 진행률 로드 실패:", error);
+        console.error("[useJourneyRunning] ❌ 진행률 로드 실패:", { userId, journeyId, error });
+      } finally {
+        setProgressReady(true);
       }
     };
 
@@ -150,18 +154,52 @@ export function useJourneyRunning({
     if (hasStarted.current) return;
 
     try {
-      // 여정 시작 (처음이면 API 호출)
-      if (initialProgressM.current === 0) {
+      console.log('[useJourneyRunning] ▶ 여정 시작 시도', { userId, journeyId, prevProgressM: initialProgressM.current });
+      // 여정 시작: 항상 시도(서버가 이미 시작된 경우 409를 반환할 수 있음)
+      try {
         await userJourneysApi.start(userId, journeyId);
+        console.log('[useJourneyRunning] ✅ /v1/journeys/{id}/start ok');
+      } catch (e: any) {
+        const code = e?.code || e?.response?.status;
+        if (code === 409) {
+          console.log('[useJourneyRunning] ℹ️ 이미 시작된 여정(409). 계속 진행');
+        } else {
+          console.error('[useJourneyRunning] ❌ 여정 시작 실패, 서버 500 가능', e);
+          // 500 등 비정상 응답 시에도 진행ID가 이미 존재할 수 있으므로 재조회 시도
+          try {
+            const state = await userJourneysApi.getState(userId, journeyId, totalDistanceM, 0);
+            if (state && (state.progressM >= 0)) {
+              console.log('[useJourneyRunning] ↺ 진행률 재조회로 대체 진행', { progressM: state.progressM, percent: state.percent });
+              initialProgressM.current = state.progressM;
+              setProgressM(state.progressM);
+              setProgressPercent(state.percent);
+            } else {
+              throw e;
+            }
+          } catch (e2) {
+            throw e; // 상위에서 사용자에게 안내
+          }
+        }
+      }
+
+      // 시작 직후 진행률 다시 확보(진행 ID 보장)
+      try {
+        const state = await userJourneysApi.getState(userId, journeyId, totalDistanceM, 0);
+        initialProgressM.current = state.progressM;
+        setProgressM(state.progressM);
+        setProgressPercent(state.percent);
+        console.log('[useJourneyRunning] ↺ 진행률 재조회', { progressM: state.progressM, percent: state.percent });
+      } catch (e) {
+        console.warn('[useJourneyRunning] 진행률 재조회 실패(계속 진행)', e);
       }
 
       hasStarted.current = true;
-      runTracker.start();
+      await runTracker.start({ journeyId });
     } catch (error) {
       console.error("여정 러닝 시작 실패:", error);
       throw error;
     }
-  }, [userId, journeyId, runTracker]);
+  }, [userId, journeyId, runTracker, totalDistanceM]);
 
   // 러닝 완료 시 진행률 서버 업데이트
   const completeJourneyRun = useCallback(async () => {
@@ -196,7 +234,7 @@ export function useJourneyRunning({
       runTracker.stop();
       hasStarted.current = false;
     } catch (error) {
-      console.error("[useJourneyRunning] ❌ 여정 진행률 업데이트 실패:", error);
+      console.error("[useJourneyRunning] ❌ 여정 진행률 업데이트 실패:", { userId, journeyId, error });
       throw error;
     }
   }, [
@@ -246,6 +284,48 @@ export function useJourneyRunning({
     setNextLandmark(next || null);
   }, [progressM, totalDistanceM, landmarks, reachedLandmarks, onLandmarkReached]);
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // 서버 동기화/리로드(개발용)
+  const refreshProgress = useCallback(async () => {
+    try {
+      console.log('[useJourneyRunning] ↻ refreshProgress', { userId, journeyId });
+      const state = await userJourneysApi.getState(userId, journeyId, totalDistanceM, 0);
+      initialProgressM.current = state.progressM;
+      setProgressM(state.progressM);
+      setProgressPercent(state.percent);
+      // 랜드마크 재계산
+      const reached = new Set<string>();
+      landmarks.forEach((lm) => { if (state.progressM >= lm.distanceM) reached.add(lm.id); });
+      setReachedLandmarks(reached);
+      const next = landmarks.find((lm) => state.progressM < lm.distanceM);
+      setNextLandmark(next || null);
+      return state;
+    } catch (e) {
+      console.error('[useJourneyRunning] refreshProgress failed:', { userId, journeyId, e });
+      throw e;
+    }
+  }, [userId, journeyId, totalDistanceM, landmarks]);
+
+  const syncServerProgress = useCallback(async (deltaMeters: number) => {
+    try {
+      console.log('[useJourneyRunning] ⇡ syncServerProgress', { userId, journeyId, deltaMeters });
+      const res = await userJourneysApi.progress(userId, journeyId, totalDistanceM, deltaMeters);
+      initialProgressM.current = res.progressM;
+      setProgressM(res.progressM);
+      setProgressPercent(res.percent);
+      // 랜드마크 재계산
+      const reached = new Set<string>();
+      landmarks.forEach((lm) => { if (res.progressM >= lm.distanceM) reached.add(lm.id); });
+      setReachedLandmarks(reached);
+      const next = landmarks.find((lm) => res.progressM < lm.distanceM);
+      setNextLandmark(next || null);
+      return res;
+    } catch (e) {
+      console.error('[useJourneyRunning] syncServerProgress failed:', { userId, journeyId, e });
+      throw e;
+    }
+  }, [userId, journeyId, totalDistanceM, landmarks]);
+
   return {
     // 기본 러닝 추적 데이터
     ...runTracker,
@@ -260,7 +340,13 @@ export function useJourneyRunning({
     startJourneyRun,
     completeJourneyRun,
 
+    // 상태
+    progressReady,
+
     // 🧪 테스트용
     addTestDistance,
+    // 서버 확인용(개발)
+    refreshProgress,
+    syncServerProgress,
   };
 }

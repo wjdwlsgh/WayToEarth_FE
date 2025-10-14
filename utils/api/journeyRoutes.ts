@@ -1,5 +1,8 @@
 // utils/api/journeyRoutes.ts
 import { client } from "./client";
+import { getMyProfile } from "./users";
+import * as userJourneys from "./userJourneys";
+import type { LandmarkSummary } from "../../types/landmark";
 
 export type RouteId = string | number;
 
@@ -16,15 +19,15 @@ export type Journey = {
   completedUserCount?: number;
 };
 
-export type JourneyLandmark = {
-  id: number;
-  name: string;
+// 여정 경로 좌표 타입
+export type JourneyRoute = {
+  sequence: number;
   latitude: number;
   longitude: number;
-  distanceFromStart: number; // meters
-  description?: string;
-  imageUrl?: string;
 };
+
+// 여정의 랜드마크 요약 타입 (공유 타입을 재사용)
+export type JourneyLandmark = LandmarkSummary;
 
 // 프론트 호환 타입
 export type RouteSummary = {
@@ -61,7 +64,7 @@ function mapJourneyToSummary(j: Journey): RouteSummary {
     title: j.title,
     description: j.description,
     distance: `${j.totalDistanceKm}Km`,
-    duration: `${j.estimatedDays}일",
+    duration: `${j.estimatedDays}일`,
     difficulty: difficultyMap[j.difficulty] || "보통",
     completed: 0,
     total: j.completedUserCount || 0,
@@ -89,9 +92,9 @@ export async function listRoutes(): Promise<RouteSummary[]> {
 
 // 상세 + 랜드마크
 export async function getRouteDetail(id: RouteId): Promise<RouteDetail> {
-  const [journeyRes, landmarksRes] = await Promise.all([
+  console.log('[ROUTE][detail] fetch', { id: String(id) });
+  const [journeyRes] = await Promise.all([
     client.get(`/v1/journeys/${id}`),
-    client.get(`/v1/landmarks/journey/${id}`).catch(() => ({ data: [] })),
   ]);
   const j: any = journeyRes.data?.data ?? journeyRes.data ?? {};
   const summary = mapJourneyToSummary({
@@ -106,18 +109,49 @@ export async function getRouteDetail(id: RouteId): Promise<RouteDetail> {
     completedUserCount: Number(j.completedUserCount ?? j.completed ?? 0),
   } as Journey);
 
-  const lms: any[] = Array.isArray(landmarksRes.data)
-    ? landmarksRes.data
-    : landmarksRes.data?.content ?? [];
+  // 랜드마크는 공용 유틸을 통해 로드(엔드포인트 폴백/매핑 포함)
+  let lms: any[] = [];
+  try {
+    const list = await (await import('./landmarks')).getJourneyLandmarks(Number(id));
+    lms = list as any[];
+  } catch {
+    lms = [];
+  }
 
-  const landmarks: Landmark[] = lms.map((lm: any) => ({
-    id: String(lm.id ?? lm.landmarkId ?? ""),
-    name: String(lm.name ?? lm.title ?? ""),
-    distance: `${(
-      Number(lm.distanceFromStart ?? lm.distance_m ?? lm.distance ?? 0) / 1000
-    ).toFixed(1)}km 지점`,
-    completed: Boolean(lm.completed ?? lm.visited),
-  }));
+  // 현재 사용자 진행률을 조회해 랜드마크 완료 상태를 보정
+  let progressM = 0;
+  try {
+    const me = await getMyProfile();
+    const totalM = Number((journeyRes.data?.data ?? journeyRes.data)?.totalDistanceKm ?? 0) * 1000;
+    const nextDistM = 0;
+    const state = await userJourneys.getState(String(me.id), String(id), totalM, nextDistM);
+    progressM = Number(state.progressM || 0);
+    console.log('[ROUTE][detail] progress snapshot', { id: String(id), userId: String(me.id), progressKm: (progressM / 1000).toFixed(2), percent: state.percent });
+  } catch {}
+
+  const totalKm = summary.totalDistanceKm || Number(j.totalDistanceKm ?? 0);
+  const landmarks: Landmark[] = lms.map((lm: any) => {
+    const kmVal = lm?.distanceFromStartKm ?? lm?.distance_km ?? lm?.distanceKm;
+    const mRaw = lm?.distanceFromStart ?? lm?.distance_m ?? lm?.distance ?? lm?.distanceMeters;
+    let distM: number;
+    if (kmVal != null) {
+      distM = Number(kmVal) * 1000;
+    } else if (mRaw != null) {
+      const v = Number(mRaw);
+      // 총 여정 거리(totalKm) 정보를 활용해 정수값(v)이 km인지 판정
+      const looksLikeKmInt = totalKm > 0 && v > 0 && v <= totalKm + 1 && Number.isFinite(v) && Math.abs(v - Math.round(v)) < 1e-9;
+      const looksLikeKmDecimal = v > 0 && v < 1000 && String(mRaw).includes('.');
+      distM = (looksLikeKmInt || looksLikeKmDecimal) ? v * 1000 : v;
+    } else {
+      distM = 0;
+    }
+    return {
+      id: String(lm.id ?? lm.landmarkId ?? ""),
+      name: String(lm.name ?? lm.title ?? ""),
+      distance: `${(distM / 1000).toFixed(1)}km 지점`,
+      completed: Boolean(lm.completed ?? lm.visited ?? (progressM > 0 && distM <= progressM)),
+    } as Landmark;
+  });
 
   return { ...summary, landmarks };
 }
@@ -128,13 +162,4 @@ export async function getRouteDetail(id: RouteId): Promise<RouteDetail> {
 export async function getJourneyRoutes(journeyId: RouteId): Promise<JourneyRoute[]> {
   const response = await client.get<JourneyRoute[]>(`/v1/journeys/${journeyId}/routes/all`);
   return response.data;
-}
-
-/**
- * 여정 랜드마크 조회
- */
-export async function getJourneyLandmarks(journeyId: RouteId): Promise<JourneyLandmark[]> {
-  const response = await client.get<JourneyLandmark[]>(`/v1/landmarks/journey/${journeyId}`);
-  return response.data;
->>>>>>> upstream/main
 }

@@ -14,7 +14,7 @@ export type Crew = {
 
 export type CrewRole = "ADMIN" | "MEMBER";
 export type CrewMember = { id: string; nickname: string; role: CrewRole };
-export type CrewApplicant = { id: string; nickname: string };
+export type CrewApplicant = { id: string; nickname: string; userId?: string };
 export type CrewDetail = {
   crew: Crew;
   role: CrewRole;
@@ -23,57 +23,75 @@ export type CrewDetail = {
 };
 
 export async function getMyCrew(): Promise<Crew | null> {
-  // 기본: 내가 속한 크루 1개 조회
-  // 일부 환경에서 /v1/crews/my가 비정상일 수 있어 memberships/my로 폴백
-  const [myRes, membershipsRes] = await Promise.all([
-    client.get("/v1/crews/my", { params: { page: 0, size: 1 } }).catch(() => ({ data: null })),
-    client.get("/v1/crews/memberships/my").catch(() => ({ data: [] })),
-  ]);
-
-  const page = myRes.data as any;
-  const first = page?.content?.[0];
-  if (first) {
-    return {
-      id: String(first.id),
-      name: String(first.name ?? "크루"),
-      description: String(first.description ?? ""),
-      progress: `${first.currentMembers ?? 0}/${first.maxMembers ?? 0}`,
-      imageUrl: first.profileImageUrl ?? null,
-    } as Crew;
-  }
-
-  const memberships = (membershipsRes.data as any[]) || [];
-  const active = memberships.find((m: any) => m?.status ? String(m.status).toUpperCase() === "ACTIVE" : true);
-  if (!active) return null;
-  // active 멤버십이 있으면 해당 크루 상세를 조회해 매핑
-  const crewId = String(active.crewId ?? active?.crew?.id ?? "");
-  if (!crewId) return null;
   try {
-    const { data: d } = await client.get(`/v1/crews/${crewId}`);
+    console.log('[CREWS][getMyCrew] start');
+    // 1) 우선 단일 객체 응답 시도
+    const myRes = await client.get("/v1/crews/my").catch((e) => ({ data: null, __err: e } as any));
+    const d = myRes?.data as any;
+    if (d && typeof d === 'object' && (d.id != null || d.crew?.id != null)) {
+      const raw = d.crew ?? d;
+      console.log('[CREWS][getMyCrew] got single object');
+      return {
+        id: String(raw.id),
+        name: String(raw.name ?? "크루"),
+        description: String(raw.description ?? ""),
+        progress: `${raw.currentMembers ?? 0}/${raw.maxMembers ?? 0}`,
+        imageUrl: raw.profileImageUrl ?? null,
+      } as Crew;
+    }
+
+    // 2) 페이지 응답일 경우 첫 항목 사용
+    const first = d?.content?.[0];
+    if (first) {
+      console.log('[CREWS][getMyCrew] got page content[0]');
+      return {
+        id: String(first.id),
+        name: String(first.name ?? "크루"),
+        description: String(first.description ?? ""),
+        progress: `${first.currentMembers ?? 0}/${first.maxMembers ?? 0}`,
+        imageUrl: first.profileImageUrl ?? null,
+      } as Crew;
+    }
+
+    // 3) 멤버십 폴백: ACTIVE만 인정
+    const membershipsRes = await client.get("/v1/crews/memberships/my").catch((e) => ({ data: [], __err: e } as any));
+    const memberships = (membershipsRes.data as any[]) || [];
+    const active = memberships.find((m: any) => String(m?.status || '').toUpperCase() === 'ACTIVE');
+    if (!active) {
+      console.log('[CREWS][getMyCrew] no active membership');
+      return null;
+    }
+    const crewId = String(active.crewId ?? active?.crew?.id ?? "");
+    if (!crewId) return null;
+    const { data: cd } = await client.get(`/v1/crews/${crewId}`);
+    console.log('[CREWS][getMyCrew] loaded crew by id');
     return {
-      id: String(d.id),
-      name: String(d.name ?? "크루"),
-      description: String(d.description ?? ""),
-      progress: `${d.currentMembers ?? 0}/${d.maxMembers ?? 0}`,
-      imageUrl: d.profileImageUrl ?? null,
+      id: String(cd.id),
+      name: String(cd.name ?? "크루"),
+      description: String(cd.description ?? ""),
+      progress: `${cd.currentMembers ?? 0}/${cd.maxMembers ?? 0}`,
+      imageUrl: cd.profileImageUrl ?? null,
     } as Crew;
-  } catch {
-    // 상세 조회가 500/404 등으로 실패하면 현재 활성 크루가 없다고 간주
+  } catch (e) {
+    console.warn('[CREWS][getMyCrew] failed:', e);
     return null;
   }
 }
 
 export async function getMyCrewDetail(): Promise<CrewDetail | null> {
-  // 실제 API 조합: 내 크루 1개 기준으로 상세/멤버/대기열을 합성
+  console.log('[CREWS][getMyCrewDetail] start');
   const my = await getMyCrew();
-  if (!my) return null;
+  if (!my) {
+    console.log('[CREWS][getMyCrewDetail] no my crew');
+    return null;
+  }
 
   const [detailRes, membersRes, pendingRes, me, membershipsRes] = await Promise.all([
-    client.get(`/v1/crews/${my.id}`).catch(() => ({ data: {} })),
-    client.get(`/v1/crews/${my.id}/members`, { params: { page: 0, size: 100 } }).catch(() => ({ data: { content: [] } })),
-    client.get(`/v1/crews/${my.id}/join-requests`, { params: { page: 0, size: 100 } }).catch(() => ({ data: { content: [] } })),
-    getMyProfile().catch(() => null as any),
-    client.get(`/v1/crews/memberships/my`).catch(() => ({ data: [] })),
+    client.get(`/v1/crews/${my.id}`).catch((e) => ({ data: {}, __err: e })),
+    client.get(`/v1/crews/${my.id}/members`, { params: { page: 0, size: 100 } }).catch((e) => ({ data: { content: [] }, __err: e })),
+    client.get(`/v1/crews/${my.id}/join-requests`, { params: { page: 0, size: 100 } }).catch((e) => ({ data: { content: [] }, __err: e })),
+    getMyProfile().catch((e) => { console.warn('[CREWS][getMyCrewDetail] getMyProfile failed', e); return null as any; }),
+    client.get(`/v1/crews/memberships/my`).catch((e) => ({ data: [], __err: e })),
   ]);
 
   const d = detailRes.data as any; // CrewDetailResponse (may be empty on failure)
@@ -85,6 +103,7 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
   const rawId = d?.id ?? (my as any)?.id;
   if (!rawId) {
     // 유효한 크루 식별자가 없으면 상세 구성 불가
+    console.log('[CREWS][getMyCrewDetail] invalid crew id in detail response');
     return null;
   }
 
@@ -148,9 +167,14 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
       role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
     })),
     pending: (pendingPage?.content ?? [])
-      .filter((p: any) => p.status === "PENDING")
-      .map((p: any) => ({ id: String(p.id), nickname: String(p.userNickname ?? "") })),
+      .filter((p: any) => String(p?.status ?? '').toUpperCase() === 'PENDING')
+      .map((p: any) => ({
+        id: String(p.id),
+        nickname: String(p.userNickname ?? p.applicantNickname ?? ''),
+        userId: p.userId != null ? String(p.userId) : (p.applicantId != null ? String(p.applicantId) : undefined),
+      })),
   };
+  console.log('[CREWS][getMyCrewDetail] mapped detail ok');
   return mapped;
 }
 
@@ -210,7 +234,18 @@ export async function removeMember(crewId: string, userId: string): Promise<void
 }
 
 export async function approveRequest(requestId: string, note?: string): Promise<void> {
-  await client.post(`/v1/crews/join-requests/${requestId}/approve`, { note: note ?? "" });
+  try {
+    await client.post(`/v1/crews/join-requests/${requestId}/approve`, { note: note ?? "" });
+  } catch (e: any) {
+    const status = e?.response?.status;
+    if (status === 500 || status === 409) {
+      // 서버가 이미 처리된 요청에 500/409를 내는 경우가 있어, 상위에서 재조회로 흡수
+      const err = new Error('APPROVE_RETRY');
+      (err as any).code = 'APPROVE_RETRY';
+      throw err;
+    }
+    throw e;
+  }
 }
 
 export async function rejectRequest(requestId: string, note?: string): Promise<void> {

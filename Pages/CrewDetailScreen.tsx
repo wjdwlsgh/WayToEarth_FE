@@ -11,22 +11,21 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getMyProfile } from "../utils/api/users";
-import { useNavigation } from "@react-navigation/native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getMyCrewDetail,
+  closeCrew,
+  leaveCrew,
+  promoteMember,
+  demoteMember,
+  transferOwnership,
   removeMember,
   approveRequest,
   rejectRequest,
-  promoteMember,
-  demoteMember,
-  closeCrew,
-  leaveCrew,
-  transferOwnership,
 } from "../utils/api/crews";
-import { getCrewMonthlySummary, getCrewMemberRanking } from "../utils/api/crewStats";
-import { Ionicons } from "@expo/vector-icons";
-import { getMyProfile } from "../utils/api/users";
+import {
+  getCrewMonthlySummary,
+  getCrewMemberRanking,
+} from "../utils/api/crewStats";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -36,7 +35,7 @@ type Member = {
   role: "ADMIN" | "MEMBER";
   distance?: number;
 };
-type Applicant = { id: string; nickname: string; level?: string };
+type Applicant = { id: string; nickname: string; level?: string; userId?: string };
 
 export default function CrewDetailScreen() {
   const navigation = useNavigation<any>();
@@ -57,12 +56,25 @@ export default function CrewDetailScreen() {
   const [selectedTab, setSelectedTab] = useState<"통계" | "멤버" | "설정">(
     "통계"
   );
-  const [mvpMember, setMvpMember] = useState<{ name: string; distance: string } | null>(null);
+  const [mvpMember, setMvpMember] = useState<{
+    name: string;
+    distance: string;
+  } | null>(null);
 
   const refresh = async () => {
     setLoading(true);
     try {
+      console.log("[CREW_DETAIL] refresh start");
       const detail = await getMyCrewDetail();
+      if (!detail) {
+        console.log("[CREW_DETAIL] no my crew detail (null)");
+      } else {
+        console.log("[CREW_DETAIL] detail loaded:", {
+          id: detail.crew.id,
+          name: detail.crew.name,
+          members: detail.members?.length,
+        });
+      }
       if (detail) {
         setCrewName(detail.crew.name);
         setCrewId(String(detail.crew.id));
@@ -72,10 +84,27 @@ export default function CrewDetailScreen() {
         // 월간 요약/멤버 랭킹 조회
         try {
           const now = new Date();
-          const month = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+          const month = `${now.getFullYear()}${String(
+            now.getMonth() + 1
+          ).padStart(2, "0")}`;
           const [summary, ranking] = await Promise.all([
-            getCrewMonthlySummary(String(detail.crew.id), month).catch(() => null),
-            getCrewMemberRanking(String(detail.crew.id), { month, limit: 1 }).catch(() => []),
+            getCrewMonthlySummary(String(detail.crew.id), month).catch((e) => {
+              console.warn(
+                "[CREW_DETAIL] monthly summary failed",
+                e?.response?.status || e?.message || e
+              );
+              return null;
+            }),
+            getCrewMemberRanking(String(detail.crew.id), {
+              month,
+              limit: 1,
+            }).catch((e) => {
+              console.warn(
+                "[CREW_DETAIL] member ranking failed",
+                e?.response?.status || e?.message || e
+              );
+              return [];
+            }),
           ]);
           const dist = summary?.totalDistance ?? 0;
           const active = summary?.totalActiveMembers ?? detail.members.length;
@@ -86,11 +115,29 @@ export default function CrewDetailScreen() {
             activeMembers: `${active}명`,
           });
           const top = ranking?.[0];
-          if (top) setMvpMember({ name: top.userName, distance: formatKm(top.totalDistance) });
+          if (top)
+            setMvpMember({
+              name: top.userName,
+              distance: formatKm(top.totalDistance),
+            });
           else setMvpMember(null);
         } catch {}
+      } else {
+        // 내 크루가 없는 경우: 간단히 안내
+        setCrewName("");
+        setCrewId("");
+        setMembers([]);
+        setPending([]);
+        setCrewInfo({
+          members: "",
+          roleLabel: "",
+          totalDistance: "0km",
+          activeMembers: "0명",
+        });
+        Alert.alert("내 크루 없음", "현재 가입된 크루가 없습니다.");
       }
     } finally {
+      console.log("[CREW_DETAIL] refresh done");
       setLoading(false);
     }
   };
@@ -106,7 +153,10 @@ export default function CrewDetailScreen() {
     })();
   }, []);
 
-  const isAdmin = role === "ADMIN";
+  // 더 견고한 관리자 판별: 서버 역할 + 멤버 목록 + 소유자 폴백
+  const isAdmin =
+    role === "ADMIN" ||
+    members.some((m) => m.id === myUserId && m.role === "ADMIN");
 
   function formatKm(n: number | string) {
     const v = typeof n === "string" ? Number(n) : n;
@@ -127,14 +177,24 @@ export default function CrewDetailScreen() {
           <TouchableOpacity
             style={s.searchIcon}
             onPress={() => {
-              Alert.alert("채팅 이동", crewId ? `크루(${crewName || ''}) 채팅으로 이동 시도` : "크루 정보를 불러오지 못했습니다.");
+              Alert.alert(
+                "채팅 이동",
+                crewId
+                  ? `크루(${crewName || ""}) 채팅으로 이동 시도`
+                  : "크루 정보를 불러오지 못했습니다."
+              );
               if (!crewId) {
-                Alert.alert("채팅 이동 불가", "크루 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+                Alert.alert(
+                  "채팅 이동 불가",
+                  "크루 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요."
+                );
                 return;
               }
               const params: any = { crewId: crewId, crewName };
               const state: any = (navigation as any)?.getState?.();
-              const canHere = Array.isArray(state?.routeNames) && state.routeNames.includes("CrewChat");
+              const canHere =
+                Array.isArray(state?.routeNames) &&
+                state.routeNames.includes("CrewChat");
               if (canHere) {
                 (navigation as any).navigate("CrewChat", params);
               } else {
@@ -142,12 +202,19 @@ export default function CrewDetailScreen() {
                 if (parent) {
                   parent.navigate("CrewChat", params);
                 } else {
-                  Alert.alert("채팅 이동 불가", "네비게이션 경로를 찾을 수 없습니다.");
+                  Alert.alert(
+                    "채팅 이동 불가",
+                    "네비게이션 경로를 찾을 수 없습니다."
+                  );
                 }
               }
             }}
           >
-            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#fff" />
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={22}
+              color="#fff"
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -234,8 +301,23 @@ export default function CrewDetailScreen() {
                       <TouchableOpacity
                         style={s.approvePill}
                         onPress={async () => {
-                          await approveRequest(a.id);
-                          await refresh();
+                          try {
+                            await approveRequest(a.id);
+                            await refresh();
+                          } catch (e: any) {
+                            // 500/409 등 재시도 플로우: 상세 재조회 후 이미 멤버라면 성공으로 간주
+                            try {
+                              const detail = await getMyCrewDetail();
+                              const already = detail?.members?.some(m => a.userId && String(m.id) === String(a.userId));
+                              if (already) {
+                                await refresh();
+                              } else {
+                                Alert.alert('승인 실패', e?.response?.data?.message || '서버 오류로 승인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                              }
+                            } catch {
+                              Alert.alert('승인 실패', e?.response?.data?.message || '서버 오류로 승인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                            }
+                          }
                         }}
                         accessibilityLabel="승인"
                       >
@@ -270,27 +352,29 @@ export default function CrewDetailScreen() {
                 </View>
               </View>
 
-            {/* 월간 요약을 추가 카드로 확장하려면 여기서 확장 */}
+              {/* 월간 요약을 추가 카드로 확장하려면 여기서 확장 */}
             </View>
 
             {/* MVP 섹션 */}
             {mvpMember && (
-            <View style={s.mvpSection}>
-              <View style={s.mvpHeader}>
-                <Text style={s.mvpTitle}>🏆 이번 주 MVP</Text>
-                <Text style={s.mvpDate}>3월 18일 - 3월 24일</Text>
-              </View>
-              <View style={s.mvpCard}>
-                <View style={s.mvpAvatar} />
-                <View style={s.mvpInfo}>
-                  <Text style={s.mvpName}>{mvpMember.name}</Text>
-                  <Text style={s.mvpDistance}>월간 거리: {mvpMember.distance}</Text>
+              <View style={s.mvpSection}>
+                <View style={s.mvpHeader}>
+                  <Text style={s.mvpTitle}>🏆 이번 주 MVP</Text>
+                  <Text style={s.mvpDate}>3월 18일 - 3월 24일</Text>
                 </View>
-                <View style={s.mvpBadge}>
-                  <Text style={s.mvpBadgeText}>MVP</Text>
+                <View style={s.mvpCard}>
+                  <View style={s.mvpAvatar} />
+                  <View style={s.mvpInfo}>
+                    <Text style={s.mvpName}>{mvpMember.name}</Text>
+                    <Text style={s.mvpDistance}>
+                      월간 거리: {mvpMember.distance}
+                    </Text>
+                  </View>
+                  <View style={s.mvpBadge}>
+                    <Text style={s.mvpBadgeText}>MVP</Text>
+                  </View>
                 </View>
               </View>
-            </View>
             )}
           </>
         )}
@@ -300,112 +384,134 @@ export default function CrewDetailScreen() {
           <View style={s.membersSection}>
             <Text style={s.sectionTitle}>멤버 목록</Text>
             {members.map((m) => {
-              const isSelf = (myUserId && String(m.id) === String(myUserId)) || m.nickname === "나";
+              const isSelf =
+                (myUserId && String(m.id) === String(myUserId)) ||
+                m.nickname === "나";
               return (
-              <View key={m.id} style={s.memberRow}>
-                <View style={s.memberInfo}>
-                  <View style={s.memberAvatar} />
-                  <Text style={s.memberName}>
-                    {m.nickname}
-                    {m.role === "ADMIN" ? " (관리자)" : ""}
-                  </Text>
-                </View>
-                {isAdmin && !isSelf && (
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {m.role !== "ADMIN" ? (
-                      <TouchableOpacity
-                        style={s.roundIconBtn}
-                        onPress={() => {
-                          Alert.alert(
-                            "관리자 임명",
-                            `${m.nickname} 님을 매니저(관리자)로 임명하시겠습니까?`,
-                            [
-                              { text: "취소", style: "cancel" },
-                              {
-                                text: "임명",
-                                style: "default",
-                                onPress: async () => {
-                                  await promoteMember(crewId, m.id);
-                                  await refresh();
-                                },
-                              },
-                            ]
-                          );
-                        }}
-                        accessibilityLabel="관리자 지정"
-                      >
-                        <Ionicons name="star-outline" size={18} color="#F59E0B" />
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity
-                        style={s.roundIconBtn}
-                        onPress={() => {
-                          Alert.alert(
-                            "권한 해제",
-                            `${m.nickname} 님의 매니저 권한을 해제하시겠습니까?`,
-                            [
-                              { text: "취소", style: "cancel" },
-                              {
-                                text: "해제",
-                                style: "destructive",
-                                onPress: async () => {
-                                  await demoteMember(crewId, m.id);
-                                  await refresh();
-                                },
-                              },
-                            ]
-                          );
-                        }}
-                        accessibilityLabel="권한 해제"
-                      >
-                        <Ionicons name="star" size={18} color="#6B7280" />
-                      </TouchableOpacity>
-                    )}
-                    {m.role === "ADMIN" && (
-                      <TouchableOpacity
-                        style={s.roundIconBtn}
-                        onPress={() => {
-                          Alert.alert("권한 이임", `${m.nickname} 님에게 운영 권한을 이임하시겠습니까?`, [
-                            { text: "취소", style: "cancel" },
-                            {
-                              text: "이임",
-                              style: "destructive",
-                              onPress: async () => {
-                                await transferOwnership(crewId, m.id);
-                                await refresh();
-                              },
-                            },
-                          ]);
-                        }}
-                        accessibilityLabel="권한 이임"
-                      >
-                        <Ionicons name="swap-horizontal" size={18} color="#3B82F6" />
-                      </TouchableOpacity>
-                    )}
-                    {m.role !== "ADMIN" && (
-                      <TouchableOpacity
-                        style={s.roundIconBtn}
-                        onPress={() => {
-                          Alert.alert("확인", `${m.nickname} 님을 내보낼까요?`, [
-                            { text: "취소", style: "cancel" },
-                            {
-                              text: "내보내기",
-                              style: "destructive",
-                              onPress: async () => {
-                                await removeMember(crewId, m.id);
-                                await refresh();
-                              },
-                            },
-                          ]);
-                        }}
-                        accessibilityLabel="내보내기"
-                      >
-                        <Ionicons name="person-remove" size={18} color="#EF4444" />
-                      </TouchableOpacity>
-                    )}
+                <View key={m.id} style={s.memberRow}>
+                  <View style={s.memberInfo}>
+                    <View style={s.memberAvatar} />
+                    <Text style={s.memberName}>
+                      {m.nickname}
+                      {m.role === "ADMIN" ? " (관리자)" : ""}
+                    </Text>
                   </View>
-                )}
-              </View>
+                  {isAdmin && !isSelf && (
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {m.role !== "ADMIN" ? (
+                        <TouchableOpacity
+                          style={s.roundIconBtn}
+                          onPress={() => {
+                            Alert.alert(
+                              "관리자 임명",
+                              `${m.nickname} 님을 매니저(관리자)로 임명하시겠습니까?`,
+                              [
+                                { text: "취소", style: "cancel" },
+                                {
+                                  text: "임명",
+                                  style: "default",
+                                  onPress: async () => {
+                                    await promoteMember(crewId, m.id);
+                                    await refresh();
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                          accessibilityLabel="관리자 지정"
+                        >
+                          <Ionicons
+                            name="star-outline"
+                            size={18}
+                            color="#F59E0B"
+                          />
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={s.roundIconBtn}
+                          onPress={() => {
+                            Alert.alert(
+                              "권한 해제",
+                              `${m.nickname} 님의 매니저 권한을 해제하시겠습니까?`,
+                              [
+                                { text: "취소", style: "cancel" },
+                                {
+                                  text: "해제",
+                                  style: "destructive",
+                                  onPress: async () => {
+                                    await demoteMember(crewId, m.id);
+                                    await refresh();
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                          accessibilityLabel="권한 해제"
+                        >
+                          <Ionicons name="star" size={18} color="#6B7280" />
+                        </TouchableOpacity>
+                      )}
+                      {m.role === "ADMIN" && (
+                        <TouchableOpacity
+                          style={s.roundIconBtn}
+                          onPress={() => {
+                            Alert.alert(
+                              "권한 이임",
+                              `${m.nickname} 님에게 운영 권한을 이임하시겠습니까?`,
+                              [
+                                { text: "취소", style: "cancel" },
+                                {
+                                  text: "이임",
+                                  style: "destructive",
+                                  onPress: async () => {
+                                    await transferOwnership(crewId, m.id);
+                                    await refresh();
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                          accessibilityLabel="권한 이임"
+                        >
+                          <Ionicons
+                            name="swap-horizontal"
+                            size={18}
+                            color="#3B82F6"
+                          />
+                        </TouchableOpacity>
+                      )}
+                      {m.role !== "ADMIN" && (
+                        <TouchableOpacity
+                          style={s.roundIconBtn}
+                          onPress={() => {
+                            Alert.alert(
+                              "확인",
+                              `${m.nickname} 님을 내보낼까요?`,
+                              [
+                                { text: "취소", style: "cancel" },
+                                {
+                                  text: "내보내기",
+                                  style: "destructive",
+                                  onPress: async () => {
+                                    await removeMember(crewId, m.id);
+                                    await refresh();
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                          accessibilityLabel="내보내기"
+                        >
+                          <Ionicons
+                            name="person-remove"
+                            size={18}
+                            color="#EF4444"
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
               );
             })}
           </View>
@@ -444,35 +550,34 @@ export default function CrewDetailScreen() {
               <TouchableOpacity
                 style={[s.closeCrewBtn, { backgroundColor: "#111827" }]}
                 onPress={() => {
-                  Alert.alert(
-                    "크루 탈퇴",
-                    "크루를 탈퇴하시겠습니까?",
-                    [
-                      { text: "취소", style: "cancel" },
-                      {
-                        text: "탈퇴",
-                        style: "destructive",
-                        onPress: async () => {
-                          try {
-                            await leaveCrew(crewId);
-                            Alert.alert("완료", "크루에서 탈퇴했습니다.");
-                            navigation.navigate("Crew" as never);
-                          } catch (e: any) {
-                            const msg = e?.response?.data?.message || e?.message || "잠시 후 다시 시도해주세요.";
-                            // 서버 정책: 크루장은 탈퇴 불가. 해당 문구를 명확히 안내
-                            if (/크루장|OWNER|소유자/.test(String(msg))) {
-                              Alert.alert(
-                                "탈퇴 불가",
-                                "크루장은 바로 탈퇴할 수 없습니다. 멤버에게 소유권을 양도한 뒤 탈퇴하거나, 크루를 폐쇄하세요."
-                              );
-                            } else {
-                              Alert.alert("탈퇴 실패", msg);
-                            }
+                  Alert.alert("크루 탈퇴", "크루를 탈퇴하시겠습니까?", [
+                    { text: "취소", style: "cancel" },
+                    {
+                      text: "탈퇴",
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          await leaveCrew(crewId);
+                          Alert.alert("완료", "크루에서 탈퇴했습니다.");
+                          navigation.navigate("Crew" as never);
+                        } catch (e: any) {
+                          const msg =
+                            e?.response?.data?.message ||
+                            e?.message ||
+                            "잠시 후 다시 시도해주세요.";
+                          // 서버 정책: 크루장은 탈퇴 불가. 해당 문구를 명확히 안내
+                          if (/크루장|OWNER|소유자/.test(String(msg))) {
+                            Alert.alert(
+                              "탈퇴 불가",
+                              "크루장은 바로 탈퇴할 수 없습니다. 멤버에게 소유권을 양도한 뒤 탈퇴하거나, 크루를 폐쇄하세요."
+                            );
+                          } else {
+                            Alert.alert("탈퇴 실패", msg);
                           }
-                        },
+                        }
                       },
-                    ]
-                  );
+                    },
+                  ]);
                 }}
               >
                 <Ionicons name="log-out-outline" size={18} color="#fff" />

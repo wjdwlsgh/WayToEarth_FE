@@ -18,6 +18,7 @@ import { useBottomNav } from "../hooks/useBottomNav";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getMyProfile } from "../utils/api/users";
 
 // WebSocket polyfill 확인
 console.log('WebSocket 확인:');
@@ -68,8 +69,22 @@ export default function ChatScreen({ route }: any) {
     return () => { isMounted = false };
   }, []);
 
-  const { isConnected, connectionError, sendMessage: sendWsMessage, disconnect } = useWebSocket({
-    url: token ? websocketUrl : null,
+  // Identify current user so own messages can align right/blue
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!token) return;
+      try {
+        const me = await getMyProfile();
+        if (!alive) return;
+        setCurrentUserId(Number(me?.id));
+      } catch {}
+    })();
+    return () => { alive = false };
+  }, [token]);
+
+  const { isConnected, connectionError, sendMessage: sendWsMessage, disconnect, connect } = useWebSocket({
+    url: token && websocketUrl ? websocketUrl : null,
     token,
     onMessage: (newMessage) => {
       addNewMessage(newMessage);
@@ -84,6 +99,18 @@ export default function ChatScreen({ route }: any) {
       loadUnreadCount();
     }
   }, [token]);
+
+  // After we know who the current user is, reload once to
+  // ensure history marks my messages as `isOwn` for right-side UI.
+  useEffect(() => {
+    if (!token) return;
+    if (currentUserId == null) return;
+    // Only reload if we already loaded without ownership info
+    if (messages.length > 0 && !messages.some(m => m.isOwn === true)) {
+      clearMessages();
+      loadInitialHistory();
+    }
+  }, [currentUserId]);
 
   useEffect(() => {
     return () => { disconnect(); clearMessages(); };
@@ -137,10 +164,19 @@ export default function ChatScreen({ route }: any) {
         </View>
       </View>
 
-      {!isConnected && (
+      {!isConnected && !connectionError && (
         <View style={styles.connectionStatus}>
           <ActivityIndicator size="small" color="#3579d7" />
-          <Text style={styles.connectionText}>{connectionError || '채팅 서버에 연결 중...'}</Text>
+          <Text style={styles.connectionText}>채팅 서버에 연결 중...</Text>
+        </View>
+      )}
+
+      {!isConnected && !!connectionError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{connectionError}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => { connect(); }}>
+            <Text style={styles.retryButtonText}>다시 연결</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -293,4 +329,3 @@ const styles = StyleSheet.create({
   unreadIndicator: { backgroundColor: "#ef4444", borderRadius: 8, width: 16, height: 16, alignItems: "center", justifyContent: "center" },
   unreadIndicatorText: { color: "#ffffff", fontSize: 10, fontWeight: "600" },
 });
-
