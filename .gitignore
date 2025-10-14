@@ -42,3 +42,5 @@ gradle/
 # Study notes/media (keep placeholder)
 study/*
 !study/.gitkeep
+!study/docs/
+!study/docs/**
