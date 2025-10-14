@@ -1,4 +1,4 @@
-import { client } from './client';
+import { client } from "./client";
 
 export type MyCrewItem = {
   id: number;
@@ -32,4 +32,3 @@ export const crewAPI = {
     return res.data as MyCrewsResponse;
   },
 };
-
