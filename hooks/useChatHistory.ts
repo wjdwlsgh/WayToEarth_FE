@@ -1,184 +1,159 @@
-import { useState, useCallback } from 'react';
-import { chatAPI, ChatMessage as APIChatMessage, CrewInfo } from '../utils/api/chat';
-import { ChatMessage } from './useWebSocket';
+import { useCallback, useRef, useState } from 'react';
+import { client } from '../utils/api/client';
 
-interface UseChatHistoryProps {
-  crewId: number;
-  currentUserId?: number;
-}
+export type ChatMessage = {
+  id?: string;
+  message: string;
+  messageType: 'TEXT' | 'ANNOUNCEMENT' | 'SYSTEM';
+  senderName?: string;
+  timestamp?: string;
+  isOwn?: boolean;
+  readByUsers?: number;
+  isRead?: boolean;
+};
 
-export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) => {
+type Page<T> = { content: T[]; number: number; size: number; totalPages?: number; totalElements?: number };
+
+export function useChatHistory({ crewId, currentUserId }: { crewId: string | number; currentUserId?: string | number }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [crewInfo, setCrewInfo] = useState<CrewInfo | null>(null);
+  const [crewInfo, setCrewInfo] = useState<{ name: string; memberCount: number } | null>(null);
+  const pageSizeRef = useRef(20);
+  const idSetRef = useRef<Set<string>>(new Set());
 
-  // API 응답을 ChatMessage 형태로 변환
-  const transformMessage = (apiMessage: APIChatMessage): ChatMessage => ({
-    id: apiMessage.messageId.toString(),
-    message: apiMessage.message,
-    messageType: apiMessage.messageType,
-    senderName: apiMessage.senderName,
-    timestamp: apiMessage.sentAt, // API에서 sentAt으로 제공
-    isOwn: currentUserId ? apiMessage.senderId === currentUserId : false,
-    readByUsers: apiMessage.readByUsers,
-    isRead: apiMessage.isRead,
-  });
+  const mapDto = useCallback((d: any): ChatMessage => {
+    const ts = d.sentAt || d.timestamp || new Date().toISOString();
+    const type = (d.messageType as any) || 'TEXT';
+    const sender = d.senderName || '';
+    const fallbackKey = `${type}:${sender}:${ts}`;
+    return {
+      id: String(d.messageId ?? d.id ?? fallbackKey),
+      message: String(d.message ?? ''),
+      messageType: type,
+      senderName: sender,
+      timestamp: ts,
+      isOwn: currentUserId != null ? String(d.senderId ?? '') === String(currentUserId) : false,
+      readByUsers: typeof d.readCount === 'number' ? d.readCount : undefined,
+      isRead: Boolean(d.read),
+    };
+  }, [currentUserId]);
 
-  // 초기 메시지 히스토리 로드
   const loadInitialHistory = useCallback(async () => {
-    if (isLoading) return;
-
     setIsLoading(true);
     setError(null);
-
     try {
-      // 최신 메시지들을 가져옴
-      const historyData = await chatAPI.getRecentMessages({ crewId, limit: 30 });
-      const transformedMessages = historyData
-        .map(transformMessage)
-        .reverse(); // 최신 메시지가 마지막에 오도록
-
-      setMessages(transformedMessages);
-      setHasMore(historyData.length === 30); // 30개 가져왔으면 더 있을 가능성
-
-      // 읽지 않은 메시지 수와 크루 정보도 함께 로드
-      loadUnreadCount();
-      loadCrewInfo();
-    } catch (err) {
-      console.error('채팅 히스토리 로드 실패:', err);
-      setError('메시지 히스토리를 불러올 수 없습니다.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [crewId, currentUserId, isLoading]);
-
-  // 더 오래된 메시지 로드 (무한 스크롤용)
-  const loadMoreMessages = useCallback(async () => {
-    if (isLoading || !hasMore || messages.length === 0) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // 현재 메시지 수를 기반으로 다음 페이지 계산
-      const currentPage = Math.floor(messages.length / 50);
-
-      const historyData = await chatAPI.getMessages({
-        crewId,
-        page: currentPage + 1,
-        size: 50,
+      const { data } = await client.get(`/v1/crews/${crewId}/chat/messages/recent`, { params: { limit: pageSizeRef.current } });
+      const list: any[] = data ?? [];
+      const mapped = list.map(mapDto).filter((m) => {
+        const key = m.id ?? '';
+        if (!key) return true;
+        if (idSetRef.current.has(key)) return false;
+        idSetRef.current.add(key);
+        return true;
       });
-
-      if (historyData.length === 0) {
-        setHasMore(false);
-        return;
-      }
-
-      const transformedMessages = historyData
-        .map(transformMessage)
-        .reverse(); // 시간순 정렬
-
-      setMessages(prev => [...transformedMessages, ...prev]);
-      setHasMore(historyData.length === 50);
-    } catch (err) {
-      console.error('이전 메시지 로드 실패:', err);
-      setError('이전 메시지를 불러올 수 없습니다.');
+      setMessages(mapped);
+      setPage(1);
+      setHasMore((list?.length ?? 0) >= pageSizeRef.current);
+      await Promise.all([loadUnreadCount(), loadCrewInfo()]);
+    } catch (e: any) {
+      setError(e?.message || '메시지를 불러오지 못했습니다.');
     } finally {
       setIsLoading(false);
     }
-  }, [crewId, messages, isLoading, hasMore]);
+  }, [crewId, mapDto]);
 
-  // 크루 정보 로드
-  const loadCrewInfo = useCallback(async () => {
+  const loadMoreMessages = useCallback(async () => {
+    if (isLoading || !hasMore) return;
+    setIsLoading(true);
+    setError(null);
     try {
-      const info = await chatAPI.getCrewInfo(crewId);
-      setCrewInfo(info);
-      console.log('크루 정보 로드 완료:', info);
-    } catch (err) {
-      console.error('크루 정보 로드 실패:', err);
+      const { data } = await client.get(`/v1/crews/${crewId}/chat/messages`, {
+        params: { page, size: pageSizeRef.current, sort: 'messageId,desc' },
+      });
+      const pageData = (data ?? {}) as Page<any>;
+      const list: any[] = (pageData.content as any[]) || [];
+      if (list.length === 0) {
+        setHasMore(false);
+      } else {
+        const mapped = list.map(mapDto).filter((m) => {
+          const key = m.id ?? '';
+          if (!key) return true;
+          if (idSetRef.current.has(key)) return false;
+          idSetRef.current.add(key);
+          return true;
+        });
+        setMessages((prev) => [...mapped.reverse(), ...prev]);
+        setPage((p) => p + 1);
+      }
+    } catch (e: any) {
+      const status = e?.response?.status;
+      if (status && status >= 500) {
+        setHasMore(false);
+      } else {
+        setError(e?.message || '이전 메시지를 불러오지 못했습니다.');
+      }
+    } finally {
+      setIsLoading(false);
     }
-  }, [crewId]);
+  }, [crewId, page, isLoading, hasMore, mapDto]);
 
-  // 읽지 않은 메시지 수 로드
   const loadUnreadCount = useCallback(async () => {
     try {
-      const result = await chatAPI.getUnreadCount(crewId);
-      setUnreadCount(result.unreadCount);
-    } catch (err) {
-      console.error('읽지 않은 메시지 수 로드 실패:', err);
-    }
+      const { data } = await client.get(`/v1/crews/${crewId}/chat/unread-count`);
+      setUnreadCount(Number(data ?? 0));
+    } catch {}
   }, [crewId]);
 
-  // 단일 메시지 읽음 처리
+  const loadCrewInfo = useCallback(async () => {
+    try {
+      const [detailRes, countRes] = await Promise.all([
+        client.get(`/v1/crews/${crewId}`),
+        client.get(`/v1/crews/${crewId}/members/count`).catch(() => ({ data: 0 })),
+      ]);
+      setCrewInfo({ name: String((detailRes.data as any)?.name ?? '크루'), memberCount: Number(countRes.data ?? 0) });
+    } catch {}
+  }, [crewId]);
+
   const markMessageAsRead = useCallback(async (messageId: number) => {
     try {
-      await chatAPI.markMessageAsRead(crewId, messageId);
+      await client.post(`/v1/crews/${crewId}/chat/messages/${messageId}/read`);
+      setMessages((prev) => prev.map((m) => (m.id === String(messageId) ? { ...m, isRead: true } : m)));
+      await loadUnreadCount();
+    } catch {}
+  }, [crewId, loadUnreadCount]);
 
-      // 로컬 상태 업데이트
-      setMessages(prev => prev.map(msg =>
-        msg.id === messageId.toString()
-          ? { ...msg, isRead: true }
-          : msg
-      ));
-
-      // 읽지 않은 메시지 수 업데이트
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (err) {
-      console.error('메시지 읽음 처리 실패:', err);
-    }
-  }, [crewId]);
-
-  // 모든 메시지 읽음 처리
   const markAllMessagesAsRead = useCallback(async () => {
-    if (messages.length === 0) return;
-
     try {
-      const latestMessageId = parseInt(messages[messages.length - 1]?.id || '0');
-      if (latestMessageId > 0) {
-        await chatAPI.markAllMessagesAsReadAfter(crewId, latestMessageId);
+      await client.post(`/v1/crews/${crewId}/chat/messages/read/all-after/${0}`);
+      setMessages((prev) => prev.map((m) => ({ ...m, isRead: true })));
+      await loadUnreadCount();
+    } catch {}
+  }, [crewId, loadUnreadCount]);
 
-        // 로컬 상태 업데이트
-        setMessages(prev => prev.map(msg => ({ ...msg, isRead: true })));
-        setUnreadCount(0);
-      }
-    } catch (err) {
-      console.error('모든 메시지 읽음 처리 실패:', err);
-    }
-  }, [crewId, messages]);
-
-  // 메시지 삭제
   const deleteMessage = useCallback(async (messageId: number) => {
     try {
-      await chatAPI.deleteMessage(crewId, messageId);
-
-      // 로컬 상태에서 메시지 제거
-      setMessages(prev => prev.filter(msg => msg.id !== messageId.toString()));
-    } catch (err) {
-      console.error('메시지 삭제 실패:', err);
-      throw err; // UI에서 에러 처리할 수 있도록
+      await client.delete(`/v1/crews/${crewId}/chat/messages/${messageId}`);
+      setMessages((prev) => prev.filter((m) => m.id !== String(messageId)));
+    } catch (e) {
+      setError('메시지 삭제에 실패했습니다');
     }
   }, [crewId]);
 
-  // 새 메시지 추가 (WebSocket에서 받은 메시지)
-  const addNewMessage = useCallback((message: ChatMessage) => {
-    setMessages(prev => [...prev, message]);
+  const addNewMessage = useCallback((m: any) => {
+    const mapped = mapDto(m);
+    const key = mapped.id ?? '';
+    setMessages((prev) => {
+      if (key && idSetRef.current.has(key)) return prev;
+      if (key) idSetRef.current.add(key);
+      return [...prev, mapped];
+    });
+  }, [mapDto]);
 
-    // 다른 사용자가 보낸 메시지면 읽지 않은 메시지 수 증가
-    if (!message.isOwn) {
-      setUnreadCount(prev => prev + 1);
-    }
-  }, []);
-
-  // 메시지 초기화
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-    setHasMore(true);
-    setError(null);
-    setUnreadCount(0);
-  }, []);
+  const clearMessages = useCallback(() => setMessages([]), []);
 
   return {
     messages,
@@ -196,6 +171,6 @@ export const useChatHistory = ({ crewId, currentUserId }: UseChatHistoryProps) =
     deleteMessage,
     addNewMessage,
     clearMessages,
-    setMessages,
   };
-};
+}
+

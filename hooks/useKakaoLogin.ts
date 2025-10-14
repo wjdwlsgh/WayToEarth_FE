@@ -3,7 +3,6 @@ import { useCallback } from "react";
 import { Alert, Platform, NativeModules } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { kakaoLoginWithSDK } from "../utils/api/auth";
-import { mockEnabled } from "../utils/api/client";
 import { useNavigation } from "@react-navigation/native";
 import {
   registerForPushNotificationsAsync,
@@ -24,14 +23,6 @@ export default function useKakaoLogin() {
 
   return useCallback(async () => {
     try {
-      // Mock 모드: 네이티브/외부 네트워크 호출을 모두 우회
-      if (mockEnabled) {
-        await AsyncStorage.setItem("jwtToken", "mock-jwt-token");
-        // 온보딩 완료된 유저로 가정 → 러닝 화면으로
-        navigation.reset({ index: 0, routes: [{ name: "LiveRunningScreen" }] });
-        return;
-      }
-
       const Kakao = NativeModules.RNKakaoLogins as RNKakao | undefined;
 
       if (
@@ -92,10 +83,11 @@ export default function useKakaoLogin() {
         navigation.reset({ index: 0, routes: [{ name: "Register" }] });
       }
     } catch (e: any) {
-      console.log("Kakao login error →", e, e?.code, e?.message);
+      const detail = e?.response?.data ? JSON.stringify(e.response.data) : e?.message;
+      console.log("Kakao login error →", e, e?.code, e?.message, detail);
       Alert.alert(
         "카카오 로그인 실패",
-        [e?.code, e?.message || String(e)].filter(Boolean).join(" ")
+        [e?.code, e?.message, detail].filter(Boolean).join(" ")
       );
       try {
         const Kakao = NativeModules.RNKakaoLogins as RNKakao | undefined;

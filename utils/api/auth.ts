@@ -51,14 +51,12 @@ export const kakaoLoginWithSDK = async (accessToken: string) => {
   if (!kakaoId) throw new Error("카카오 사용자 ID를 가져오지 못했습니다.");
 
   // 2) 서버 로그인 요청 (POST /v1/auth/kakao)
+  // Swagger: KakaoLoginRequest requires { accessToken, kakaoId }
   const payload = {
-    kakaoId, // ✅ 서버 DTO @NotNull
-    accessToken, // ✅ 서버 검증/재조회용
+    kakaoId,
+    accessToken,
     isMobile: true,
-    // email: me.kakao_account?.email,
-    // nickname: me.properties?.nickname,
-    // profileImage: me.properties?.profile_image,
-  };
+  } as const;
 
   const res = await client.post<LoginResponse>("/v1/auth/kakao", payload);
 

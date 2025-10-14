@@ -39,6 +39,8 @@ gradle/
 !.vscode/settings.json
 !.vscode/extensions.json
 
-# Study notes/media (keep placeholder)
+# Local study materials: keep folder tracked but ignore its contents
 study/*
 !study/.gitkeep
+!study/docs/
+!study/docs/**

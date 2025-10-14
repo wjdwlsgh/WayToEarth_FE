@@ -1,45 +1,37 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ImageSourcePropType } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 type Props = {
   name: string;
-  description: string;
-  progress: string;
-  image?: ImageSourcePropType;
+  description?: string;
+  progress?: string; // e.g., "3/30"
   onPress?: () => void;
 };
 
-export default function CrewCard({ name, description, progress, image, onPress }: Props) {
+export default function CrewCard({ name, description, progress, onPress }: Props) {
   return (
-    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.8}>
-      <Image source={image || require("../../assets/people0.png")} style={s.img} />
-      <View style={s.info}>
-        <Text style={s.name}>{name}</Text>
-        <Text numberOfLines={1} style={s.desc}>{description}</Text>
+    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
+      <View style={s.headerRow}>
+        <Text style={s.title}>{name}</Text>
+        {progress ? <Text style={s.progress}>{progress}</Text> : null}
       </View>
-      <Text style={s.progress}>{progress}</Text>
+      {description ? <Text style={s.desc} numberOfLines={2}>{description}</Text> : null}
     </TouchableOpacity>
   );
 }
 
 const s = StyleSheet.create({
   card: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 16,
+    backgroundColor: "#FAFAFA",
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  img: { width: 50, height: 50, borderRadius: 8 },
-  info: { flex: 1, marginLeft: 12 },
-  name: { fontSize: 16, fontWeight: "600", color: "#000", marginBottom: 4 },
-  desc: { fontSize: 13, color: "#666" },
-  progress: { fontSize: 14, color: "#999" },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  title: { fontSize: 16, fontWeight: "800", color: "#111827", flex: 1, marginRight: 8 },
+  desc: { marginTop: 8, fontSize: 13, color: "#6B7280" },
+  progress: { fontSize: 12, color: "#6B7280", fontWeight: "700" },
 });
 

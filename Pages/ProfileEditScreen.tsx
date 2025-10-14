@@ -249,6 +249,11 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
       if (!canChangeNickname) return;
       setNicknameSaving(true);
       const trimmed = nickname.trim();
+      if (trimmed.length < 2) {
+        Alert.alert("오류", "닉네임은 2자 이상이어야 합니다.");
+        return;
+      }
+      console.log("PUT /v1/users/me (nickname)", { nickname: trimmed });
       await client.put("/v1/users/me", { nickname: trimmed });
       setOriginalNickname(trimmed); // ✅ 원본 갱신
       setNicknameError(null);
@@ -270,22 +275,24 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
     if (!canSaveProfile) return;
     try {
       setSaving(true);
-      const weeklyGoalNumber =
+      const weeklyGoalNumberRaw =
         weeklyGoal?.trim() === "" ? undefined : Number(weeklyGoal);
+      const weeklySanitized =
+        typeof weeklyGoalNumberRaw === "number" && !Number.isNaN(weeklyGoalNumberRaw)
+          ? Math.max(0.01, weeklyGoalNumberRaw)
+          : undefined;
+
+      const urlOk = Boolean(profileImageUrl && /^https?:\/\//i.test(profileImageUrl));
 
       const payload = {
         // nickname 제외 ✅ (닉네임은 onChangeNickname 경로)
         residence: residence?.trim() || undefined,
         // 서버 스펙: snake_case 사용
-        profile_image_url: profileImageUrl?.trim() || undefined,
+        profile_image_url: urlOk ? profileImageUrl!.trim() : undefined,
         ...(profileImageKey ? { profile_image_key: profileImageKey } : {}),
-        weekly_goal_distance:
-          typeof weeklyGoalNumber === "number" &&
-          !Number.isNaN(weeklyGoalNumber)
-            ? weeklyGoalNumber
-            : undefined,
+        weekly_goal_distance: weeklySanitized,
       };
-
+      console.log("PUT /v1/users/me", payload);
       await client.put("/v1/users/me", payload);
       Alert.alert("완료", "프로필이 수정되었습니다.");
       await loadMe();

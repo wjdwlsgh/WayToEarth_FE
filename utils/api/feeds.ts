@@ -40,12 +40,19 @@ async function ensureRemoteObject(
   if (!localOrRemote) return null;
   if (/^https?:\/\//i.test(localOrRemote)) return { url: localOrRemote };
 
-  const fileUri = localOrRemote;
-  const fileName = fileUri.split("/").pop() || "feed.jpg";
+  // 로컬 경로 정규화: 절대경로("/var/...") → "file:///var/..."
+  let fileUri = localOrRemote;
+  if (!/^file:\/\//i.test(fileUri) && fileUri.startsWith("/")) {
+    fileUri = `file://${fileUri}`;
+  }
+
+  const fileName = (fileUri.split("/").pop() || "feed.jpg").split("?")[0];
   const contentType = guessMime(fileName);
   const info = await FileSystem.getInfoAsync(fileUri);
   if (!info.exists || info.isDirectory) {
-    throw new Error("파일을 찾을 수 없거나 폴더입니다.");
+    throw new Error(
+      `이미지 파일을 열 수 없습니다. 다른 이미지를 선택하거나 갤러리에서 다시 선택해주세요. (uri=${localOrRemote})`
+    );
   }
   const size = typeof (info as any).size === "number" ? (info as any).size : 0;
   if (size <= 0) throw new Error("파일 크기를 확인할 수 없습니다.");

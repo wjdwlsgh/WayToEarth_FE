@@ -1,9 +1,9 @@
 // utils/api/stamps.ts
-// 스탬프/방명록 API
+// 스탬프/방명록 API (실서버 연동)
 import { client } from "./client";
 import type { JourneyId } from "../../types/journey";
 
-type ClaimBody = {
+export type ClaimBody = {
   journeyId: JourneyId;
   landmarkId: string;
   userLat: number;
@@ -14,73 +14,42 @@ type ClaimBody = {
   text?: string;
 };
 
-/**
- * 스탬프 수집 (랜드마크 도달 시)
- *
- * @param userId 사용자 ID
- * @param landmarkId 랜드마크 ID
- * @returns 스탬프 수집 결과
- */
 export async function collectStamp(
   userId: number,
   landmarkId: number
 ): Promise<{ success: boolean; stampId?: number }> {
-  try {
-    console.log("[API] 스탬프 수집 요청:", { userId, landmarkId });
-
-    const { data } = await client.post<{ success: boolean; stampId?: number }>(
-      `/v1/stamps/collect`,
-      { landmarkId },
-      { params: { userId } }
-    );
-
-    console.log("[API] 스탬프 수집 응답:", data);
-    return data;
-  } catch (error) {
-    console.error("[API] 스탬프 수집 실패:", error);
-    throw error;
-  }
+  const { data } = await client.post<{ success: boolean; stampId?: number }>(
+    `/v1/stamps/collect`,
+    { landmarkId },
+    { params: { userId } }
+  );
+  return data;
 }
 
 export async function claimStamp(body: ClaimBody) {
-  await new Promise((r) => setTimeout(r, 120));
-  // 목: 위치 반경은 클라 선검사에 맡기고 항상 성공 처리
-  return {
-    granted: true,
-    stampId: `st_${Date.now()}`,
-    newTotalStamps: Math.floor(Math.random() * 10) + 1,
-  };
+  const userId = 0; // TODO: 현재 사용자 ID 연동
+  const res = await collectStamp(userId, Number(body.landmarkId));
+  return { granted: Boolean(res.success), stampId: `st_${res.stampId ?? ''}`, newTotalStamps: 0 } as any;
 }
 
-export async function getGuestbook(journeyId: JourneyId, landmarkId?: string) {
-  await new Promise((r) => setTimeout(r, 120));
-  return [
-    {
-      id: "gb_1",
-      user: "지구러너",
-      text: "경치가 최고!",
-      rating: 5,
-      likes: 3,
-      createdAt: new Date().toISOString(),
-    },
-  ];
+export async function getGuestbook(
+  _journeyId: JourneyId,
+  _landmarkId?: string
+) {
+  throw new Error("방명록 조회 API 연동 필요");
 }
 
 export async function postGuestbook(
-  journeyId: JourneyId,
-  data: { landmarkId?: string; text: string; rating?: number }
+  _journeyId: JourneyId,
+  _data: { landmarkId?: string; text: string; rating?: number }
 ) {
-  await new Promise((r) => setTimeout(r, 120));
-  return { id: `gb_${Date.now()}`, ...data };
+  throw new Error("방명록 작성 API 연동 필요");
 }
 
-export async function likeGuestbook(id: string) {
-  await new Promise((r) => setTimeout(r, 80));
-  return { ok: true };
+export async function likeGuestbook(_id: string) {
+  throw new Error("방명록 좋아요 API 연동 필요");
 }
 
-export async function reportGuestbook(id: string) {
-  await new Promise((r) => setTimeout(r, 80));
-  return { ok: true };
+export async function reportGuestbook(_id: string) {
+  throw new Error("방명록 신고 API 연동 필요");
 }
-

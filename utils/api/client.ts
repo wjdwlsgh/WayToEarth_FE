@@ -2,6 +2,8 @@
 import axios, { AxiosResponse } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// 목데이터 사용 중단: 항상 실서버 연동
+
 export const client = axios.create({
   baseURL: "https://api.waytoearth.cloud",
   timeout: 10000,
@@ -38,7 +40,16 @@ client.interceptors.response.use(
   (err) => {
     const status = err?.response?.status;
     const body = err?.response?.data;
-    console.log("[API ERR]", status, body);
+    const cfg = err?.config || {};
+    console.log(
+      "[API ERR]",
+      status,
+      body,
+      "method=",
+      cfg.method,
+      "url=",
+      cfg.baseURL ? cfg.baseURL + (cfg.url || "") : cfg.url
+    );
     return Promise.reject(err);
   }
 );

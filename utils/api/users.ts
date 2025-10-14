@@ -24,7 +24,6 @@ export async function checkNickname(rawNickname: string) {
       params: { nickname },
     });
 
-    // 서버가 available(Boolean) 또는 isDuplicate(Boolean)을 주는 경우를 모두 대응
     const available =
       typeof data?.available === "boolean"
         ? data.available
@@ -38,7 +37,6 @@ export async function checkNickname(rawNickname: string) {
         (available ? "사용 가능" : "이미 사용 중인 닉네임입니다."),
     };
   } catch (e: any) {
-    // 장애 시엔 보수적으로 '중복으로 간주'하거나, 정책에 따라 사용 가능 처리 가능
     return {
       available: false,
       isDuplicate: true,

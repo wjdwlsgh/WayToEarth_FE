@@ -26,8 +26,8 @@ export default {
     },
 
     android: {
-      package: "cloud.waytoearth", // ✅ Firebase와 일치하도록 수정
-      googleServicesFile: "./google-services.json", // ✅ Firebase 설정
+      package: "cloud.waytoearth",
+      googleServicesFile: "./google-services.json",
       // Android 권한: 백그라운드 위치/정밀 위치/FG 서비스/알림
       permissions: [
         "ACCESS_FINE_LOCATION",
@@ -35,7 +35,7 @@ export default {
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
-        "POST_NOTIFICATIONS", // Android 13+ 알림 권한
+        "POST_NOTIFICATIONS",
       ],
       config: { googleMaps: { apiKey: process.env.ANDROID_MAPS_KEY } },
       adaptiveIcon: {
@@ -68,6 +68,10 @@ export default {
     extra: {
       kakaoNativeAppKey: process.env.KAKAO_NATIVE_APP_KEY,
       kakaoRestApiKey: process.env.KAKAO_REST_API_KEY,
+      apiBaseUrl:
+        process.env.EXPO_PUBLIC_API_BASE_URL || "https://api.waytoearth.cloud",
+      mockEnabled: process.env.EXPO_PUBLIC_API_MOCK === "1",
+      crewMockEnabled: false, // 실제 크루 API 연동 사용
       eas: { projectId: "7a5e6a60-69ad-4ddc-8301-9aaf03e404a6" },
     },
   },

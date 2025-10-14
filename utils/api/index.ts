@@ -6,3 +6,4 @@ export * from "./weather";
 export * from "./running";
 export * from "./feeds";
 export * from "./aiFeedback";
+export * from "./crews";
