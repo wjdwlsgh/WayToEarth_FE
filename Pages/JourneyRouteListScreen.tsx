@@ -22,7 +22,12 @@ export default function RouteListScreen({ navigation }: any) {
     }
   };
 
-  const getProgressPercentage = (completed: number, total: number) => {
+  const getProgressPercentage = (route: RouteSummary | any) => {
+    const p = Number(route?.userProgressPercent ?? NaN);
+    if (Number.isFinite(p)) return Math.round(Math.max(0, Math.min(100, p)));
+    // fallback to legacy ratio if present
+    const completed = Number((route as any).completed ?? 0);
+    const total = Number((route as any).total ?? 0);
     return total > 0 ? Math.round((completed / total) * 100) : 0;
   };
 
@@ -55,7 +60,7 @@ export default function RouteListScreen({ navigation }: any) {
         {loading && (
           <Text style={{ padding: 16, color: '#6B7280' }}>로딩 중...</Text>
         )}
-        {(routes || []).map((route: RouteSummary) => (
+        {((routes ?? []) as RouteSummary[]).map((route: RouteSummary) => (
           <TouchableOpacity
             key={route.id}
             style={styles.routeCard}
@@ -68,7 +73,7 @@ export default function RouteListScreen({ navigation }: any) {
                 </Text>
               </View>
               <View style={styles.progressBadge}>
-                <Text style={styles.progressText}>{getProgressPercentage(route.completed, route.total)}% 완료</Text>
+                <Text style={styles.progressText}>{getProgressPercentage(route)}% 완료</Text>
               </View>
               <TouchableOpacity style={styles.favoriteButton}>
                 <Text style={styles.favoriteIcon}>역사 탐방</Text>
@@ -76,13 +81,13 @@ export default function RouteListScreen({ navigation }: any) {
             </View>
 
             <View style={styles.routeInfo}>
-              <Text style={styles.routeTitle}>{route.title}</Text>
+              <Text style={styles.routeTitle}>{route.title ?? ''}</Text>
               <Text style={styles.routeDescription} numberOfLines={3}>
-                {route.description}
+                {route.description ?? ''}
               </Text>
 
               <View style={styles.routeTags}>
-                {route.tags.map((tag, index) => (
+                {(route.tags ?? []).map((tag, index) => (
                   <View key={`${route.id}-tag-${index}`} style={styles.tag}>
                     <Text style={styles.tagText}>{tag}</Text>
                   </View>
@@ -91,18 +96,18 @@ export default function RouteListScreen({ navigation }: any) {
 
               <View style={styles.routeStats}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{route.distance}</Text>
+                  <Text style={styles.statValue}>{route.distance ?? ''}</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{route.duration}</Text>
+                  <Text style={styles.statValue}>{route.duration ?? ''}</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={[styles.statValue, { color: getDifficultyColor(route.difficulty) }]}>{route.difficulty}</Text>
+                  <Text style={[styles.statValue, { color: getDifficultyColor(String(route.difficulty ?? '')) }]}>{route.difficulty ?? ''}</Text>
                 </View>
               </View>
 
               <Text style={styles.participantCount}>
-                함께한 러너 {route.total.toLocaleString()}명
+                함께한 러너 {Number((route as any).total ?? 0).toLocaleString()}명
                 <Text style={styles.completedCount}> ▶ 8개 랜드마크</Text>
               </Text>
             </View>
