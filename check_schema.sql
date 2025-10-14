@@ -1,0 +1,1 @@
+DESCRIBE journeys; DESCRIBE landmarks;

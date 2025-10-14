@@ -15,7 +15,10 @@ export default function useRegister() {
       await registerUser(userInfo);
       Alert.alert("성공", "회원가입이 완료되었습니다!");
       // @ts-ignore
-      navigation.reset({ index: 0, routes: [{ name: "LiveRunningScreen" }] });
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainTabs", params: { screen: "LiveRunningScreen" } }],
+      });
     } catch (err: any) {
       Alert.alert(
         "실패",

@@ -1,0 +1,9 @@
+journey_id,name,latitude,longitude,distance_from_start_m,description,image_url
+1,경복궁,37.5796,126.9770,0,조선 왕조의 으뜸 궁궐. 1395년 창건된 법궁,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/gyeongbokgung.jpg
+1,청와대,37.5869,126.9744,1200,대한민국 대통령 관저였던 곳. 2022년부터 국민에게 개방,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/cheongwadae.jpg
+1,창덕궁,37.5794,126.9910,3500,유네스코 세계문화유산으로 지정된 조선 궁궐. 후원이 아름답기로 유명,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/changdeokgung.jpg
+1,창경궁,37.5788,126.9950,4800,조선시대 왕족들의 생활 공간. 대온실로 유명,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/changgyeonggung.jpg
+1,종묘,37.5742,126.9944,6500,조선 왕조 역대 왕과 왕비의 신위를 모신 유교 사당. 유네스코 세계문화유산,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/jongmyo.jpg
+1,서울역사박물관,37.5700,126.9690,9200,서울의 역사와 문화를 한눈에 볼 수 있는 박물관,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/seoul-history-museum.jpg
+1,덕수궁,37.5658,126.9751,10500,대한제국 시대의 궁궐. 서양식 건축물이 있는 것이 특징,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/deoksugung.jpg
+1,숭례문,37.5605,126.9753,12500,서울의 상징이자 국보 제1호. 남대문이라고도 불림,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/sungnyemun.jpg
