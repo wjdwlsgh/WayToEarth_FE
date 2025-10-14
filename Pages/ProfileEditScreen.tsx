@@ -91,7 +91,9 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
     debounceTimer.current = setTimeout(async () => {
       try {
         const res = await checkNickname(trimmed);
-        setNicknameError(res.isDuplicate ? "이미 사용 중인 닉네임입니다." : null);
+        setNicknameError(
+          res.isDuplicate ? "이미 사용 중인 닉네임입니다." : null
+        );
       } catch {
         // API 실패 시 저장을 막지 않도록 오류표시는 하지 않음
         setNicknameError(null);
@@ -160,7 +162,8 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         Alert.alert("오류", "파일을 찾을 수 없거나 폴더입니다.");
         return;
       }
-      const size = typeof (info as any).size === "number" ? (info as any).size : 0;
+      const size =
+        typeof (info as any).size === "number" ? (info as any).size : 0;
       const contentType = guessMime(fileName);
 
       if (size <= 0) {
@@ -187,7 +190,10 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         data?.signedUrl ??
         data?.uploadUrl;
       const downloadUrl =
-        data?.download_url ?? data?.public_url ?? data?.downloadUrl ?? data?.publicUrl;
+        data?.download_url ??
+        data?.public_url ??
+        data?.downloadUrl ??
+        data?.publicUrl;
       const key = data?.key ?? data?.file_key ?? data?.fileKey;
 
       if (!signedUrl || !downloadUrl) {
@@ -220,7 +226,10 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
       Alert.alert("완료", "프로필 사진이 변경되었습니다.");
       // 내정보 화면이 즉시 반영되도록 파라미터로 최신 URL 전달
       try {
-        navigation.navigate("Profile", { avatarUrl: downloadUrl, cacheBust: Date.now() });
+        navigation.navigate("Profile", {
+          avatarUrl: downloadUrl,
+          cacheBust: Date.now(),
+        });
       } catch {}
     } catch (e: any) {
       console.warn(e);
@@ -310,30 +319,6 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* 상태바 (디자인용) */}
-      <View style={styles.statusBar}>
-        <View style={styles.statusFrame}>
-          <View style={styles.time}>
-            <Text style={styles.timeText}>9:41</Text>
-          </View>
-          <View style={styles.dynamicIsland} />
-          <View className="levels" style={styles.levels}>
-            <Image
-              source={require("../assets/cellular-connection0.png")}
-              style={styles.icon}
-            />
-            <Image
-              source={require("../assets/wifi0.png")}
-              style={styles.icon}
-            />
-            <Image
-              source={require("../assets/battery0.png")}
-              style={styles.icon}
-            />
-          </View>
-        </View>
-      </View>
-
       {/* 상단 제목 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation?.goBack?.()}>
@@ -439,21 +424,6 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
               keyboardType="number-pad"
               inputMode="numeric"
               maxLength={4}
-            />
-          </View>
-        </View>
-
-        {/* 프로필 이미지 URL (선택) */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>프로필 이미지 URL (선택)</Text>
-          <View style={styles.input}>
-            <TextInput
-              style={styles.textInput}
-              placeholder="https://…"
-              placeholderTextColor="rgba(68,68,68,0.27)"
-              value={profileImageUrl}
-              onChangeText={setProfileImageUrl}
-              autoCapitalize="none"
             />
           </View>
         </View>

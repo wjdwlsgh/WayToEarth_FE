@@ -3,7 +3,7 @@ import axios, { AxiosResponse } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const client = axios.create({
-  baseURL: "https://api.waytoearth.cloud", // ✅ 반드시 https
+  baseURL: "https://api.waytoearth.cloud",
   timeout: 10000,
 });
 

@@ -1,0 +1,6 @@
+journey_id,name,latitude,longitude,distance_from_start_m,description,image_url
+2,여의도 한강공원,37.5280,126.9240,0,여의도에 위치한 한강공원. 넓은 잔디밭과 자전거도로가 있음,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/yeouido-park.jpg
+2,선유도공원,37.5335,126.9350,2000,과거 정수장을 재생한 생태공원. 아름다운 수생식물원이 있음,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/seonyudo-park.jpg
+2,양화대교,37.5370,126.9420,4000,한강을 가로지르는 다리. 야경이 아름다움,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/yanghwa-bridge.jpg
+2,당산철교,37.5410,126.9500,6000,지하철 2호선이 지나가는 철교. 야간 조명이 멋짐,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/dangsan-bridge.jpg
+2,반포대교,37.5500,126.9680,10000,세계 최장의 교량 분수인 달빛무지개분수가 있는 다리,https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/landmarks/banpo-bridge.jpg

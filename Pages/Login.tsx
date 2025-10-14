@@ -16,6 +16,10 @@ import useKakaoLogin from "../hooks/useKakaoLogin";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
+import {
+  registerForPushNotificationsAsync,
+  sendTokenToServer,
+} from "../utils/notifications";
 
 const { height } = Dimensions.get("window");
 
@@ -34,7 +38,17 @@ export default function WayToEarthOnboarding() {
         const token = await AsyncStorage.getItem("jwtToken");
         if (token) {
           await getMyProfile();
-          navigation.reset({ index: 0, routes: [{ name: "LiveRunningScreen" }] });
+
+          // FCM 토큰 등록
+          const fcmToken = await registerForPushNotificationsAsync();
+          if (fcmToken) {
+            await sendTokenToServer(fcmToken);
+          }
+
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "MainTabs", params: { screen: "LiveRunningScreen" } }],
+          });
           return;
         }
       } catch (e) {
