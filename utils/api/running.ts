@@ -2,31 +2,22 @@
 import { client } from "./client";
 import { RoutePoint } from "./types";
 
-type RunningType = "SINGLE" | "VIRTUAL";
-
-const isLocal = (sid?: string | null) =>
-  typeof sid === "string" && sid.startsWith("local_");
-
-// ✅ (DEV) 백엔드 미구현: 로컬 세션 생성
-export async function apiStartSession(payload?: { runningType?: RunningType }) {
-  return {
-    sessionId: `local_${Date.now()}`,
-    startedAt: new Date().toISOString(),
-    runningType: payload?.runningType ?? "SINGLE",
-    mocked: true,
-  };
-}
+type RunningType = "SINGLE" | "JOURNEY";
 
 // 실서버 세션 시작: /v1/running/start
 export async function apiStart(payload: {
   sessionId: string;
   runningType?: RunningType;
+  journeyId?: number;
 }) {
   const body = {
     sessionId: payload.sessionId,
     runningType: payload.runningType ?? "SINGLE",
+    ...(payload.journeyId != null ? { journeyId: payload.journeyId } : {}),
   };
+  console.log("[API] 러닝 세션 시작 요청:", body);
   const { data } = await client.post("/v1/running/start", body);
+  console.log("[API] 러닝 세션 시작 응답:", data);
   return data as { sessionId?: string } & Record<string, any>;
 }
 
@@ -38,29 +29,33 @@ export async function apiUpdate(payload: {
   calories: number;
   currentPoint: RoutePoint & { sequence: number };
 }) {
-  if (isLocal(payload.sessionId)) {
-    return { ack: true, mocked: true };
-  }
   const body = {
     ...payload,
     averagePaceSeconds: payload.averagePaceSeconds ?? undefined, // null 회피
   };
+  console.log("[API] 러닝 업데이트 요청:", {
+    sessionId: body.sessionId,
+    distanceMeters: body.distanceMeters,
+    durationSeconds: body.durationSeconds,
+    sequence: body.currentPoint.sequence,
+  });
   const { data } = await client.post("/v1/running/update", body);
+  console.log("[API] 러닝 업데이트 응답:", data);
   // Swagger 예시: { success, data: { ack: true } }
   return data;
 }
 
 export async function apiPause(payload: { sessionId: string }) {
-  if (isLocal(payload.sessionId))
-    return { ack: true, status: "PAUSED", mocked: true };
+  console.log("[API] 러닝 일시정지 요청:", payload);
   const { data } = await client.post("/v1/running/pause", payload);
+  console.log("[API] 러닝 일시정지 응답:", data);
   return data;
 }
 
 export async function apiResume(payload: { sessionId: string }) {
-  if (isLocal(payload.sessionId))
-    return { ack: true, status: "RUNNING", mocked: true };
+  console.log("[API] 러닝 재개 요청:", payload);
   const { data } = await client.post("/v1/running/resume", payload);
+  console.log("[API] 러닝 재개 응답:", data);
   return data;
 }
 
@@ -92,10 +87,6 @@ export async function apiComplete(payload: {
   endedAt?: string | number;
   title?: string;
 }): Promise<{ runId: number | null; data?: CompletedRun }> {
-  // ⛔ 운영 전 반드시 제거: 로컬 세션이면 더미 runId 반환(버튼 활성화용)
-  if (isLocal(payload.sessionId)) {
-    return { runId: 1, data: undefined };
-  }
 
   // endedAt ISO 통일
   const endedAtIso = (() => {
@@ -125,6 +116,17 @@ export async function apiComplete(payload: {
     endedAt: endedAtIso,
     ...(payload.title ? { title: payload.title } : {}),
   };
+
+  console.log("[API] 러닝 완료 요청:", {
+    sessionId: body.sessionId,
+    distanceMeters: body.distanceMeters,
+    durationSeconds: body.durationSeconds,
+    averagePaceSeconds: body.averagePaceSeconds,
+    calories: body.calories,
+    routePointsCount: routePoints.length,
+    endedAt: body.endedAt,
+    title: body.title,
+  });
 
   const { data } = await client.post("/v1/running/complete", body);
 
@@ -161,18 +163,46 @@ export type RunningRecordItem = {
   durationSeconds?: number;
   calories?: number;
   startedAt?: string;
-  runningType?: "SINGLE" | "VIRTUAL" | "GROUP" | string;
+  runningType?: "SINGLE" | "JOURNEY" | "GROUP" | string;
 };
 
 export async function listRunningRecords(
-  limit = 5
+  limit = 10,
+  offset = 0
 ): Promise<RunningRecordItem[]> {
+  const page = Math.floor(offset / Math.max(1, limit));
   const { data } = await client.get("/v1/running/records", {
-    params: { limit },
+    params: { limit, offset, size: limit, page },
   });
   // 서버가 pagination wrapper를 줄 수 있어 content 안전 접근
   const items = (data?.content ?? data) as any[];
   return Array.isArray(items) ? items : [];
+}
+
+// Cursor-based pagination (preferred if backend supports)
+export type CursorResult<T> = { items: T[]; nextCursor: string | null };
+
+export async function listRunningRecordsByCursor(
+  cursor: string | null | undefined,
+  size = 10
+): Promise<CursorResult<RunningRecordItem>> {
+  const params: Record<string, any> = { size };
+  if (cursor) params.cursor = cursor;
+  const { data } = await client.get("/v1/running/records/cursor", { params });
+  const d: any = data;
+  const items: any[] = Array.isArray(d?.content)
+    ? d.content
+    : Array.isArray(d?.items)
+    ? d.items
+    : Array.isArray(d)
+    ? d
+    : [];
+  const nextCursor: string | null =
+    d?.nextCursor ?? d?.next_cursor ?? d?.next ?? d?.cursor ?? null;
+  return {
+    items: items.filter((it: any) => it && it.id != null) as RunningRecordItem[],
+    nextCursor,
+  };
 }
 
 export type RunningRecordDetail = {
