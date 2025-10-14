@@ -40,7 +40,7 @@ import RecordDetailScreen from "./Pages/RecordDetailScreen";
 import AIFeedbackScreen from "./Pages/AIFeedbackScreen";
 import UserInfoInputScreen from "./Pages/UserInfoInputScreen";
 import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
-// import CrewScreen from "./Pages/CrewScreen";
+import CrewScreen from "./Pages/CrewScreen";
 import CrewDetailScreen from "./Pages/CrewDetailScreen";
 import TabBarAdapter from "./components/Layout/TabBarAdapter";
 import LandmarkGuestbookScreen from "./Pages/LandmarkGuestbookScreen";
@@ -62,7 +62,7 @@ function MainTabs() {
       <Tab.Screen name="LiveRunningScreen" component={LiveRunningScreen} />
       <Tab.Screen name="Feed" component={Feed2} />
       <Tab.Screen name="Record" component={Record} />
-      {/* <Tab.Screen name="Crew" component={CrewScreen} /> */}
+      <Tab.Screen name="Crew" component={CrewScreen} />
       <Tab.Screen name="Profile" component={Profile} />
     </Tab.Navigator>
   );
@@ -112,7 +112,7 @@ export default function App() {
   return (
     <NavigationContainer ref={navigationRef} onReady={handleNavReady}>
       <Stack.Navigator
-        initialRouteName="Onboading"
+        initialRouteName={"Onboading"}
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Onboading" component={Onboading} />
@@ -148,6 +148,7 @@ export default function App() {
         <Stack.Screen name="FeedDetail" component={FeedDetail} />
         {/* Crew Chat Screen */}
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
+        <Stack.Screen name="CrewChat" component={ChatScreen} />
         {/* 공유 작성 화면(FeedCompose) 등록: RunSummary에서 사용 */}
         <Stack.Screen
           name="FeedCompose"
@@ -156,7 +157,7 @@ export default function App() {
         />
         <Stack.Screen name="Emblem" component={Emblem} />
         <Stack.Screen name="ProfileEdit" component={ProfileEdit} />
-        {/* <Stack.Screen name="CrewDetail" component={CrewDetailScreen} /> */}
+        <Stack.Screen name="CrewDetail" component={CrewDetailScreen} />
 
         {/* 하단 탭 대상 라우트들은 MainTabs 내부 */}
         <Stack.Screen
