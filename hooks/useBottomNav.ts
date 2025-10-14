@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
-export type TabKey = "battle" | "crew" | "running" | "feed" | "record";
+export type TabKey = "profile" | "crew" | "running" | "feed" | "record";
 
 const TAB_TO_ROUTE: Record<TabKey, string> = {
-  battle: "Battle",
-  crew: "Crew",
+  profile: "Profile",
+  crew: "ChatScreen",
   // 러닝 탭은 실제 러닝 화면으로 이동
   running: "LiveRunningScreen",
   feed: "Feed",
@@ -21,6 +21,7 @@ export function useBottomNav(defaultTab: TabKey = "running") {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
+  const TAB_ROUTES = new Set(["LiveRunningScreen", "Feed", "Record", "Profile"]);
 
   // 현재 라우트가 바뀌면 activeTab 동기화
   useEffect(() => {
@@ -32,10 +33,23 @@ export function useBottomNav(defaultTab: TabKey = "running") {
     (tabKey: string) => {
       const key = tabKey as TabKey;
       const target = TAB_TO_ROUTE[key];
+      // 디버그 로그: 탭 클릭 → 이동 대상
+      try {
+        console.log("[BottomNav] press", { from: route.name, tabKey: key, target });
+      } catch {}
       if (!target) return;
 
       setActiveTab(key);
-      if (route.name !== target) navigation.navigate(target);
+      try {
+        if (TAB_ROUTES.has(target)) {
+          // 탭 대상은 MainTabs 하위로 이동
+          navigation.navigate('MainTabs' as never, { screen: target } as never);
+        } else {
+          navigation.navigate(target as never);
+        }
+      } catch (e) {
+        console.warn("[BottomNav] navigate failed", { target, error: (e as any)?.message });
+      }
     },
     [navigation, route.name]
   );

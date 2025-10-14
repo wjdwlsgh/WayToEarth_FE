@@ -38,3 +38,7 @@ gradle/
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Study notes/media (keep placeholder)
+study/*
+!study/.gitkeep

@@ -1,0 +1,88 @@
+{
+  "journeys": [
+    {
+      "id": 1,
+      "name": "한국의 고궁탐방",
+      "description": "서울의 5대 궁궐과 역사 유적지를 탐방하는 역사 문화 여정. 조선시대부터 현대까지의 역사를 한눈에 볼 수 있습니다.",
+      "totalDistanceKm": 12.5,
+      "category": "DOMESTIC",
+      "subCategory": "HISTORY",
+      "difficulty": "EASY",
+      "estimatedDurationHours": 2.5,
+      "thumbnailUrl": "https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/journeys/palace-tour.jpg",
+      "landmarkCount": 8,
+      "routePointCount": 29,
+      "tags": ["역사", "문화", "궁궐", "서울", "도심"]
+    },
+    {
+      "id": 2,
+      "name": "한강 러닝 코스",
+      "description": "여의도부터 반포까지 한강을 따라 달리는 상쾌한 러닝 코스. 강바람을 맞으며 시원한 러닝을 즐길 수 있습니다.",
+      "totalDistanceKm": 10.0,
+      "category": "DOMESTIC",
+      "subCategory": "NATURE",
+      "difficulty": "EASY",
+      "estimatedDurationHours": 2.0,
+      "thumbnailUrl": "https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/journeys/hanriver-run.jpg",
+      "landmarkCount": 5,
+      "routePointCount": 50,
+      "tags": ["자연", "강", "도시", "서울", "자전거도로"]
+    },
+    {
+      "id": 3,
+      "name": "북한산 둘레길 1코스",
+      "description": "북한산을 완만하게 둘러보는 둘레길 1코스. 숲속 산책과 경치 감상을 동시에 즐길 수 있습니다.",
+      "totalDistanceKm": 8.3,
+      "category": "DOMESTIC",
+      "subCategory": "NATURE",
+      "difficulty": "MEDIUM",
+      "estimatedDurationHours": 2.5,
+      "thumbnailUrl": "https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/journeys/bukhansan-trail.jpg",
+      "landmarkCount": 6,
+      "routePointCount": 80,
+      "tags": ["등산", "숲", "산", "서울", "둘레길"]
+    },
+    {
+      "id": 4,
+      "name": "제주 올레 1코스",
+      "description": "제주 올레길의 시작, 시흥초등학교부터 성산일출봉까지. 제주 바다를 끼고 걷는 힐링 코스입니다.",
+      "totalDistanceKm": 15.1,
+      "category": "DOMESTIC",
+      "subCategory": "NATURE",
+      "difficulty": "MEDIUM",
+      "estimatedDurationHours": 4.0,
+      "thumbnailUrl": "https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/journeys/jeju-olle-1.jpg",
+      "landmarkCount": 7,
+      "routePointCount": 100,
+      "tags": ["제주", "바다", "올레길", "해안", "트레킹"]
+    },
+    {
+      "id": 5,
+      "name": "경주 역사문화탐방",
+      "description": "천년 고도 경주의 역사 유적지를 둘러보는 문화 탐방 코스. 신라시대 유적들을 직접 체험할 수 있습니다.",
+      "totalDistanceKm": 11.2,
+      "category": "DOMESTIC",
+      "subCategory": "HISTORY",
+      "difficulty": "EASY",
+      "estimatedDurationHours": 3.0,
+      "thumbnailUrl": "https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/journeys/gyeongju-history.jpg",
+      "landmarkCount": 8,
+      "routePointCount": 60,
+      "tags": ["역사", "문화", "경주", "신라", "유적"]
+    },
+    {
+      "id": 6,
+      "name": "부산 해운대 해안길",
+      "description": "해운대에서 송정까지 부산의 아름다운 해안선을 따라 달리는 코스. 바다 풍경이 일품입니다.",
+      "totalDistanceKm": 9.5,
+      "category": "DOMESTIC",
+      "subCategory": "NATURE",
+      "difficulty": "EASY",
+      "estimatedDurationHours": 2.0,
+      "thumbnailUrl": "https://waytoearth-assets.s3.ap-northeast-2.amazonaws.com/journeys/haeundae-coastal.jpg",
+      "landmarkCount": 6,
+      "routePointCount": 70,
+      "tags": ["바다", "해안", "부산", "해운대", "송정"]
+    }
+  ]
+}
