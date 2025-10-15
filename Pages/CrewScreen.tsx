@@ -18,11 +18,13 @@ import { useCrewData } from "../hooks/useCrewData";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import CreateCrewSheet from "../components/Crew/CreateCrewSheet";
 import CrewPreviewSheet from "../components/Crew/CrewPreviewSheet";
+import CrewDetailModal from "../components/Crew/CrewDetailModal";
 
 export default function CrewScreen() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState<{
     id?: string;
     name: string;
@@ -149,7 +151,8 @@ export default function CrewScreen() {
                     description: c.description,
                     progress: c.progress,
                   });
-                  setPreviewOpen(true);
+                  setPreviewOpen(false);
+                  setDetailOpen(true);
                 } else {
                   Alert.alert("가입 불가", "현재 가입된 크루가 이미 있습니다.");
                 }
@@ -211,6 +214,45 @@ export default function CrewScreen() {
                     ? "이미 해당 크루에 가입 신청이 접수되어 있습니다. 승인/거절 결과를 기다려주세요."
                     : (e?.response?.data?.message || e?.message || "가입 신청에 실패했습니다.");
                   Alert.alert("신청 불가", msg);
+                }
+              }
+            : undefined
+        }
+      />
+      <CrewDetailModal
+        visible={detailOpen}
+        crewId={selected?.id || ""}
+        initialName={selected?.name}
+        initialProgress={selected?.progress}
+        onClose={() => setDetailOpen(false)}
+        onApply={
+          selected
+            ? async (intro) => {
+                try {
+                  const res = await joinExistingCrew(
+                    {
+                      id: selected.id || "",
+                      name: selected.name,
+                      description: selected.description || "",
+                      progress: selected.progress || "0/0",
+                    },
+                    intro
+                  );
+                  setDetailOpen(false);
+                  if ((res as any)?.pending) {
+                    Alert.alert(
+                      "신청 완료",
+                      "관리자 승인 후 크루에 참여할 수 있습니다."
+                    );
+                  } else {
+                    Alert.alert("가입 완료", "크루에 가입되었습니다.");
+                  }
+                } catch (e: any) {
+                  const msg =
+                    e?.code === "JOIN_PENDING_EXISTS"
+                      ? "이미 해당 크루에 가입 신청이 접수되어 있습니다. 승인/거절 결과를 기다려주세요."
+                      : e?.response?.data?.message || e?.message || "가입 신청 중 오류가 발생했습니다.";
+                  Alert.alert("신청 실패", msg);
                 }
               }
             : undefined
