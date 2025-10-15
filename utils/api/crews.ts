@@ -15,6 +15,38 @@ export type Crew = {
 export type CrewRole = "ADMIN" | "MEMBER";
 export type CrewMember = { id: string; nickname: string; role: CrewRole };
 export type CrewApplicant = { id: string; nickname: string; userId?: string };
+// Public crew detail (for viewing a specific crew from the list)
+export type CrewPublicDetail = {
+  id: string;
+  name: string;
+  description: string;
+  maxMembers: number;
+  currentMembers: number;
+  profileImageUrl?: string | null;
+  isActive: boolean;
+  ownerId: string;
+  ownerNickname: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function getCrewById(crewId: string): Promise<CrewPublicDetail> {
+  const { data } = await client.get(`/v1/crews/${crewId}`);
+  const d = data as any;
+  return {
+    id: String(d.id),
+    name: String(d.name ?? ""),
+    description: String(d.description ?? ""),
+    maxMembers: Number(d.maxMembers ?? 0),
+    currentMembers: Number(d.currentMembers ?? 0),
+    profileImageUrl: d.profileImageUrl ?? null,
+    isActive: Boolean(d.isActive ?? true),
+    ownerId: String(d.ownerId ?? d.ownerUserId ?? d.owner?.id ?? ""),
+    ownerNickname: String(d.ownerNickname ?? d.owner?.nickname ?? ""),
+    createdAt: String(d.createdAt ?? ""),
+    updatedAt: String(d.updatedAt ?? ""),
+  };
+}
 export type CrewDetail = {
   crew: Crew;
   role: CrewRole;
