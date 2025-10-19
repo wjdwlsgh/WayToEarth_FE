@@ -31,6 +31,7 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
   const [weeklyGoal, setWeeklyGoal] = useState(""); // 문자열로 관리 후 전송 시 숫자화
   const [profileImageUrl, setProfileImageUrl] = useState("");
   const [profileImageKey, setProfileImageKey] = useState<string | null>(null);
+  const [imageCacheBuster, setImageCacheBuster] = useState(Date.now());
 
   // ui state
   const [loading, setLoading] = useState(true);
@@ -203,12 +204,13 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
 
       setUploading(true);
 
-      // S3 업로드 (PUT)
+      // S3 업로드 (PUT) - Cache-Control 헤더 필수!
       const resUpload = await FileSystem.uploadAsync(signedUrl, fileUri, {
         httpMethod: "PUT",
         headers: {
           "Content-Type": contentType,
           "Content-Length": String(size),
+          "Cache-Control": "no-cache, no-store, must-revalidate", // 백엔드 서명에 포함된 헤더
         },
         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
       });
@@ -216,21 +218,22 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         throw new Error(`S3 업로드 실패: ${resUpload.status}`);
       }
 
-      // DB 저장 (URL + KEY 모두 전달: 서버가 key 기준 저장 시 호환)
-      await client.put("/v1/users/me", {
-        profile_image_url: downloadUrl,
-        ...(key ? { profile_image_key: key } : {}),
+      // DB 저장 (key만 전달 - 가이드 권장사항)
+      console.log("[ProfileEdit] DB 저장 요청:", {
+        profile_image_key: key || null,
       });
+
+      const updateRes = await client.put("/v1/users/me", {
+        profile_image_key: key,
+      });
+
+      console.log("[ProfileEdit] DB 저장 응답:", updateRes.data);
+
+      // Cache-Control 헤더로 캐시 문제 해결 + 로컬 state 업데이트
       setProfileImageUrl(downloadUrl);
       if (key) setProfileImageKey(key);
+      setImageCacheBuster(Date.now()); // UI 강제 리렌더링
       Alert.alert("완료", "프로필 사진이 변경되었습니다.");
-      // 내정보 화면이 즉시 반영되도록 파라미터로 최신 URL 전달
-      try {
-        navigation.navigate("Profile", {
-          avatarUrl: downloadUrl,
-          cacheBust: Date.now(),
-        });
-      } catch {}
     } catch (e: any) {
       console.warn(e);
       const msg =
@@ -345,7 +348,10 @@ export default function ProfileEditScreen({ navigation }: { navigation: any }) {
         <View style={styles.profileImage}>
           {profileImageUrl ? (
             <Image
-              source={{ uri: profileImageUrl }}
+              key={imageCacheBuster}
+              source={{
+                uri: profileImageUrl + (profileImageUrl.includes('?') ? '&' : '?') + `_cache=${imageCacheBuster}`
+              }}
               style={{ width: 100, height: 100, borderRadius: 50 }}
             />
           ) : (
