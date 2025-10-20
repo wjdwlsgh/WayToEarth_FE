@@ -2,15 +2,17 @@
 // 랜드마크 스토리 카드 컴포넌트
 
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import type { StoryCard as StoryCardType } from '../../types/landmark';
 import { STORY_TYPE_LABELS, STORY_TYPE_COLORS } from '../../types/landmark';
 
 type Props = {
   story: StoryCardType;
+  isAdmin?: boolean;
+  onUploadImage?: (storyId: number) => void;
 };
 
-export default function StoryCard({ story }: Props) {
+export default function StoryCard({ story, isAdmin, onUploadImage }: Props) {
   const typeColor = STORY_TYPE_COLORS[story.type];
   const typeLabel = STORY_TYPE_LABELS[story.type];
 
