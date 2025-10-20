@@ -66,10 +66,6 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
   useEffect(() => {
     (async () => {
       try {
-        // JWT 토큰 확인
-        const token = await AsyncStorage.getItem('jwtToken');
-        console.log('[LandmarkStory] JWT 토큰 존재:', token ? 'YES (length: ' + token.length + ')' : 'NO');
-
         const me = await getMyProfile();
         console.log('[LandmarkStory] 사용자 정보:', me);
         console.log('[LandmarkStory] role 값:', me?.role);
