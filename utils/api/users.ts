@@ -103,6 +103,7 @@ export type UserProfile = {
   total_running_count?: number | null;
   created_at?: string;
   profile_image_key?: string | null;
+  role?: string | null; // 'USER' | 'ADMIN'
 };
 
 export async function getMyProfile(): Promise<UserProfile> {
