@@ -10,9 +10,10 @@ type Props = {
   story: StoryCardType;
   isAdmin?: boolean;
   onUploadImage?: (storyId: number) => void;
+  onDelete?: (storyId: number) => void;
 };
 
-export default function StoryCard({ story, isAdmin, onUploadImage }: Props) {
+export default function StoryCard({ story, isAdmin, onUploadImage, onDelete }: Props) {
   const typeColor = STORY_TYPE_COLORS[story.type];
   const typeLabel = STORY_TYPE_LABELS[story.type];
 
@@ -35,13 +36,22 @@ export default function StoryCard({ story, isAdmin, onUploadImage }: Props) {
         />
       )}
       {isAdmin && (
-        <TouchableOpacity
-          style={styles.adminBtn}
-          onPress={() => onUploadImage?.(story.id)}
-          accessibilityLabel="스토리 이미지 업로드"
-        >
-          <Text style={styles.adminBtnText}>스토리 이미지 업로드</Text>
-        </TouchableOpacity>
+        <View style={styles.adminButtons}>
+          <TouchableOpacity
+            style={styles.adminBtn}
+            onPress={() => onUploadImage?.(story.id)}
+            accessibilityLabel="스토리 이미지 업로드"
+          >
+            <Text style={styles.adminBtnText}>📷 이미지 업로드</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.adminBtn, styles.adminBtnDelete]}
+            onPress={() => onDelete?.(story.id)}
+            accessibilityLabel="스토리 삭제"
+          >
+            <Text style={styles.adminBtnText}>🗑️ 삭제</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* 스토리 내용 */}
@@ -90,13 +100,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#F3F4F6',
   },
+  adminButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
   adminBtn: {
-    alignSelf: 'flex-start',
+    flex: 1,
     backgroundColor: '#111827',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    marginBottom: 12,
+    alignItems: 'center',
+  },
+  adminBtnDelete: {
+    backgroundColor: '#EF4444',
   },
   adminBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   content: {
