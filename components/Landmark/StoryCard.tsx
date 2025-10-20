@@ -90,6 +90,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#F3F4F6',
   },
+  adminBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#111827',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  adminBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   content: {
     fontSize: 15,
     lineHeight: 24,
