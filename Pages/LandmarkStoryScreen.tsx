@@ -152,12 +152,28 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
       if (!isAdmin) return Alert.alert('권한 없음', '관리자만 업로드할 수 있습니다.');
       const jid = ensureJourneyId();
       if (!jid) return;
+
+      // 현재 스토리 찾기
+      const currentStory = landmark?.storyCards.find(s => s.id === storyId);
+      if (!currentStory) {
+        return Alert.alert('오류', '스토리를 찾을 수 없습니다.');
+      }
+
       const sel = await pickImage();
       if (!sel) return;
       setUploading(true);
       const presign = await presignStoryImage({ journeyId: jid, landmarkId, storyId, contentType: sel.mime, size: sel.size });
       await uploadToS3(presign.upload_url, sel.uri, sel.mime);
-      await updateStoryImage(storyId, presign.download_url);
+
+      // 백엔드 스펙: 모든 필드 필수 (title, content, type, orderIndex)
+      await updateStoryCard(storyId, {
+        title: currentStory.title,
+        content: currentStory.content,
+        type: currentStory.type as any,
+        orderIndex: currentStory.orderIndex || 0,
+        imageUrl: presign.download_url,
+      });
+
       Alert.alert('완료', '스토리 이미지가 업데이트되었습니다.');
       await loadLandmarkDetail();
     } catch (e: any) {
