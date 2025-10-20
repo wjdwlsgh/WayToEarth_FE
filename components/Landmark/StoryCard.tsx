@@ -34,6 +34,15 @@ export default function StoryCard({ story, isAdmin, onUploadImage }: Props) {
           resizeMode="cover"
         />
       )}
+      {isAdmin && (
+        <TouchableOpacity
+          style={styles.adminBtn}
+          onPress={() => onUploadImage?.(story.id)}
+          accessibilityLabel="스토리 이미지 업로드"
+        >
+          <Text style={styles.adminBtnText}>스토리 이미지 업로드</Text>
+        </TouchableOpacity>
+      )}
 
       {/* 스토리 내용 */}
       <Text style={styles.content}>{story.content}</Text>
