@@ -61,9 +61,16 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
   useEffect(() => {
     (async () => {
       try {
-        const me: any = await getMyProfile().catch(() => null);
-        setIsAdmin(String(me?.role || '').toUpperCase() === 'ADMIN');
-      } catch {}
+        const me = await getMyProfile();
+        console.log('[LandmarkStory] 사용자 정보:', me);
+        console.log('[LandmarkStory] role 값:', me?.role);
+        const adminCheck = String(me?.role || '').toUpperCase() === 'ADMIN';
+        console.log('[LandmarkStory] isAdmin:', adminCheck);
+        setIsAdmin(adminCheck);
+      } catch (error) {
+        console.log('[LandmarkStory] 권한 확인 실패:', error);
+        setIsAdmin(false);
+      }
     })();
   }, []);
 
