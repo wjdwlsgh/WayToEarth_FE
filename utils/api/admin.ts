@@ -72,3 +72,50 @@ export function guessImageMime(uriOrName: string): string {
   if (name.endsWith(".webp")) return "image/webp";
   return "image/jpeg";
 }
+
+// ========== 스토리 CRUD API ==========
+
+export type StoryType = 'HISTORY' | 'CULTURE' | 'NATURE';
+
+export type StoryCardCreateRequest = {
+  landmarkId: number;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  type: StoryType;
+  orderIndex: number;
+};
+
+export type StoryCardUpdateRequest = {
+  title?: string;
+  content?: string;
+  imageUrl?: string;
+  type?: StoryType;
+  orderIndex?: number;
+};
+
+export type StoryCardResponse = {
+  id: number;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  type: StoryType;
+  orderIndex: number;
+};
+
+// 스토리 생성
+export async function createStoryCard(data: StoryCardCreateRequest): Promise<StoryCardResponse> {
+  const res = await client.post('/v1/admin/story-cards', data);
+  return (res.data?.data ?? res.data) as StoryCardResponse;
+}
+
+// 스토리 수정
+export async function updateStoryCard(storyId: number, data: StoryCardUpdateRequest): Promise<StoryCardResponse> {
+  const res = await client.put(`/v1/admin/story-cards/${storyId}`, data);
+  return (res.data?.data ?? res.data) as StoryCardResponse;
+}
+
+// 스토리 삭제
+export async function deleteStoryCard(storyId: number): Promise<void> {
+  await client.delete(`/v1/admin/story-cards/${storyId}`);
+}
