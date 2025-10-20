@@ -13,6 +13,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  TextInput,
 } from 'react-native';
 import SafeLayout from '../components/Layout/SafeLayout';
 import StoryCard from '../components/Landmark/StoryCard';
@@ -20,6 +21,10 @@ import StoryTypeTabs from '../components/Landmark/StoryTypeTabs';
 import GuestbookCreateModal from '../components/Guestbook/GuestbookCreateModal';
 import LandmarkStatistics from '../components/Guestbook/LandmarkStatistics';
 import { getLandmarkDetail } from '../utils/api/landmarks';
+import { getMyProfile } from '../utils/api/users';
+import { presignLandmarkImage, presignStoryImage, updateLandmarkImage, updateStoryImage, uploadToS3, guessImageMime } from '../utils/api/admin';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import type { LandmarkDetail, StoryType } from '../types/landmark';
 import type { LandmarkSummary } from '../types/guestbook';
 
@@ -44,11 +49,23 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
   const [error, setError] = useState<string | null>(null);
   const [guestbookModalVisible, setGuestbookModalVisible] = useState(false);
   const [bottomSheetVisible, setBottomSheetVisible] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [journeyIdInput, setJourneyIdInput] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
 
   // 랜드마크 상세 정보 로드
   useEffect(() => {
     loadLandmarkDetail();
   }, [landmarkId, userId]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const me: any = await getMyProfile().catch(() => null);
+        setIsAdmin(String(me?.role || '').toUpperCase() === 'ADMIN');
+      } catch {}
+    })();
+  }, []);
 
   const loadLandmarkDetail = async () => {
     if (!landmarkId) {
@@ -76,6 +93,68 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
     if (selectedType === null) return true;
     return story.type === selectedType;
   }) || [];
+
+  const pickImage = async (): Promise<{ uri: string; mime: string; size: number } | null> => {
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.9 });
+    if (res.canceled) return null;
+    const asset = res.assets[0];
+    const uri = asset.uri;
+    const info = await FileSystem.getInfoAsync(uri);
+    const size = (info as any).size ?? 0;
+    const mime = guessImageMime(uri);
+    return { uri, mime, size };
+  };
+
+  const ensureJourneyId = (): number | null => {
+    const n = Number(journeyIdInput);
+    if (!Number.isFinite(n) || n <= 0) {
+      Alert.alert('여정 ID 필요', '관리자 업로드를 위해 여정 ID를 입력해주세요.');
+      return null;
+    }
+    return n;
+  };
+
+  const handleUploadLandmarkImage = async () => {
+    try {
+      if (!isAdmin) return Alert.alert('권한 없음', '관리자만 업로드할 수 있습니다.');
+      const jid = ensureJourneyId();
+      if (!jid) return;
+      const sel = await pickImage();
+      if (!sel) return;
+      setUploading(true);
+      const presign = await presignLandmarkImage({ journeyId: jid, landmarkId, contentType: sel.mime, size: sel.size });
+      await uploadToS3(presign.upload_url, sel.uri, sel.mime);
+      await updateLandmarkImage(landmarkId, presign.download_url);
+      Alert.alert('완료', '랜드마크 이미지가 업데이트되었습니다.');
+      await loadLandmarkDetail();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || '업로드에 실패했습니다.';
+      Alert.alert('오류', msg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUploadStoryImage = async (storyId: number) => {
+    try {
+      if (!isAdmin) return Alert.alert('권한 없음', '관리자만 업로드할 수 있습니다.');
+      const jid = ensureJourneyId();
+      if (!jid) return;
+      const sel = await pickImage();
+      if (!sel) return;
+      setUploading(true);
+      const presign = await presignStoryImage({ journeyId: jid, landmarkId, storyId, contentType: sel.mime, size: sel.size });
+      await uploadToS3(presign.upload_url, sel.uri, sel.mime);
+      await updateStoryImage(storyId, presign.download_url);
+      Alert.alert('완료', '스토리 이미지가 업데이트되었습니다.');
+      await loadLandmarkDetail();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || '업로드에 실패했습니다.';
+      Alert.alert('오류', msg);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // 로딩 중 표시
   if (loading) {
@@ -189,6 +268,23 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
           onSelectType={setSelectedType}
         />
 
+        {isAdmin && (
+          <View style={styles.adminPanel}>
+            <Text style={styles.adminTitle}>관리자 이미지 업로드</Text>
+            <TextInput
+              style={styles.adminInput}
+              placeholder="여정 ID"
+              keyboardType="number-pad"
+              value={journeyIdInput}
+              onChangeText={setJourneyIdInput}
+            />
+            <TouchableOpacity style={[styles.adminBtn, uploading && { opacity: 0.6 }]} disabled={uploading} onPress={handleUploadLandmarkImage}>
+              <Text style={styles.adminBtnText}>{uploading ? '업로드 중…' : '랜드마크 이미지 업로드'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.adminHelp}>스토리 이미지는 각 카드의 버튼으로 업로드하세요.</Text>
+          </View>
+        )}
+
         {/* 스토리 카드 목록 */}
         <View style={styles.storiesContainer}>
           {filteredStories.length > 0 ? (
@@ -197,7 +293,7 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
                 {selectedType ? `${filteredStories.length}개의 스토리` : `전체 ${filteredStories.length}개의 스토리`}
               </Text>
               {filteredStories.map((story) => (
-                <StoryCard key={story.id} story={story} />
+                <StoryCard key={story.id} story={story} isAdmin={isAdmin} onUploadImage={handleUploadStoryImage} />
               ))}
             </>
           ) : (
@@ -445,6 +541,28 @@ const styles = StyleSheet.create({
   storiesContainer: {
     padding: 16,
   },
+  adminPanel: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  adminTitle: { fontSize: 14, fontWeight: '800', color: '#111827', marginBottom: 8 },
+  adminInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    marginBottom: 8,
+  },
+  adminBtn: { alignSelf: 'flex-start', backgroundColor: '#111827', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8 },
+  adminBtnText: { color: '#fff', fontWeight: '800' },
+  adminHelp: { marginTop: 6, fontSize: 12, color: '#6B7280' },
   storiesTitle: {
     fontSize: 18,
     fontWeight: '800',
