@@ -17,8 +17,7 @@ import MapRoute from "../components/Running/MapRoute";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
-import WeatherIcon from "../components/Running/WeatherIcon";
-import WeatherModal from "../components/Running/WeatherModal";
+import WeatherWidget from "../components/Running/WeatherWidget";
 import { useLiveRunTracker } from "../hooks/useLiveRunTracker";
 import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
 import { useWeather } from "../hooks/useWeather";
@@ -48,7 +47,6 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
 
   // 날씨 정보
   const { weather, loading: weatherLoading } = useWeather();
-  const [weatherModalVisible, setWeatherModalVisible] = useState(false);
 
   // 러닝 세션 상태 업데이트 (일반 러닝)
   useEffect(() => {
