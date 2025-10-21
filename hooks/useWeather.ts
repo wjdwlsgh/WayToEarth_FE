@@ -9,6 +9,7 @@ export interface WeatherData {
   emoji: string;
   fetchedAt: string;
   recommendation: string;
+  temperature?: number; // 온도 (섭씨)
 }
 
 export function useWeather() {
