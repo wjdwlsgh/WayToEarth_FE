@@ -40,6 +40,7 @@ export function useWeather() {
         location.coords.longitude
       );
 
+      console.log("[useWeather] 날씨 데이터:", JSON.stringify(weatherData, null, 2));
       setWeather(weatherData);
     } catch (err: any) {
       console.error("[useWeather] 날씨 조회 실패:", err);
