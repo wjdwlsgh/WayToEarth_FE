@@ -11,8 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import MapRoute from "../components/Running/MapRoute";
-import WeatherIcon from "../components/Running/WeatherIcon";
-import WeatherModal from "../components/Running/WeatherModal";
+import WeatherWidget from "../components/Running/WeatherWidget";
 import { useWeather } from "../hooks/useWeather";
 
 export default function Main() {
@@ -22,7 +21,6 @@ export default function Main() {
 
   // 날씨 정보
   const { weather, loading: weatherLoading } = useWeather();
-  const [weatherModalVisible, setWeatherModalVisible] = useState(false);
 
   // 메인 페이지 진입 시 위치 권한 미리 요청
   useEffect(() => {
@@ -144,7 +142,7 @@ export default function Main() {
         />
       </View>
 
-      {/* 날씨 아이콘 */}
+      {/* 날씨 위젯 */}
       <View
         style={{
           position: "absolute",
@@ -153,19 +151,14 @@ export default function Main() {
           zIndex: 10,
         }}
       >
-        <WeatherIcon
+        <WeatherWidget
           emoji={weather?.emoji}
+          condition={weather?.condition}
+          temperature={weather?.temperature}
+          recommendation={weather?.recommendation}
           loading={weatherLoading}
-          onPress={() => setWeatherModalVisible(true)}
         />
       </View>
-
-      {/* 날씨 상세 모달 */}
-      <WeatherModal
-        visible={weatherModalVisible}
-        onClose={() => setWeatherModalVisible(false)}
-        weather={weather}
-      />
 
       {/* 반투명 오버레이 (메뉴 열렸을 때만) */}
       {menuOpen && (
