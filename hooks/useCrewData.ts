@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Crew } from "../utils/api/crews";
-import { getMyCrew, listCrews, createCrew, joinCrew, type JoinResult } from "../utils/api/crews";
+import { getMyCrew, listCrews, createCrew, joinCrew, type JoinResult, getCrewById } from "../utils/api/crews";
 import { getTopCrewsByDistance } from "../utils/api/crewStats";
 import type { TopCrewItemData } from "../types/Crew";
 // Top crew mock data removed. If server provides a ranking API,
@@ -50,8 +50,57 @@ export function useCrewData(searchText: string) {
         setPendingJoins(cleared);
         persistPending(cleared);
       }
-      // 상단 랭킹
-      (top && top.length) ? setTopCrews(top) : setTopCrews([]);
+      // 상단 랭킹 + 프로필 이미지 채우기: 목록 매칭 -> ID 상세 -> 이름 검색 순서
+      if (top && top.length) {
+        // 1) 현재 목록에서 id 매칭으로 빠르게 채우기
+        const listMap = new Map<string, string | null>();
+        (list || []).forEach((c: any) => listMap.set(String(c.id), c.imageUrl ?? null));
+        let enriched = top.map((t) => ({
+          ...t,
+          imageUrl: listMap.get(String(t.id)) ?? null,
+        }));
+
+        // 2) 이미지 없는 항목은 ID로 상세 조회해 보강 (요구사항: crewId로 이미지 조회)
+        const needById = enriched
+          .map((t, idx) => ({ t, idx }))
+          .filter(({ t }) => !t.imageUrl);
+        if (needById.length > 0) {
+          const results = await Promise.allSettled(
+            needById.map(({ t }) => getCrewById(String(t.id)))
+          );
+          results.forEach((res, i) => {
+            const { idx } = needById[i];
+            if (res.status === "fulfilled") {
+              enriched[idx] = {
+                ...enriched[idx],
+                imageUrl: (res.value as any)?.profileImageUrl ?? enriched[idx].imageUrl ?? null,
+              };
+            }
+          });
+        }
+
+        // 3) 그래도 비어있으면 이름 검색으로 보강 (fallback)
+        const needByName = enriched
+          .map((t, idx) => ({ t, idx }))
+          .filter(({ t }) => !t.imageUrl);
+        if (needByName.length > 0) {
+          try {
+            const searched = await Promise.all(
+              needByName.map(({ t }) => listCrews(String(t.name)).catch(() => [] as any[]))
+            );
+            needByName.forEach(({ t, idx }, i) => {
+              const arr = searched[i] as any[];
+              const hit = (arr || []).find((c) => String(c.id) === String(t.id));
+              if (hit && (hit as any).imageUrl) {
+                enriched[idx] = { ...enriched[idx], imageUrl: (hit as any).imageUrl };
+              }
+            });
+          } catch {}
+        }
+        setTopCrews(enriched);
+      } else {
+        setTopCrews([]);
+      }
       // 내 크루가 목록에 있으면 중복 제거 (id 타입 차이 방지용 String 비교)
       const myId = m ? String((m as any).id) : "";
       const filtered = (list ?? []).filter((c) => String((c as any).id) !== myId);

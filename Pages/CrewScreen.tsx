@@ -94,6 +94,7 @@ export default function CrewScreen() {
                     rank={c.rank}
                     distance={c.distance}
                     name={c.name}
+                    image={c.imageUrl ? { uri: c.imageUrl } : undefined}
                     size={size}
                     onPress={() => {}}
                   />

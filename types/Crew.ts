@@ -7,7 +7,9 @@ export interface CrewListItem {
 
 export interface TopCrewItemData {
   id: string;
-  rank: string; // e.g., "1등 크루"
+  rank: string; // e.g., "1위 크루"
   name: string;
   distance: string; // e.g., "1150km"
+  imageUrl?: string | null;
 }
+
