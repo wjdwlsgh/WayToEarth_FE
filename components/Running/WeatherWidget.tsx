@@ -29,6 +29,8 @@ export default function WeatherWidget({
   const animWidth = useRef(new Animated.Value(0)).current;
   const animOpacity = useRef(new Animated.Value(0)).current;
 
+  const animBgOpacity = useRef(new Animated.Value(0)).current;
+
   const toggleExpand = () => {
     const toExpanded = !expanded;
     setExpanded(toExpanded);
@@ -45,12 +47,27 @@ export default function WeatherWidget({
         duration: 200,
         useNativeDriver: true,
       }),
+      Animated.timing(animBgOpacity, {
+        toValue: toExpanded ? 1 : 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
     ]).start();
   };
 
   const containerWidth = animWidth.interpolate({
     inputRange: [0, 1],
-    outputRange: [44, 220], // 축소: 44 (더 작게), 확장: 220
+    outputRange: [48, 220], // 축소: 48 (높이와 동일), 확장: 220
+  });
+
+  const backgroundColor = animBgOpacity.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["transparent", "rgba(100, 116, 139, 0.75)"], // 축소: 완전 투명, 확장: 더 진한 회색
+  });
+
+  const shadowOpacity = animBgOpacity.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.15], // 축소: 그림자 없음, 확장: 그림자 있음
   });
 
   if (loading) {
@@ -72,11 +89,13 @@ export default function WeatherWidget({
           styles.container,
           {
             width: containerWidth,
+            backgroundColor: backgroundColor,
+            shadowOpacity: shadowOpacity,
           },
         ]}
       >
-        {/* 왼쪽: 날씨 이모지 (항상 표시) */}
-        <View style={styles.iconContainer}>
+        {/* 왼쪽: 날씨 이모지 (항상 표시, 항상 불투명) */}
+        <View style={{ opacity: 1 }}>
           <Text style={styles.emoji}>{emoji}</Text>
         </View>
 
@@ -108,48 +127,46 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(60, 60, 67, 0.75)", // 다크 그레이 반투명
-    borderRadius: 22,
-    paddingVertical: 4,
+    justifyContent: "center",
+    // backgroundColor, shadowOpacity는 동적으로 적용됨
+    borderRadius: 999, // 완전히 둥근 모서리
     paddingHorizontal: 4,
+    paddingVertical: 4,
+    height: 48,
+    // 그림자 설정 (opacity만 애니메이션)
     shadowColor: "#000",
-    shadowOpacity: 0.2,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        backdropFilter: "blur(10px)",
-      },
-    }),
+    elevation: 0, // 안드로이드 그림자 비활성화 (팔각형 방지)
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
   emoji: {
-    fontSize: 22,
+    fontSize: 30,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   infoContainer: {
     marginLeft: 8,
     flex: 1,
     justifyContent: "center",
+    height: 40, // infoContainer도 증가
   },
   temperature: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
-    color: "#fff",
-    lineHeight: 24,
-    marginBottom: 2,
+    color: "#ffffff", // 흰색 (어두운 배경에 맞춤)
+    lineHeight: 20,
   },
   recommendation: {
     fontSize: 10,
     fontWeight: "600",
-    color: "rgba(255, 255, 255, 0.95)",
-    lineHeight: 13,
+    color: "rgba(255, 255, 255, 0.9)", // 약간 투명한 흰색
+    lineHeight: 12,
   },
 });
