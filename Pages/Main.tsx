@@ -17,7 +17,12 @@ import { useWeather } from "../hooks/useWeather";
 
 export default function Main() {
   const nav = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // 날씨 정보
+  const { weather, loading: weatherLoading } = useWeather();
+  const [weatherModalVisible, setWeatherModalVisible] = useState(false);
 
   // 메인 페이지 진입 시 위치 권한 미리 요청
   useEffect(() => {
@@ -138,6 +143,29 @@ export default function Main() {
           liveMode
         />
       </View>
+
+      {/* 날씨 아이콘 */}
+      <View
+        style={{
+          position: "absolute",
+          top: Math.max(insets.top, 12) + 12,
+          left: 16,
+          zIndex: 10,
+        }}
+      >
+        <WeatherIcon
+          emoji={weather?.emoji}
+          loading={weatherLoading}
+          onPress={() => setWeatherModalVisible(true)}
+        />
+      </View>
+
+      {/* 날씨 상세 모달 */}
+      <WeatherModal
+        visible={weatherModalVisible}
+        onClose={() => setWeatherModalVisible(false)}
+        weather={weather}
+      />
 
       {/* 반투명 오버레이 (메뉴 열렸을 때만) */}
       {menuOpen && (
