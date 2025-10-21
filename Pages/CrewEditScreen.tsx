@@ -225,51 +225,92 @@ export default function CrewEditScreen() {
 
   // 저장
   const handleSave = async () => {
+    console.log("[CrewEdit] ===== 저장 시작 =====");
+
     // 유효성 검사
     if (!name.trim()) {
+      console.log("[CrewEdit] 유효성 검사 실패: 크루 이름 없음");
       Alert.alert("입력 오류", "크루 이름을 입력해주세요.");
       return;
     }
     if (name.length > 50) {
+      console.log("[CrewEdit] 유효성 검사 실패: 크루 이름 길이 초과");
       Alert.alert("입력 오류", "크루 이름은 최대 50자까지 입력 가능합니다.");
       return;
     }
     if (description.length > 500) {
+      console.log("[CrewEdit] 유효성 검사 실패: 크루 소개 길이 초과");
       Alert.alert("입력 오류", "크루 소개는 최대 500자까지 입력 가능합니다.");
       return;
     }
     if (maxMembers < 2 || maxMembers > 100) {
+      console.log("[CrewEdit] 유효성 검사 실패: 최대 인원 범위 초과");
       Alert.alert("입력 오류", "최대 인원은 2명에서 100명 사이로 설정해주세요.");
       return;
     }
+
+    console.log("[CrewEdit] 유효성 검사 통과");
+    console.log("[CrewEdit] 저장할 데이터:", {
+      name: name.trim(),
+      descriptionLength: description.trim().length,
+      maxMembers,
+      hasNewImage: !!newImage,
+      currentImageUrl: profileImageUrl,
+    });
 
     setSaving(true);
     try {
       // 이미지 업로드 (새 이미지가 있는 경우)
       let finalImageUrl = profileImageUrl;
       if (newImage) {
+        console.log("[CrewEdit] 새 이미지 업로드 진행");
         finalImageUrl = await uploadImage();
+        console.log("[CrewEdit] 이미지 업로드 완료, URL:", finalImageUrl);
+      } else {
+        console.log("[CrewEdit] 이미지 변경 없음");
       }
 
       // 크루 정보 업데이트
-      await client.put(`/v1/crews/${crewId}`, {
+      console.log("[CrewEdit] 크루 정보 업데이트 요청");
+      const updatePayload = {
         name: name.trim(),
         description: description.trim(),
         maxMembers,
         profileImageUrl: finalImageUrl,
+      };
+      console.log("[CrewEdit] Update payload:", updatePayload);
+
+      const updateResponse = await client.put(`/v1/crews/${crewId}`, updatePayload);
+
+      console.log("[CrewEdit] 크루 정보 업데이트 성공:", {
+        status: updateResponse.status,
+        data: updateResponse.data,
       });
 
+      console.log("[CrewEdit] ===== 저장 완료 =====");
       Alert.alert("완료", "크루 정보가 수정되었습니다.", [
         {
           text: "확인",
-          onPress: () => navigation.goBack(),
+          onPress: () => {
+            console.log("[CrewEdit] 뒤로가기");
+            navigation.goBack();
+          },
         },
       ]);
     } catch (error: any) {
+      console.error("[CrewEdit] ===== 저장 실패 =====");
+      console.error("[CrewEdit] 에러:", error);
+      console.error("[CrewEdit] 에러 상세:", {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
+
       const message = error?.response?.data?.message || error?.message || "저장에 실패했습니다.";
       Alert.alert("오류", message);
     } finally {
       setSaving(false);
+      console.log("[CrewEdit] 저장 프로세스 종료");
     }
   };
 
