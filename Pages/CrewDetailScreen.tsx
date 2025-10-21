@@ -521,6 +521,25 @@ export default function CrewDetailScreen() {
         {selectedTab === "설정" && (
           <View style={s.settingsSection}>
             <Text style={s.sectionTitle}>크루 설정</Text>
+
+            {/* 관리자 전용: 크루 정보 관리 */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={s.settingItem}
+                onPress={() => {
+                  navigation.navigate("CrewEdit" as never, { crewId } as never);
+                }}
+              >
+                <View style={s.settingItemLeft}>
+                  <View style={[s.settingIcon, { backgroundColor: "#EFF6FF" }]}>
+                    <Ionicons name="settings-outline" size={20} color="#4A7FE8" />
+                  </View>
+                  <Text style={s.settingItemText}>크루 정보 관리</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
+
             {isAdmin ? (
               <TouchableOpacity
                 style={s.closeCrewBtn}
@@ -584,8 +603,6 @@ export default function CrewDetailScreen() {
                 <Text style={s.closeCrewBtnText}>크루 탈퇴</Text>
               </TouchableOpacity>
             )}
-
-            {/* 관리자는 크루 폐쇄만 제공. 별도 탈퇴 버튼/플로우 노출하지 않음 */}
           </View>
         )}
       </ScrollView>
@@ -850,6 +867,33 @@ const s = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     padding: 16,
+  },
+  settingItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+  },
+  settingItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  settingIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingItemText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
   },
   helperText: {
     fontSize: 12,
