@@ -64,8 +64,12 @@ export default function CrewEditScreen() {
 
   // 이미지 선택
   const pickImage = async () => {
+    console.log("[CrewEdit] 이미지 선택 시작");
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    console.log("[CrewEdit] 권한 상태:", status);
+
     if (status !== "granted") {
+      console.log("[CrewEdit] 권한 거부됨");
       Alert.alert("권한 필요", "사진 라이브러리 접근 권한이 필요합니다.");
       return;
     }
@@ -77,8 +81,21 @@ export default function CrewEditScreen() {
       quality: 0.8,
     });
 
+    console.log("[CrewEdit] 이미지 선택 결과:", {
+      canceled: result.canceled,
+      hasAssets: result.assets?.length > 0,
+    });
+
     if (!result.canceled && result.assets[0]) {
-      setNewImage(result.assets[0]);
+      const asset = result.assets[0];
+      console.log("[CrewEdit] 선택된 이미지 정보:", {
+        uri: asset.uri,
+        width: asset.width,
+        height: asset.height,
+        fileSize: asset.fileSize,
+        mimeType: asset.mimeType,
+      });
+      setNewImage(asset);
     }
   };
 
