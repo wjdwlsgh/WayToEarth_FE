@@ -50,7 +50,7 @@ export default function WeatherWidget({
 
   const containerWidth = animWidth.interpolate({
     inputRange: [0, 1],
-    outputRange: [56, 220], // 축소: 56, 확장: 220 (더 넓게)
+    outputRange: [44, 220], // 축소: 44 (더 작게), 확장: 220
   });
 
   if (loading) {
@@ -108,12 +108,12 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(59, 130, 246, 0.85)", // 블루 반투명
-    borderRadius: 28,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    backgroundColor: "rgba(60, 60, 67, 0.75)", // 다크 그레이 반투명
+    borderRadius: 22,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
     shadowColor: "#000",
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
@@ -125,14 +125,14 @@ const styles = StyleSheet.create({
     }),
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
   emoji: {
-    fontSize: 24,
+    fontSize: 22,
   },
   infoContainer: {
     marginLeft: 8,
