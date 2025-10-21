@@ -13,6 +13,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  TextInput,
 } from 'react-native';
 import SafeLayout from '../components/Layout/SafeLayout';
 import StoryCard from '../components/Landmark/StoryCard';
@@ -20,6 +21,11 @@ import StoryTypeTabs from '../components/Landmark/StoryTypeTabs';
 import GuestbookCreateModal from '../components/Guestbook/GuestbookCreateModal';
 import LandmarkStatistics from '../components/Guestbook/LandmarkStatistics';
 import { getLandmarkDetail } from '../utils/api/landmarks';
+import { getMyProfile } from '../utils/api/users';
+import { presignLandmarkImage, presignStoryImage, updateLandmarkImage, updateStoryImage, uploadToS3, guessImageMime, createStoryCard, updateStoryCard, deleteStoryCard } from '../utils/api/admin';
+import type { StoryCardCreateRequest } from '../utils/api/admin';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import type { LandmarkDetail, StoryType } from '../types/landmark';
 import type { LandmarkSummary } from '../types/guestbook';
 
@@ -44,11 +50,34 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
   const [error, setError] = useState<string | null>(null);
   const [guestbookModalVisible, setGuestbookModalVisible] = useState(false);
   const [bottomSheetVisible, setBottomSheetVisible] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [journeyIdInput, setJourneyIdInput] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [newStoryTitle, setNewStoryTitle] = useState('');
+  const [newStoryContent, setNewStoryContent] = useState('');
+  const [newStoryType, setNewStoryType] = useState<StoryType>('HISTORY');
 
   // 랜드마크 상세 정보 로드
   useEffect(() => {
     loadLandmarkDetail();
   }, [landmarkId, userId]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const me = await getMyProfile();
+        console.log('[LandmarkStory] 사용자 정보:', me);
+        console.log('[LandmarkStory] role 값:', me?.role);
+        const adminCheck = String(me?.role || '').toUpperCase() === 'ADMIN';
+        console.log('[LandmarkStory] isAdmin:', adminCheck);
+        setIsAdmin(adminCheck);
+      } catch (error) {
+        console.log('[LandmarkStory] 권한 확인 실패:', error);
+        setIsAdmin(false);
+      }
+    })();
+  }, []);
 
   const loadLandmarkDetail = async () => {
     if (!landmarkId) {
@@ -76,6 +105,139 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
     if (selectedType === null) return true;
     return story.type === selectedType;
   }) || [];
+
+  const pickImage = async (): Promise<{ uri: string; mime: string; size: number } | null> => {
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.9 });
+    if (res.canceled) return null;
+    const asset = res.assets[0];
+    const uri = asset.uri;
+    const info = await FileSystem.getInfoAsync(uri);
+    const size = (info as any).size ?? 0;
+    const mime = guessImageMime(uri);
+    return { uri, mime, size };
+  };
+
+  const ensureJourneyId = (): number | null => {
+    const n = Number(journeyIdInput);
+    if (!Number.isFinite(n) || n <= 0) {
+      Alert.alert('여정 ID 필요', '관리자 업로드를 위해 여정 ID를 입력해주세요.');
+      return null;
+    }
+    return n;
+  };
+
+  const handleUploadLandmarkImage = async () => {
+    try {
+      if (!isAdmin) return Alert.alert('권한 없음', '관리자만 업로드할 수 있습니다.');
+      const jid = ensureJourneyId();
+      if (!jid) return;
+      const sel = await pickImage();
+      if (!sel) return;
+      setUploading(true);
+      const presign = await presignLandmarkImage({ journeyId: jid, landmarkId, contentType: sel.mime, size: sel.size });
+      await uploadToS3(presign.upload_url, sel.uri, sel.mime);
+      await updateLandmarkImage(landmarkId, presign.download_url);
+      Alert.alert('완료', '랜드마크 이미지가 업데이트되었습니다.');
+      await loadLandmarkDetail();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || '업로드에 실패했습니다.';
+      Alert.alert('오류', msg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUploadStoryImage = async (storyId: number) => {
+    try {
+      if (!isAdmin) return Alert.alert('권한 없음', '관리자만 업로드할 수 있습니다.');
+      const jid = ensureJourneyId();
+      if (!jid) return;
+
+      // 현재 스토리 찾기
+      const currentStory = landmark?.storyCards.find(s => s.id === storyId);
+      if (!currentStory) {
+        return Alert.alert('오류', '스토리를 찾을 수 없습니다.');
+      }
+
+      const sel = await pickImage();
+      if (!sel) return;
+      setUploading(true);
+      const presign = await presignStoryImage({ journeyId: jid, landmarkId, storyId, contentType: sel.mime, size: sel.size });
+      await uploadToS3(presign.upload_url, sel.uri, sel.mime);
+
+      // 백엔드 스펙: 모든 필드 필수 (title, content, type, orderIndex)
+      await updateStoryCard(storyId, {
+        title: currentStory.title,
+        content: currentStory.content,
+        type: currentStory.type as any,
+        orderIndex: currentStory.orderIndex || 0,
+        imageUrl: presign.download_url,
+      });
+
+      Alert.alert('완료', '스토리 이미지가 업데이트되었습니다.');
+      await loadLandmarkDetail();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || '업로드에 실패했습니다.';
+      Alert.alert('오류', msg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCreateStory = async () => {
+    try {
+      if (!newStoryTitle.trim() || !newStoryContent.trim()) {
+        return Alert.alert('입력 필요', '제목과 내용을 모두 입력해주세요.');
+      }
+      setUploading(true);
+      const orderIndex = landmark?.storyCards.length || 0;
+      await createStoryCard({
+        landmarkId,
+        title: newStoryTitle.trim(),
+        content: newStoryContent.trim(),
+        type: newStoryType,
+        orderIndex,
+      });
+      Alert.alert('완료', '스토리가 생성되었습니다.');
+      setCreateModalVisible(false);
+      setNewStoryTitle('');
+      setNewStoryContent('');
+      setNewStoryType('HISTORY');
+      await loadLandmarkDetail();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || '스토리 생성에 실패했습니다.';
+      Alert.alert('오류', msg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteStory = async (storyId: number) => {
+    Alert.alert(
+      '스토리 삭제',
+      '정말 이 스토리를 삭제하시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setUploading(true);
+              await deleteStoryCard(storyId);
+              Alert.alert('완료', '스토리가 삭제되었습니다.');
+              await loadLandmarkDetail();
+            } catch (e: any) {
+              const msg = e?.response?.data?.message || e?.message || '삭제에 실패했습니다.';
+              Alert.alert('오류', msg);
+            } finally {
+              setUploading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // 로딩 중 표시
   if (loading) {
@@ -189,15 +351,47 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
           onSelectType={setSelectedType}
         />
 
+        {isAdmin && (
+          <View style={styles.adminPanel}>
+            <Text style={styles.adminTitle}>관리자 이미지 업로드</Text>
+            <TextInput
+              style={styles.adminInput}
+              placeholder="여정 ID"
+              keyboardType="number-pad"
+              value={journeyIdInput}
+              onChangeText={setJourneyIdInput}
+            />
+            <TouchableOpacity style={[styles.adminBtn, uploading && { opacity: 0.6 }]} disabled={uploading} onPress={handleUploadLandmarkImage}>
+              <Text style={styles.adminBtnText}>{uploading ? '업로드 중…' : '랜드마크 이미지 업로드'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.adminHelp}>스토리 이미지는 각 카드의 버튼으로 업로드하세요.</Text>
+          </View>
+        )}
+
         {/* 스토리 카드 목록 */}
         <View style={styles.storiesContainer}>
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.createStoryBtn}
+              onPress={() => setCreateModalVisible(true)}
+              disabled={uploading}
+            >
+              <Text style={styles.createStoryBtnText}>+ 새 스토리 추가</Text>
+            </TouchableOpacity>
+          )}
           {filteredStories.length > 0 ? (
             <>
               <Text style={styles.storiesTitle}>
                 {selectedType ? `${filteredStories.length}개의 스토리` : `전체 ${filteredStories.length}개의 스토리`}
               </Text>
               {filteredStories.map((story) => (
-                <StoryCard key={story.id} story={story} />
+                <StoryCard
+                  key={story.id}
+                  story={story}
+                  isAdmin={isAdmin}
+                  onUploadImage={handleUploadStoryImage}
+                  onDelete={handleDeleteStory}
+                />
               ))}
             </>
           ) : (
@@ -287,6 +481,84 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
               </>
             )}
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* 스토리 생성 모달 */}
+      <Modal
+        visible={createModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCreateModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setCreateModalVisible(false)}
+        >
+          <Pressable style={styles.createModal} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.createModalHeader}>
+              <Text style={styles.createModalTitle}>새 스토리 추가</Text>
+              <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
+                <Text style={styles.createModalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.createModalContent}>
+              <Text style={styles.createModalLabel}>제목</Text>
+              <TextInput
+                style={styles.createModalInput}
+                placeholder="스토리 제목을 입력하세요"
+                value={newStoryTitle}
+                onChangeText={setNewStoryTitle}
+                maxLength={100}
+              />
+
+              <Text style={styles.createModalLabel}>타입</Text>
+              <View style={styles.typeButtons}>
+                {(['HISTORY', 'CULTURE', 'NATURE'] as StoryType[]).map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.typeButton,
+                      newStoryType === type && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setNewStoryType(type)}
+                  >
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        newStoryType === type && styles.typeButtonTextActive,
+                      ]}
+                    >
+                      {type === 'HISTORY' ? '📘 역사' : type === 'CULTURE' ? '🎭 문화' : '🌿 자연'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.createModalLabel}>내용</Text>
+              <TextInput
+                style={[styles.createModalInput, styles.createModalTextArea]}
+                placeholder="스토리 내용을 입력하세요"
+                value={newStoryContent}
+                onChangeText={setNewStoryContent}
+                multiline
+                numberOfLines={8}
+                textAlignVertical="top"
+                maxLength={2000}
+              />
+
+              <TouchableOpacity
+                style={[styles.createModalSubmit, uploading && { opacity: 0.6 }]}
+                onPress={handleCreateStory}
+                disabled={uploading}
+              >
+                <Text style={styles.createModalSubmitText}>
+                  {uploading ? '생성 중…' : '스토리 생성'}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeLayout>
@@ -445,6 +717,28 @@ const styles = StyleSheet.create({
   storiesContainer: {
     padding: 16,
   },
+  adminPanel: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  adminTitle: { fontSize: 14, fontWeight: '800', color: '#111827', marginBottom: 8 },
+  adminInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    marginBottom: 8,
+  },
+  adminBtn: { alignSelf: 'flex-start', backgroundColor: '#111827', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8 },
+  adminBtnText: { color: '#fff', fontWeight: '800' },
+  adminHelp: { marginTop: 6, fontSize: 12, color: '#6B7280' },
   storiesTitle: {
     fontSize: 18,
     fontWeight: '800',
@@ -531,5 +825,110 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     marginTop: 8,
+  },
+  // 스토리 생성 버튼
+  createStoryBtn: {
+    backgroundColor: '#6366F1',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  createStoryBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  // 스토리 생성 모달
+  createModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+    width: '100%',
+    marginTop: 'auto',
+  },
+  createModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  createModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  createModalClose: {
+    fontSize: 24,
+    color: '#9CA3AF',
+    fontWeight: '300',
+  },
+  createModalContent: {
+    padding: 20,
+  },
+  createModalLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  createModalInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
+  },
+  createModalTextArea: {
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  typeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  typeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+  },
+  typeButtonActive: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+  },
+  typeButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  typeButtonTextActive: {
+    color: '#fff',
+  },
+  createModalSubmit: {
+    backgroundColor: '#6366F1',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 20,
+  },
+  createModalSubmitText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
