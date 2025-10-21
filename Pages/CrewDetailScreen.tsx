@@ -868,6 +868,33 @@ const s = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
+  settingItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+  },
+  settingItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  settingIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingItemText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+  },
   helperText: {
     fontSize: 12,
     color: "#6B7280",
