@@ -72,13 +72,14 @@ export default function WeatherWidget({
 
   if (loading) {
     return (
-      <View style={styles.iconContainer}>
+      <View style={[styles.iconContainer, { backgroundColor: "rgba(100, 116, 139, 0.75)", borderRadius: 999, padding: 8 }]}>
         <ActivityIndicator size="small" color="#fff" />
       </View>
     );
   }
 
   if (!emoji) {
+    console.log("[WeatherWidget] emoji 없음, 숨김");
     return null;
   }
 

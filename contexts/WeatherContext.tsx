@@ -32,7 +32,10 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
 
   const fetchWeather = async (isBackground = false) => {
     // 중복 호출 방지
-    if (isFetchingRef.current) return;
+    if (isFetchingRef.current) {
+      console.log("[WeatherContext] 이미 호출 중, 스킵");
+      return;
+    }
 
     try {
       isFetchingRef.current = true;
@@ -42,25 +45,34 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
       }
       setError(null);
 
+      console.log("[WeatherContext] 위치 권한 확인 중...");
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
+        console.error("[WeatherContext] 위치 권한 거부됨");
         setError("위치 권한이 필요합니다");
+        setLoading(false);
+        isFetchingRef.current = false;
         return;
       }
 
+      console.log("[WeatherContext] 현재 위치 가져오는 중...");
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      console.log("[WeatherContext] 위치:", location.coords.latitude, location.coords.longitude);
 
+      console.log("[WeatherContext] 날씨 API 호출 중...");
       const weatherData = await getCurrentWeather(
         location.coords.latitude,
         location.coords.longitude
       );
 
-      console.log("[WeatherContext] 날씨 갱신:", isBackground ? "(백그라운드)" : "(초기)");
+      console.log("[WeatherContext] 날씨 데이터:", weatherData);
       setWeather(weatherData);
     } catch (err: any) {
-      console.error("[WeatherContext] 날씨 조회 실패:", err);
+      console.error("[WeatherContext] 에러 발생:", err);
+      console.error("[WeatherContext] 에러 메시지:", err?.message);
+      console.error("[WeatherContext] 에러 스택:", err?.stack);
       if (!isBackground) {
         setError(err?.message || "날씨 정보를 가져올 수 없습니다");
       }
