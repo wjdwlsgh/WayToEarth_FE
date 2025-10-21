@@ -8,8 +8,12 @@ import {
   Easing,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import MapRoute from "../components/Running/MapRoute";
+import WeatherIcon from "../components/Running/WeatherIcon";
+import WeatherModal from "../components/Running/WeatherModal";
+import { useWeather } from "../hooks/useWeather";
 
 export default function Main() {
   const nav = useNavigation<any>();
