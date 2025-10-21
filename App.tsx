@@ -43,6 +43,7 @@ import UserInfoInputScreen from "./Pages/UserInfoInputScreen";
 import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
 import CrewScreen from "./Pages/CrewScreen";
 import CrewDetailScreen from "./Pages/CrewDetailScreen";
+import CrewEditScreen from "./Pages/CrewEditScreen";
 import TabBarAdapter from "./components/Layout/TabBarAdapter";
 import LandmarkGuestbookScreen from "./Pages/LandmarkGuestbookScreen";
 import MyGuestbookScreen from "./Pages/MyGuestbookScreen";
@@ -160,6 +161,7 @@ export default function App() {
         <Stack.Screen name="Emblem" component={Emblem} />
         <Stack.Screen name="ProfileEdit" component={ProfileEdit} />
         <Stack.Screen name="CrewDetail" component={CrewDetailScreen} />
+        <Stack.Screen name="CrewEdit" component={CrewEditScreen} />
 
         {/* 하단 탭 대상 라우트들은 MainTabs 내부 */}
         <Stack.Screen
