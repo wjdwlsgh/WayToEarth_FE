@@ -134,19 +134,60 @@ export default function CrewEditScreen() {
 
   // 이미지 업로드
   const uploadImage = async (): Promise<string | null> => {
-    if (!newImage) return profileImageUrl;
+    if (!newImage) {
+      console.log("[CrewEdit] 업로드할 새 이미지 없음");
+      return profileImageUrl;
+    }
+
+    console.log("[CrewEdit] ===== 이미지 업로드 시작 =====");
+    console.log("[CrewEdit] crewId:", crewId);
+    console.log("[CrewEdit] 이미지 정보:", {
+      uri: newImage.uri,
+      mimeType: newImage.mimeType,
+      fileSize: newImage.fileSize,
+    });
 
     try {
       // 1. Presigned URL 발급
-      const presignResponse = await client.post(`/v1/files/presign/crew/${crewId}`, {
+      console.log("[CrewEdit] Step 1: Presigned URL 발급 요청");
+      const presignPayload = {
         contentType: newImage.mimeType || "image/jpeg",
         size: newImage.fileSize || 0,
+      };
+      console.log("[CrewEdit] Presign payload:", presignPayload);
+
+      const presignResponse = await client.post(`/v1/files/presign/crew/${crewId}`, presignPayload);
+
+      console.log("[CrewEdit] Presign 응답 받음:", {
+        status: presignResponse.status,
+        hasData: !!presignResponse.data,
+        hasUploadUrl: !!presignResponse.data?.upload_url,
+        hasDownloadUrl: !!presignResponse.data?.download_url,
       });
 
       const { upload_url, download_url } = presignResponse.data;
 
+      if (!upload_url) {
+        console.error("[CrewEdit] upload_url이 없음:", presignResponse.data);
+        throw new Error("업로드 URL을 받지 못했습니다.");
+      }
+      if (!download_url) {
+        console.error("[CrewEdit] download_url이 없음:", presignResponse.data);
+        throw new Error("다운로드 URL을 받지 못했습니다.");
+      }
+
+      console.log("[CrewEdit] Upload URL (첫 100자):", upload_url.substring(0, 100));
+      console.log("[CrewEdit] Download URL:", download_url);
+
       // 2. S3에 이미지 업로드
+      console.log("[CrewEdit] Step 2: 이미지 Blob 변환 시작");
       const imageBlob = await fetch(newImage.uri).then((r) => r.blob());
+      console.log("[CrewEdit] Blob 변환 완료:", {
+        size: imageBlob.size,
+        type: imageBlob.type,
+      });
+
+      console.log("[CrewEdit] Step 3: S3 업로드 시작");
       const uploadResult = await fetch(upload_url, {
         method: "PUT",
         headers: {
@@ -155,14 +196,30 @@ export default function CrewEditScreen() {
         body: imageBlob,
       });
 
+      console.log("[CrewEdit] S3 업로드 응답:", {
+        ok: uploadResult.ok,
+        status: uploadResult.status,
+        statusText: uploadResult.statusText,
+      });
+
       if (!uploadResult.ok) {
-        throw new Error("이미지 업로드 실패");
+        const errorText = await uploadResult.text().catch(() => "응답 텍스트 없음");
+        console.error("[CrewEdit] S3 업로드 실패 응답:", errorText);
+        throw new Error(`S3 업로드 실패: ${uploadResult.status} ${uploadResult.statusText}`);
       }
 
+      console.log("[CrewEdit] ===== 이미지 업로드 성공 =====");
+      console.log("[CrewEdit] 최종 download_url:", download_url);
       return download_url;
     } catch (error: any) {
-      console.error("Image upload error:", error);
-      throw new Error("이미지 업로드에 실패했습니다.");
+      console.error("[CrewEdit] ===== 이미지 업로드 실패 =====");
+      console.error("[CrewEdit] 에러:", error);
+      console.error("[CrewEdit] 에러 메시지:", error?.message);
+      console.error("[CrewEdit] 에러 상세:", {
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
+      throw new Error(error?.message || "이미지 업로드에 실패했습니다.");
     }
   };
 
