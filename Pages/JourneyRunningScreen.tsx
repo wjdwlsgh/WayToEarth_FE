@@ -20,8 +20,7 @@ import JourneyProgressCard from "../components/Journey/JourneyProgressCard";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
-import WeatherIcon from "../components/Running/WeatherIcon";
-import WeatherModal from "../components/Running/WeatherModal";
+import WeatherWidget from "../components/Running/WeatherWidget";
 import GuestbookCreateModal from "../components/Guestbook/GuestbookCreateModal";
 import LandmarkStatistics from "../components/Guestbook/LandmarkStatistics";
 import { useJourneyRunning } from "../hooks/journey/useJourneyRunning";
@@ -144,7 +143,6 @@ export default function JourneyRunningScreen(props?: RouteParams) {
 
   // 날씨 정보
   const { weather, loading: weatherLoading } = useWeather();
-  const [weatherModalVisible, setWeatherModalVisible] = useState(false);
 
   // 다음 랜드마크 계산
   // 도달한 랜드마크 ID 목록을 훅의 landmarksWithReached에서 파생
@@ -566,7 +564,7 @@ export default function JourneyRunningScreen(props?: RouteParams) {
         onLandmarkPress={handleLandmarkMarkerPress}
       />
 
-      {/* 날씨 아이콘 */}
+      {/* 날씨 위젯 */}
       <View
         style={{
           position: "absolute",
@@ -575,19 +573,14 @@ export default function JourneyRunningScreen(props?: RouteParams) {
           zIndex: 10,
         }}
       >
-        <WeatherIcon
+        <WeatherWidget
           emoji={weather?.emoji}
+          condition={weather?.condition}
+          temperature={weather?.temperature}
+          recommendation={weather?.recommendation}
           loading={weatherLoading}
-          onPress={() => setWeatherModalVisible(true)}
         />
       </View>
-
-      {/* 날씨 상세 모달 */}
-      <WeatherModal
-        visible={weatherModalVisible}
-        onClose={() => setWeatherModalVisible(false)}
-        weather={weather}
-      />
 
       {/* 진행률 디버그 로그 오버레이 */}
       {debugVisible && (
