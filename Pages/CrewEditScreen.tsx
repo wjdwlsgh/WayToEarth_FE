@@ -41,7 +41,11 @@ export default function CrewEditScreen() {
   }, []);
 
   const loadCrewData = async () => {
+    console.log("[CrewEdit] ===== 크루 데이터 로드 시작 =====");
+    console.log("[CrewEdit] crewId:", crewId);
+
     if (!crewId) {
+      console.log("[CrewEdit] crewId 없음");
       Alert.alert("오류", "크루 정보를 불러올 수 없습니다.");
       navigation.goBack();
       return;
@@ -49,16 +53,33 @@ export default function CrewEditScreen() {
 
     setLoading(true);
     try {
+      console.log("[CrewEdit] API 호출: getCrewById");
       const crew = await getCrewById(crewId);
+      console.log("[CrewEdit] 크루 데이터 로드 성공:", {
+        id: crew.id,
+        name: crew.name,
+        maxMembers: crew.maxMembers,
+        hasImage: !!crew.profileImageUrl,
+        imageUrl: crew.profileImageUrl,
+      });
+
       setName(crew.name);
       setDescription(crew.description);
       setMaxMembers(crew.maxMembers);
       setProfileImageUrl(crew.profileImageUrl || null);
+
+      console.log("[CrewEdit] State 업데이트 완료");
     } catch (error: any) {
+      console.error("[CrewEdit] 크루 데이터 로드 실패:", error);
+      console.error("[CrewEdit] 에러 상세:", {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
       Alert.alert("오류", "크루 정보를 불러오는데 실패했습니다.");
-      console.error(error);
     } finally {
       setLoading(false);
+      console.log("[CrewEdit] 로딩 완료");
     }
   };
 
