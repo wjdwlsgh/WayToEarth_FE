@@ -111,11 +111,19 @@ export default function CrewEditScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              console.log("[CrewEdit] 이미지 삭제 요청 시작:", crewId);
               await client.delete(`/v1/files/crew/${crewId}/profile`);
+              console.log("[CrewEdit] 이미지 삭제 성공");
               setProfileImageUrl(null);
               setNewImage(null);
               Alert.alert("완료", "프로필 이미지가 삭제되었습니다.");
             } catch (error: any) {
+              console.error("[CrewEdit] 이미지 삭제 실패:", error);
+              console.error("[CrewEdit] 에러 상세:", {
+                status: error?.response?.status,
+                message: error?.response?.data?.message,
+                data: error?.response?.data,
+              });
               Alert.alert("오류", error?.response?.data?.message || "이미지 삭제에 실패했습니다.");
             }
           },
