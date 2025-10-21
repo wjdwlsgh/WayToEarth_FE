@@ -327,7 +327,7 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         onMapReady={() => setMapReady(true)}
       />
 
-      {/* 날씨 아이콘 */}
+      {/* 날씨 위젯 */}
       <View
         style={{
           position: "absolute",
@@ -336,19 +336,14 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
           zIndex: 10,
         }}
       >
-        <WeatherIcon
+        <WeatherWidget
           emoji={weather?.emoji}
+          condition={weather?.condition}
+          temperature={weather?.temperature}
+          recommendation={weather?.recommendation}
           loading={weatherLoading}
-          onPress={() => setWeatherModalVisible(true)}
         />
       </View>
-
-      {/* 날씨 상세 모달 */}
-      <WeatherModal
-        visible={weatherModalVisible}
-        onClose={() => setWeatherModalVisible(false)}
-        weather={weather}
-      />
 
       {/* 상단 내정보 버튼 제거 (하단 공통 내비로 이동) */}
 
