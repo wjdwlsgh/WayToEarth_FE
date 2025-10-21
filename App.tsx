@@ -15,6 +15,7 @@ import {
   setupNotificationListeners,
   setupTokenRefreshListener,
 } from "./utils/notifications";
+import { WeatherProvider } from "./contexts/WeatherContext";
 
 import Onboading from "./Pages/Onboading";
 import Login from "./Pages/Login";
@@ -110,11 +111,12 @@ export default function App() {
   };
 
   return (
-    <NavigationContainer ref={navigationRef} onReady={handleNavReady}>
-      <Stack.Navigator
-        initialRouteName={"Onboading"}
-        screenOptions={{ headerShown: false }}
-      >
+    <WeatherProvider>
+      <NavigationContainer ref={navigationRef} onReady={handleNavReady}>
+        <Stack.Navigator
+          initialRouteName={"Onboading"}
+          screenOptions={{ headerShown: false }}
+        >
         <Stack.Screen name="Onboading" component={Onboading} />
         <Stack.Screen name="Register" component={Register} />
         <Stack.Screen name="Login" component={Login} />
@@ -195,5 +197,6 @@ export default function App() {
         />
       </Stack.Navigator>
     </NavigationContainer>
+    </WeatherProvider>
   );
 }

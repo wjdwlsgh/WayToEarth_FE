@@ -41,15 +41,20 @@ client.interceptors.response.use(
     const status = err?.response?.status;
     const body = err?.response?.data;
     const cfg = err?.config || {};
+    const hasAuth = cfg.headers?.Authorization;
     console.log(
       "[API ERR]",
       status,
-      body,
       "method=",
       cfg.method,
       "url=",
       cfg.baseURL ? cfg.baseURL + (cfg.url || "") : cfg.url
     );
+    console.log("[API ERR] Response Body:", JSON.stringify(body, null, 2));
+    console.log("[API ERR] Has Auth Header:", hasAuth ? "YES" : "NO");
+    if (status === 403) {
+      console.log("[API ERR] 403 Forbidden - Check Admin Role or Token");
+    }
     return Promise.reject(err);
   }
 );

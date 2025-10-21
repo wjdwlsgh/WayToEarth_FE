@@ -20,10 +20,12 @@ import JourneyProgressCard from "../components/Journey/JourneyProgressCard";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
+import WeatherWidget from "../components/Running/WeatherWidget";
 import GuestbookCreateModal from "../components/Guestbook/GuestbookCreateModal";
 import LandmarkStatistics from "../components/Guestbook/LandmarkStatistics";
 import { useJourneyRunning } from "../hooks/journey/useJourneyRunning";
 import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
+import { useWeather } from "../contexts/WeatherContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";
@@ -138,6 +140,9 @@ export default function JourneyRunningScreen(props?: RouteParams) {
   const [landmarkMenuVisible, setLandmarkMenuVisible] = useState(false);
   const [menuLandmark, setMenuLandmark] = useState<any>(null);
   const [debugVisible, setDebugVisible] = useState(true);
+
+  // 날씨 정보
+  const { weather, loading: weatherLoading } = useWeather();
 
   // 다음 랜드마크 계산
   // 도달한 랜드마크 ID 목록을 훅의 landmarksWithReached에서 파생
@@ -558,6 +563,24 @@ export default function JourneyRunningScreen(props?: RouteParams) {
         virtualRouteIndex={virtualRouteIndex}
         onLandmarkPress={handleLandmarkMarkerPress}
       />
+
+      {/* 날씨 위젯 */}
+      <View
+        style={{
+          position: "absolute",
+          top: Math.max(insets.top, 12) + 12,
+          left: 16,
+          zIndex: 10,
+        }}
+      >
+        <WeatherWidget
+          emoji={weather?.emoji}
+          condition={weather?.condition}
+          temperature={weather?.temperature}
+          recommendation={weather?.recommendation}
+          loading={weatherLoading}
+        />
+      </View>
 
       {/* 진행률 디버그 로그 오버레이 */}
       {debugVisible && (

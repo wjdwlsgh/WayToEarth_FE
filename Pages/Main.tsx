@@ -8,12 +8,19 @@ import {
   Easing,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import MapRoute from "../components/Running/MapRoute";
+import WeatherWidget from "../components/Running/WeatherWidget";
+import { useWeather } from "../contexts/WeatherContext";
 
 export default function Main() {
   const nav = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // 날씨 정보
+  const { weather, loading: weatherLoading } = useWeather();
 
   // 메인 페이지 진입 시 위치 권한 미리 요청
   useEffect(() => {
@@ -132,6 +139,24 @@ export default function Main() {
           last={null}
           useCurrentLocationOnMount
           liveMode
+        />
+      </View>
+
+      {/* 날씨 위젯 */}
+      <View
+        style={{
+          position: "absolute",
+          top: Math.max(insets.top, 12) + 12,
+          left: 16,
+          zIndex: 10,
+        }}
+      >
+        <WeatherWidget
+          emoji={weather?.emoji}
+          condition={weather?.condition}
+          temperature={weather?.temperature}
+          recommendation={weather?.recommendation}
+          loading={weatherLoading}
         />
       </View>
 

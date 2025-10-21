@@ -17,8 +17,10 @@ import MapRoute from "../components/Running/MapRoute";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
+import WeatherWidget from "../components/Running/WeatherWidget";
 import { useLiveRunTracker } from "../hooks/useLiveRunTracker";
 import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
+import { useWeather } from "../contexts/WeatherContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiComplete } from "../utils/api/running"; // ✅ 추가
 
@@ -42,6 +44,9 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
   const progress = useRef(new Animated.Value(0)).current;
 
   const [mapReady, setMapReady] = useState(false);
+
+  // 날씨 정보
+  const { weather, loading: weatherLoading } = useWeather();
 
   // 러닝 세션 상태 업데이트 (일반 러닝)
   useEffect(() => {
@@ -321,6 +326,24 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         useCurrentLocationOnMount
         onMapReady={() => setMapReady(true)}
       />
+
+      {/* 날씨 위젯 */}
+      <View
+        style={{
+          position: "absolute",
+          top: Math.max(insets.top, 12) + 12,
+          left: 16,
+          zIndex: 10,
+        }}
+      >
+        <WeatherWidget
+          emoji={weather?.emoji}
+          condition={weather?.condition}
+          temperature={weather?.temperature}
+          recommendation={weather?.recommendation}
+          loading={weatherLoading}
+        />
+      </View>
 
       {/* 상단 내정보 버튼 제거 (하단 공통 내비로 이동) */}
 
