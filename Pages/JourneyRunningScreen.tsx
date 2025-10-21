@@ -20,10 +20,13 @@ import JourneyProgressCard from "../components/Journey/JourneyProgressCard";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
 import CountdownOverlay from "../components/Running/CountdownOverlay";
+import WeatherIcon from "../components/Running/WeatherIcon";
+import WeatherModal from "../components/Running/WeatherModal";
 import GuestbookCreateModal from "../components/Guestbook/GuestbookCreateModal";
 import LandmarkStatistics from "../components/Guestbook/LandmarkStatistics";
 import { useJourneyRunning } from "../hooks/journey/useJourneyRunning";
 import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
+import { useWeather } from "../hooks/useWeather";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";
@@ -138,6 +141,10 @@ export default function JourneyRunningScreen(props?: RouteParams) {
   const [landmarkMenuVisible, setLandmarkMenuVisible] = useState(false);
   const [menuLandmark, setMenuLandmark] = useState<any>(null);
   const [debugVisible, setDebugVisible] = useState(true);
+
+  // 날씨 정보
+  const { weather, loading: weatherLoading } = useWeather();
+  const [weatherModalVisible, setWeatherModalVisible] = useState(false);
 
   // 다음 랜드마크 계산
   // 도달한 랜드마크 ID 목록을 훅의 landmarksWithReached에서 파생
@@ -557,6 +564,29 @@ export default function JourneyRunningScreen(props?: RouteParams) {
         progressPercent={t.progressPercent}
         virtualRouteIndex={virtualRouteIndex}
         onLandmarkPress={handleLandmarkMarkerPress}
+      />
+
+      {/* 날씨 아이콘 */}
+      <View
+        style={{
+          position: "absolute",
+          top: Math.max(insets.top, 12) + 12,
+          left: 16,
+          zIndex: 10,
+        }}
+      >
+        <WeatherIcon
+          emoji={weather?.emoji}
+          loading={weatherLoading}
+          onPress={() => setWeatherModalVisible(true)}
+        />
+      </View>
+
+      {/* 날씨 상세 모달 */}
+      <WeatherModal
+        visible={weatherModalVisible}
+        onClose={() => setWeatherModalVisible(false)}
+        weather={weather}
       />
 
       {/* 진행률 디버그 로그 오버레이 */}
