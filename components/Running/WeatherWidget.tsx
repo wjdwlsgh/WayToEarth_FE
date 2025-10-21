@@ -50,7 +50,7 @@ export default function WeatherWidget({
 
   const containerWidth = animWidth.interpolate({
     inputRange: [0, 1],
-    outputRange: [56, 180], // 축소: 56, 확장: 180
+    outputRange: [56, 220], // 축소: 56, 확장: 220 (더 넓게)
   });
 
   if (loading) {
@@ -80,7 +80,7 @@ export default function WeatherWidget({
           <Text style={styles.emoji}>{emoji}</Text>
         </View>
 
-        {/* 오른쪽: 온도 & 설명 (확장 시에만 표시) */}
+        {/* 오른쪽: 온도 & 추천 메시지 (확장 시에만 표시) */}
         <Animated.View
           style={[
             styles.infoContainer,
@@ -90,12 +90,12 @@ export default function WeatherWidget({
           ]}
           pointerEvents={expanded ? "auto" : "none"}
         >
-          {temperature !== undefined && (
-            <Text style={styles.temperature}>{temperature}°</Text>
+          {temperature !== undefined && temperature !== null && (
+            <Text style={styles.temperature}>{Math.round(temperature)}°</Text>
           )}
-          {condition && (
-            <Text style={styles.condition} numberOfLines={1}>
-              {condition}
+          {recommendation && (
+            <Text style={styles.recommendation} numberOfLines={2}>
+              {recommendation}
             </Text>
           )}
         </Animated.View>
@@ -140,15 +140,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   temperature: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800",
     color: "#fff",
-    lineHeight: 22,
+    lineHeight: 24,
+    marginBottom: 2,
   },
-  condition: {
-    fontSize: 11,
+  recommendation: {
+    fontSize: 10,
     fontWeight: "600",
-    color: "rgba(255, 255, 255, 0.9)",
-    marginTop: 1,
+    color: "rgba(255, 255, 255, 0.95)",
+    lineHeight: 13,
   },
 });
