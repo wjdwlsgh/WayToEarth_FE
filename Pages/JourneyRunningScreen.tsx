@@ -25,7 +25,7 @@ import GuestbookCreateModal from "../components/Guestbook/GuestbookCreateModal";
 import LandmarkStatistics from "../components/Guestbook/LandmarkStatistics";
 import { useJourneyRunning } from "../hooks/journey/useJourneyRunning";
 import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
-import { useWeather } from "../hooks/useWeather";
+import { useWeather } from "../contexts/WeatherContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";

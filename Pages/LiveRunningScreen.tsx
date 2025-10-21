@@ -20,7 +20,7 @@ import CountdownOverlay from "../components/Running/CountdownOverlay";
 import WeatherWidget from "../components/Running/WeatherWidget";
 import { useLiveRunTracker } from "../hooks/useLiveRunTracker";
 import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
-import { useWeather } from "../hooks/useWeather";
+import { useWeather } from "../contexts/WeatherContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiComplete } from "../utils/api/running"; // ✅ 추가
 

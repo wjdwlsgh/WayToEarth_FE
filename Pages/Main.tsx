@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import MapRoute from "../components/Running/MapRoute";
 import WeatherWidget from "../components/Running/WeatherWidget";
-import { useWeather } from "../hooks/useWeather";
+import { useWeather } from "../contexts/WeatherContext";
 
 export default function Main() {
   const nav = useNavigation<any>();

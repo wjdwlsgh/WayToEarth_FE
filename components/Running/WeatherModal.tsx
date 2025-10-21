@@ -9,7 +9,7 @@ import {
   Dimensions,
   Platform,
 } from "react-native";
-import type { WeatherData } from "../../hooks/useWeather";
+import type { WeatherData } from "../../contexts/WeatherContext";
 
 interface WeatherModalProps {
   visible: boolean;
