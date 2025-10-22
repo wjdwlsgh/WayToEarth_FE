@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   name: string;
@@ -15,11 +16,22 @@ export default function MyCrewCard({
   onPress,
 }: Props) {
   return (
-    <TouchableOpacity style={s.card} onPress={onPress}>
-      <Text style={s.badge}>내 크루</Text>
+    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
+      <View style={s.badgeRow}>
+        <View style={s.badge}>
+          <Ionicons name="star" size={12} color="#fff" />
+          <Text style={s.badgeText}>내 크루</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#4F46E5" />
+      </View>
       <View style={s.row}>
         <Text style={s.title}>{name}</Text>
-        {progress ? <Text style={s.progress}>{progress}</Text> : null}
+        {progress ? (
+          <View style={s.progressBadge}>
+            <Ionicons name="people" size={14} color="#4F46E5" />
+            <Text style={s.progress}>{progress}</Text>
+          </View>
+        ) : null}
       </View>
       {description ? (
         <Text style={s.desc} numberOfLines={2}>
@@ -33,27 +45,68 @@ export default function MyCrewCard({
 const s = StyleSheet.create({
   card: {
     backgroundColor: "#EEF2FF",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "#C7D2FE",
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   badge: {
-    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     backgroundColor: "#4F46E5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
     color: "#fff",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "800",
-    marginBottom: 8,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 8,
   },
-  title: { fontSize: 16, fontWeight: "800", color: "#111827" },
-  progress: { fontSize: 12, color: "#374151", fontWeight: "700" },
-  desc: { marginTop: 8, fontSize: 13, color: "#4B5563" },
+  title: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+    flex: 1,
+    marginRight: 8,
+  },
+  progressBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  progress: {
+    fontSize: 12,
+    color: "#4F46E5",
+    fontWeight: "700",
+  },
+  desc: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#4B5563",
+    lineHeight: 18,
+  },
 });
