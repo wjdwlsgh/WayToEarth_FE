@@ -11,7 +11,10 @@ export function useCrewData(searchText: string) {
   const [myCrew, setMyCrew] = useState<Crew | null>(null);
   const [crews, setCrews] = useState<Crew[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const PENDING_KEY = "crew.pending.join.ids";
   const [pendingJoins, setPendingJoins] = useState<Set<string>>(new Set());
 
@@ -35,14 +38,17 @@ export function useCrewData(searchText: string) {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setCurrentPage(0);
+    setHasMore(true);
     try {
       const now = new Date();
       const month = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
       // 각 호출을 독립적으로 보호
       const mPromise = getMyCrew().catch(() => null);
-      const listPromise = listCrews(searchText).catch(() => [] as Crew[]);
+      const listPromise = listCrews(searchText, 0, 20).catch(() => ({ crews: [] as Crew[], hasMore: false }));
       const topPromise = getTopCrewsByDistance({ month, limit: 3 }).catch(() => []);
-      const [m, list, top] = await Promise.all([mPromise, listPromise, topPromise]);
+      const [m, listResult, top] = await Promise.all([mPromise, listPromise, topPromise]);
+      const list = listResult.crews;
       setMyCrew(m ?? null);
       // 가입이 승인되어 내 크루가 생겼다면 대기중 목록 초기화
       if (m) {
@@ -105,16 +111,40 @@ export function useCrewData(searchText: string) {
       const myId = m ? String((m as any).id) : "";
       const filtered = (list ?? []).filter((c) => String((c as any).id) !== myId);
       setCrews(filtered);
+      setHasMore(listResult.hasMore);
     } catch (e: any) {
       setError(e?.message || "크루 정보를 불러오지 못했습니다.");
       // 오류 시 이전 myCrew가 남아 빈 상태 표시가 안되는 문제 방지
       setMyCrew(null);
       // 리스트는 최소한 비워서 UI 진행
       setCrews([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
   }, [searchText]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const result = await listCrews(searchText, nextPage, 20);
+
+      // 내 크루 제외 필터링
+      const myId = myCrew ? String((myCrew as any).id) : "";
+      const filtered = result.crews.filter((c) => String((c as any).id) !== myId);
+
+      setCrews((prev) => [...prev, ...filtered]);
+      setCurrentPage(nextPage);
+      setHasMore(result.hasMore);
+    } catch (e: any) {
+      console.error("Failed to load more crews:", e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, currentPage, searchText, myCrew]);
 
   useEffect(() => {
     refresh();
@@ -169,5 +199,18 @@ export function useCrewData(searchText: string) {
     return joined;
   }, [pendingJoins, persistPending]);
 
-  return { topCrews, crews: finalList, myCrew, loading, error, refresh, ensureMyCrew, createMyCrew, joinExistingCrew };
+  return {
+    topCrews,
+    crews: finalList,
+    myCrew,
+    loading,
+    loadingMore,
+    hasMore,
+    error,
+    refresh,
+    loadMore,
+    ensureMyCrew,
+    createMyCrew,
+    joinExistingCrew,
+  };
 }

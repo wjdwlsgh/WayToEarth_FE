@@ -210,30 +210,38 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
   return mapped;
 }
 
-export async function listCrews(query?: string): Promise<Crew[]> {
+export async function listCrews(
+  query?: string,
+  page: number = 0,
+  size: number = 20
+): Promise<{ crews: Crew[]; hasMore: boolean }> {
   // 실제 API: 목록 또는 검색
   if (query && query.trim().length > 0) {
     const { data } = await client.get("/v1/crews/search", {
-      params: { keyword: query.trim(), page: 0, size: 20 },
+      params: { keyword: query.trim(), page, size },
     });
-    const page = data as any;
-    return (page?.content ?? []).map((c: any) => ({
+    const pageData = data as any;
+    const crews = (pageData?.content ?? []).map((c: any) => ({
       id: String(c.id),
       name: String(c.name ?? "크루"),
       description: String(c.description ?? ""),
       progress: `${c.currentMembers ?? 0}/${c.maxMembers ?? 0}`,
       imageUrl: c.profileImageUrl ?? null,
     })) as Crew[];
+    const hasMore = !pageData?.last && crews.length === size;
+    return { crews, hasMore };
   }
-  const { data } = await client.get("/v1/crews", { params: { page: 0, size: 20 } });
-  const page = data as any;
-  return (page?.content ?? []).map((c: any) => ({
+  const { data } = await client.get("/v1/crews", { params: { page, size } });
+  const pageData = data as any;
+  const crews = (pageData?.content ?? []).map((c: any) => ({
     id: String(c.id),
     name: String(c.name ?? "크루"),
     description: String(c.description ?? ""),
     progress: `${c.currentMembers ?? 0}/${c.maxMembers ?? 0}`,
     imageUrl: c.profileImageUrl ?? null,
   })) as Crew[];
+  const hasMore = !pageData?.last && crews.length === size;
+  return { crews, hasMore };
 }
 
 export async function createCrew(payload: {

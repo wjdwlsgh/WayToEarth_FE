@@ -8,6 +8,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import TopCrewItem from "../components/Crew/TopCrewItem";
@@ -31,8 +32,17 @@ export default function CrewScreen() {
     description?: string;
     progress?: string;
   } | null>(null);
-  const { topCrews, crews, myCrew, createMyCrew, joinExistingCrew, refresh } =
-    useCrewData(search);
+  const {
+    topCrews,
+    crews,
+    myCrew,
+    loadingMore,
+    hasMore,
+    createMyCrew,
+    joinExistingCrew,
+    refresh,
+    loadMore,
+  } = useCrewData(search);
   // 탭 내비게이터 사용: 개별 화면에서 하단 바를 렌더하지 않음
   const navigation = useNavigation<any>();
   useFocusEffect(
@@ -77,7 +87,19 @@ export default function CrewScreen() {
         )}
       </View>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const isCloseToBottom =
+            layoutMeasurement.height + contentOffset.y >= contentSize.height - 200;
+          if (isCloseToBottom && !loadingMore && hasMore) {
+            loadMore();
+          }
+        }}
+        scrollEventThrottle={400}
+      >
         {/* 상단 랭킹 */}
         <View style={s.topWrap}>
           {(function orderTop() {
@@ -178,6 +200,24 @@ export default function CrewScreen() {
               }}
             />
           ))}
+
+          {/* 로딩 인디케이터 */}
+          {loadingMore && (
+            <View style={s.loadingMore}>
+              <ActivityIndicator size="small" color="#4A90E2" />
+              <Text style={s.loadingText}>크루 목록 불러오는 중...</Text>
+            </View>
+          )}
+
+          {/* 더 이상 없음 표시 */}
+          {!hasMore && crews.length > 0 && (
+            <View style={s.endMessage}>
+              <Text style={s.endText}>모든 크루를 불러왔습니다</Text>
+            </View>
+          )}
+
+          {/* 하단 여백 - 탭 네비게이션 가림 방지 */}
+          <View style={s.bottomSpacer} />
         </View>
       </ScrollView>
 
@@ -320,4 +360,26 @@ const s = StyleSheet.create({
     borderRadius: 20,
   },
   createBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  loadingMore: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  endMessage: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  endText: {
+    fontSize: 13,
+    color: "#9CA3AF",
+  },
+  bottomSpacer: {
+    height: 150,
+  },
 });
