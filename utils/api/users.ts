@@ -113,6 +113,14 @@ export async function getMyProfile(): Promise<UserProfile> {
   return profile;
 }
 
+// 특정 사용자 프로필 조회
+export async function getUserProfile(userId: string | number): Promise<UserProfile> {
+  const res = await client.get(`/v1/users/${userId}/profile`);
+  const profile = unwrap<UserProfile>(res.data);
+  console.log('[USERS] User profile for', userId, ':', JSON.stringify(profile, null, 2));
+  return profile;
+}
+
 // 내 대시보드/요약
 export type UserSummary = {
   completion_rate: number; // 0~1

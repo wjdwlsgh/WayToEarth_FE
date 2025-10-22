@@ -355,6 +355,18 @@ export async function getAllCrewMembers(crewId: string): Promise<CrewMember[]> {
   return members;
 }
 
+// 특정 크루 멤버 조회
+export async function getCrewMember(crewId: string, userId: string): Promise<CrewMember> {
+  const { data } = await client.get(`/v1/crews/${crewId}/members/${userId}`);
+  const m = data as any;
+  return {
+    id: String(m.userId),
+    nickname: String(m.userNickname ?? ""),
+    role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
+    profileImage: m.userProfileImage ?? null,
+  };
+}
+
 // 크루 멤버 목록 조회 (페이지네이션)
 export async function getCrewMembers(
   crewId: string,

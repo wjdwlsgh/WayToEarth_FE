@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getMyProfile } from "../utils/api/users";
+import { getMyProfile, getUserProfile } from "../utils/api/users";
 import {
   getMyCrewDetail,
   closeCrew,
@@ -24,6 +24,7 @@ import {
   approveRequest,
   rejectRequest,
   getCrewMembers,
+  getCrewMember,
 } from "../utils/api/crews";
 import {
   getCrewMonthlySummary,
@@ -49,6 +50,7 @@ export default function CrewDetailScreen() {
   const [crewId, setCrewId] = useState<string>("");
   const [myUserId, setMyUserId] = useState<string>("");
   const [crewName, setCrewName] = useState("");
+  const [crewImageUrl, setCrewImageUrl] = useState<string | null>(null);
   const [crewInfo, setCrewInfo] = useState({
     members: "",
     roleLabel: "",
@@ -63,6 +65,8 @@ export default function CrewDetailScreen() {
   const [mvpMember, setMvpMember] = useState<{
     name: string;
     distance: string;
+    profileImage?: string | null;
+    userId?: string | number;
   } | null>(null);
 
   // 멤버 무한 스크롤 상태
@@ -88,6 +92,8 @@ export default function CrewDetailScreen() {
         setCrewName(detail.crew.name);
         setCrewId(String(detail.crew.id));
         setRole(detail.role);
+        setCrewImageUrl(detail.crew.imageUrl ?? null);
+        console.log("[CREW_DETAIL] crew image:", detail.crew.imageUrl);
         console.log("[CREW_DETAIL] members with profiles:", detail.members.map(m => ({ id: m.id, nick: m.nickname, profile: m.profileImage })));
         setMembers(detail.members as Member[]);
         setPending(detail.pending as Applicant[]);
@@ -125,12 +131,45 @@ export default function CrewDetailScreen() {
             activeMembers: `${active}명`,
           });
           const top = ranking?.[0];
-          if (top)
+          if (top) {
+            // MVP 사용자의 프로필 이미지 로드
+            const mvpUserId = top.userId;
+            let profileImage: string | null = null;
+
+            if (mvpUserId) {
+              try {
+                // 크루 멤버 API로 프로필 이미지 가져오기
+                const crewMember = await getCrewMember(String(detail.crew.id), String(mvpUserId));
+                profileImage = crewMember.profileImage ?? null;
+                console.log('[CREW_DETAIL] MVP profile from crew member API:', profileImage);
+              } catch (e) {
+                console.warn('[CREW_DETAIL] Failed to load MVP from crew member API, trying fallback');
+                try {
+                  // 폴백: 내 프로필 정보 가져오기
+                  const myProfile = await getMyProfile();
+                  if (String(myProfile.id) === String(mvpUserId)) {
+                    profileImage = myProfile.profile_image_url ?? null;
+                    console.log('[CREW_DETAIL] MVP is me, using my profile image:', profileImage);
+                  } else {
+                    // 멤버 목록에서 찾기 (최후 폴백)
+                    const memberInList = detail.members.find(m => String(m.id) === String(mvpUserId));
+                    profileImage = memberInList?.profileImage ?? null;
+                  }
+                } catch (e2) {
+                  console.warn('[CREW_DETAIL] All fallbacks failed:', e2);
+                }
+              }
+            }
+
             setMvpMember({
               name: top.userName,
               distance: formatKm(top.totalDistance),
+              profileImage,
+              userId: mvpUserId,
             });
-          else setMvpMember(null);
+          } else {
+            setMvpMember(null);
+          }
         } catch {}
       } else {
         // 내 크루가 없는 경우: 간단히 안내
@@ -285,7 +324,20 @@ export default function CrewDetailScreen() {
         {/* 크루 정보 카드 */}
         <View style={s.crewInfoCard}>
           <View style={s.crewHeader}>
-            <View style={s.crewAvatar} />
+            <View style={s.crewAvatarContainer}>
+              {crewImageUrl ? (
+                <Image
+                  source={{ uri: crewImageUrl, cache: 'force-cache' }}
+                  style={s.crewAvatar}
+                  resizeMode="cover"
+                  onError={(e) => console.log('[CREW_DETAIL] Crew image error:', e.nativeEvent.error)}
+                />
+              ) : (
+                <View style={s.crewAvatarPlaceholder}>
+                  <Ionicons name="people" size={28} color="#fff" />
+                </View>
+              )}
+            </View>
             <View style={s.crewHeaderText}>
               <Text style={s.crewName}>{crewName}</Text>
               <Text style={s.crewSubInfo}>
@@ -425,7 +477,20 @@ export default function CrewDetailScreen() {
                   <Text style={s.mvpDate}>3월 18일 - 3월 24일</Text>
                 </View>
                 <View style={s.mvpCard}>
-                  <View style={s.mvpAvatar} />
+                  <View style={s.mvpAvatarContainer}>
+                    {mvpMember.profileImage ? (
+                      <Image
+                        source={{ uri: mvpMember.profileImage, cache: 'force-cache' }}
+                        style={s.mvpAvatar}
+                        resizeMode="cover"
+                        onError={(e) => console.log('[CREW_DETAIL] MVP image error:', e.nativeEvent.error)}
+                      />
+                    ) : (
+                      <View style={s.mvpAvatarPlaceholder}>
+                        <Ionicons name="person" size={24} color="#fff" />
+                      </View>
+                    )}
+                  </View>
                   <View style={s.mvpInfo}>
                     <Text style={s.mvpName}>{mvpMember.name}</Text>
                     <Text style={s.mvpDistance}>
@@ -737,12 +802,25 @@ const s = StyleSheet.create({
     padding: 20,
   },
   crewHeader: { flexDirection: "row", marginBottom: 20 },
+  crewAvatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: "hidden",
+    marginRight: 12,
+  },
   crewAvatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#FFB4B4",
-    marginRight: 12,
+  },
+  crewAvatarPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   crewHeaderText: { flex: 1, justifyContent: "center" },
   crewName: { fontSize: 18, fontWeight: "700", color: "#fff", marginBottom: 4 },
@@ -897,12 +975,25 @@ const s = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
   },
+  mvpAvatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: "hidden",
+    marginRight: 12,
+  },
   mvpAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#FFB4B4",
-    marginRight: 12,
+  },
+  mvpAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#6B7280",
+    justifyContent: "center",
+    alignItems: "center",
   },
   mvpInfo: { flex: 1 },
   mvpName: { fontSize: 16, fontWeight: "700", color: "#fff", marginBottom: 4 },
