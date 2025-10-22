@@ -202,7 +202,7 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
       id: String(m.userId),
       nickname: String(m.userNickname ?? ""),
       role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
-      profileImage: m.userProfileImage ?? null,
+      profileImage: m.userProfileImage ?? m.user_profile_image_url ?? m.profile_image_url ?? null,
     })),
     pending: (pendingPage?.content ?? [])
       .filter((p: any) => String(p?.status ?? '').toUpperCase() === 'PENDING')
@@ -321,6 +321,38 @@ export async function leaveCrew(crewId: string): Promise<void> {
 // 운영진 권한 이임(소유권 이전)
 export async function transferOwnership(crewId: string, userId: string): Promise<void> {
   await client.post(`/v1/crews/${crewId}/transfer-ownership`, { newOwnerId: Number(userId) });
+}
+
+// presigned URL에서 기본 URL만 추출 (쿼리 파라미터 제거)
+function stripPresignedParams(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    // presigned URL이면 쿼리 파라미터 전부 제거
+    const baseUrl = url.split('?')[0];
+    return baseUrl;
+  } catch {
+    return url;
+  }
+}
+
+// 크루 멤버 목록 전체 조회 (페이징 없음)
+export async function getAllCrewMembers(crewId: string): Promise<CrewMember[]> {
+  const { data } = await client.get(`/v1/crews/${crewId}/members/all`);
+  console.log('[CREWS][getAllCrewMembers] raw response:', JSON.stringify(data, null, 2));
+  const members = (Array.isArray(data) ? data : []).map((m: any) => {
+    console.log('[CREWS][getAllCrewMembers] member:', JSON.stringify(m, null, 2));
+    const rawUrl = m.userProfileImage ?? null;
+    const cleanUrl = stripPresignedParams(rawUrl);
+    console.log('[CREWS][getAllCrewMembers] URL transform:', rawUrl, '->', cleanUrl);
+    return {
+      id: String(m.userId),
+      nickname: String(m.userNickname ?? ""),
+      role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
+      profileImage: cleanUrl,
+    };
+  }) as CrewMember[];
+  console.log('[CREWS][getAllCrewMembers] mapped members:', JSON.stringify(members, null, 2));
+  return members;
 }
 
 // 크루 멤버 목록 조회 (페이지네이션)

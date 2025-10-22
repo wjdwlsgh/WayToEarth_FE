@@ -111,6 +111,7 @@ export async function createFeed(
 
 export async function listFeeds(offset = 0, limit = 4): Promise<FeedItem[]> {
   const { data } = await client.get("/v1/feeds", { params: { offset, limit } });
+  console.log('[FEEDS] First feed item:', JSON.stringify(data?.[0], null, 2));
   return Array.isArray(data) ? (data as FeedItem[]) : [];
 }
 

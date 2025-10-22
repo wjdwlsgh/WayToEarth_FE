@@ -37,6 +37,7 @@ type Member = {
   nickname: string;
   role: "ADMIN" | "MEMBER";
   distance?: number;
+  profileImage?: string | null;
 };
 type Applicant = { id: string; nickname: string; level?: string; userId?: string };
 
@@ -64,6 +65,11 @@ export default function CrewDetailScreen() {
     distance: string;
   } | null>(null);
 
+  // 멤버 무한 스크롤 상태
+  const [memberPage, setMemberPage] = useState(0);
+  const [hasMoreMembers, setHasMoreMembers] = useState(true);
+  const [loadingMoreMembers, setLoadingMoreMembers] = useState(false);
+
   const refresh = async () => {
     setLoading(true);
     try {
@@ -82,6 +88,7 @@ export default function CrewDetailScreen() {
         setCrewName(detail.crew.name);
         setCrewId(String(detail.crew.id));
         setRole(detail.role);
+        console.log("[CREW_DETAIL] members with profiles:", detail.members.map(m => ({ id: m.id, nick: m.nickname, profile: m.profileImage })));
         setMembers(detail.members as Member[]);
         setPending(detail.pending as Applicant[]);
         // 월간 요약/멤버 랭킹 조회
@@ -145,6 +152,7 @@ export default function CrewDetailScreen() {
     }
   };
 
+
   useEffect(() => {
     refresh();
     // 내 사용자 식별자 확보: 자기 자신에 대한 액션(내보내기 등) 숨김 처리용
@@ -155,6 +163,45 @@ export default function CrewDetailScreen() {
       } catch {}
     })();
   }, []);
+
+  // 무한 스크롤: 추가 멤버 로드
+  const loadMoreMembers = async () => {
+    if (loadingMoreMembers || !hasMoreMembers || !crewId) return;
+
+    setLoadingMoreMembers(true);
+    try {
+      const nextPage = memberPage + 1;
+      const result = await getCrewMembers(crewId, nextPage, 20);
+      setMembers((prev) => [...prev, ...result.members]);
+      setMemberPage(nextPage);
+      setHasMoreMembers(result.hasMore);
+    } catch (error) {
+      console.error("Failed to load more members:", error);
+    } finally {
+      setLoadingMoreMembers(false);
+    }
+  };
+
+  // 탭 변경 시 멤버 목록 리셋 및 첫 페이지 로드
+  useEffect(() => {
+    if (selectedTab === "멤버" && crewId) {
+      const loadFirstPage = async () => {
+        setLoadingMoreMembers(true);
+        try {
+          const result = await getCrewMembers(crewId, 0, 20);
+          console.log('[CREW_DETAIL] Setting members (first page):', result.members.length, result.members);
+          setMembers(result.members);
+          setMemberPage(0);
+          setHasMoreMembers(result.hasMore);
+        } catch (error) {
+          console.error("Failed to load members:", error);
+        } finally {
+          setLoadingMoreMembers(false);
+        }
+      };
+      loadFirstPage();
+    }
+  }, [selectedTab, crewId]);
 
   // 더 견고한 관리자 판별: 서버 역할 + 멤버 목록 + 소유자 폴백
   const isAdmin =
@@ -222,7 +269,19 @@ export default function CrewDetailScreen() {
         </View>
       </View>
 
-      <ScrollView style={s.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={s.scrollView}
+        showsVerticalScrollIndicator={false}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const isCloseToBottom =
+            layoutMeasurement.height + contentOffset.y >= contentSize.height - 200;
+          if (isCloseToBottom && selectedTab === "멤버" && !loadingMoreMembers && hasMoreMembers) {
+            loadMoreMembers();
+          }
+        }}
+        scrollEventThrottle={400}
+      >
         {/* 크루 정보 카드 */}
         <View style={s.crewInfoCard}>
           <View style={s.crewHeader}>
@@ -385,19 +444,39 @@ export default function CrewDetailScreen() {
         {/* 멤버 탭 내용 */}
         {selectedTab === "멤버" && (
           <View style={s.membersSection}>
-            <Text style={s.sectionTitle}>멤버 목록</Text>
+            <Text style={s.sectionTitle}>멤버 목록 ({members.length}명)</Text>
             {members.map((m) => {
+              console.log('[MEMBER_RENDER] Rendering member:', m.nickname, 'hasImage:', !!m.profileImage);
               const isSelf =
                 (myUserId && String(m.id) === String(myUserId)) ||
                 m.nickname === "나";
               return (
                 <View key={m.id} style={s.memberRow}>
                   <View style={s.memberInfo}>
-                    <View style={s.memberAvatar} />
-                    <Text style={s.memberName}>
-                      {m.nickname}
-                      {m.role === "ADMIN" ? " (관리자)" : ""}
-                    </Text>
+                    <View style={s.memberAvatarContainer}>
+                      {m.profileImage ? (
+                        <Image
+                          source={{
+                            uri: m.profileImage,
+                            cache: 'force-cache'
+                          }}
+                          style={s.memberAvatar}
+                          resizeMode="cover"
+                          onLoad={() => console.log('[MEMBER] Image loaded for:', m.nickname)}
+                          onError={(e) => console.log('[MEMBER] Image error for:', m.nickname, e.nativeEvent.error)}
+                        />
+                      ) : (
+                        <View style={s.memberAvatarPlaceholder}>
+                          <Ionicons name="person" size={20} color="#9CA3AF" />
+                        </View>
+                      )}
+                    </View>
+                    <View style={s.memberTextInfo}>
+                      <Text style={s.memberName}>
+                        {m.nickname}
+                        {m.role === "ADMIN" && <Text style={s.adminBadge}> 관리자</Text>}
+                      </Text>
+                    </View>
                   </View>
                   {isAdmin && !isSelf && (
                     <View style={{ flexDirection: "row", gap: 8 }}>
@@ -517,6 +596,21 @@ export default function CrewDetailScreen() {
                 </View>
               );
             })}
+
+            {/* 무한 스크롤 로딩 인디케이터 */}
+            {loadingMoreMembers && (
+              <View style={s.loadingMore}>
+                <ActivityIndicator size="small" color="#4A90E2" />
+                <Text style={s.loadingText}>멤버 목록 불러오는 중...</Text>
+              </View>
+            )}
+
+            {/* 더 이상 없음 표시 */}
+            {!hasMoreMembers && members.length > 0 && (
+              <View style={s.endMessage}>
+                <Text style={s.endText}>모든 멤버를 불러왔습니다</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -845,14 +939,35 @@ const s = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   memberInfo: { flexDirection: "row", alignItems: "center" },
+  memberAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: "hidden",
+    marginRight: 12,
+  },
   memberAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#E5E7EB",
-    marginRight: 12,
+  },
+  memberAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  memberTextInfo: {
+    flex: 1,
   },
   memberName: { fontSize: 15, color: "#111827", fontWeight: "500" },
+  adminBadge: {
+    fontSize: 12,
+    color: "#F59E0B",
+    fontWeight: "700",
+  },
   kickBtn: {
     backgroundColor: "#F3F4F6",
     paddingVertical: 6,
@@ -913,4 +1028,25 @@ const s = StyleSheet.create({
     borderRadius: 10,
   },
   closeCrewBtnText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+
+  // 무한 스크롤 관련
+  loadingMore: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  endMessage: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  endText: {
+    fontSize: 13,
+    color: "#9CA3AF",
+  },
 });

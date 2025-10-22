@@ -108,7 +108,9 @@ export type UserProfile = {
 
 export async function getMyProfile(): Promise<UserProfile> {
   const res = await client.get("/v1/users/me");
-  return unwrap<UserProfile>(res.data);
+  const profile = unwrap<UserProfile>(res.data);
+  console.log('[USERS] My profile:', JSON.stringify(profile, null, 2));
+  return profile;
 }
 
 // 내 대시보드/요약
