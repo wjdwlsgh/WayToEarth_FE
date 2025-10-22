@@ -28,14 +28,36 @@ export default function TopCrewItem({
   size = highlight ? "lg" : "md",
   onPress,
 }: Props) {
-  const dim = size === "lg" ? 80 : size === "md" ? 70 : 62;
+  const dim = size === "lg" ? 90 : size === "md" ? 75 : 62;
+
+  // 등수별 색상 (1등: 금, 2등: 은, 3등: 동)
+  const rankNum = parseInt(rank);
+  const borderColor = rankNum === 1 ? "#FFD700" : rankNum === 2 ? "#C0C0C0" : "#CD7F32";
+  const shadowColor = rankNum === 1 ? "#FFD700" : rankNum === 2 ? "#C0C0C0" : "#CD7F32";
+
   return (
     <TouchableOpacity style={s.wrap} onPress={onPress} activeOpacity={0.8}>
+      {/* 등수 뱃지 */}
+      <View style={[s.rankBadge, { backgroundColor: borderColor }]}>
+        <Text style={s.rankBadgeText}>{rankNum}</Text>
+      </View>
+
+      {/* 프로필 이미지 */}
       <View
         style={[
           s.imgWrap,
-          { width: dim, height: dim, borderRadius: dim / 2 },
-          size === "lg" && s.highlight,
+          {
+            width: dim,
+            height: dim,
+            borderRadius: dim / 2,
+            borderWidth: size === "lg" ? 4 : 3,
+            borderColor: borderColor,
+            shadowColor: shadowColor,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.5,
+            shadowRadius: 8,
+            elevation: 8,
+          },
         ]}
       >
         {image ? (
@@ -46,39 +68,80 @@ export default function TopCrewItem({
           />
         ) : (
           <Ionicons
-            name={size === "lg" ? "people" : "people-outline"}
+            name="people"
             size={dim * 0.5}
             color="#4A90E2"
           />
         )}
       </View>
-      <Text style={s.rank}>{rank}</Text>
+
+      {/* 크루명 */}
       {name ? (
-        <Text style={s.name} numberOfLines={1}>
+        <Text style={[s.name, size === "lg" && s.nameLarge]} numberOfLines={1}>
           {name}
         </Text>
       ) : null}
-      <Text style={s.distance}>{distance}</Text>
+
+      {/* 거리 */}
+      <View style={[s.distanceBadge, { backgroundColor: borderColor }]}>
+        <Text style={s.distanceText}>{distance}</Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { alignItems: "center" },
+  wrap: { alignItems: "center", position: "relative" },
   imgWrap: {
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  highlight: { borderWidth: 3, borderColor: "#FFD700" },
-  rank: { color: "#fff", fontSize: 12, fontWeight: "600", marginBottom: 4 },
-  name: {
+  rankBadge: {
+    position: "absolute",
+    top: -12,
+    alignSelf: "center",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  rankBadgeText: {
     color: "#fff",
-    fontSize: 11,
-    fontWeight: "600",
-    maxWidth: 92,
+    fontSize: 14,
+    fontWeight: "800",
     textAlign: "center",
   },
-  distance: { color: "#fff", fontSize: 11 },
+  name: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+    maxWidth: 92,
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 6,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  nameLarge: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  distanceBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 2,
+  },
+  distanceText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
 });
