@@ -81,13 +81,19 @@ export default function CrewScreen() {
         {/* 상단 랭킹 */}
         <View style={s.topWrap}>
           {(function orderTop() {
-            const a = topCrews;
-            const ordered = [a[1], a[0], a[2]].filter(Boolean); // [2등, 1등, 3등]
+            // topCrews에서 rank로 1등, 2등, 3등 찾기
+            const first = topCrews.find((c) => c.rank === 1);
+            const second = topCrews.find((c) => c.rank === 2);
+            const third = topCrews.find((c) => c.rank === 3);
+
+            // 배치: [2등(왼쪽), 1등(중앙), 3등(오른쪽)]
+            const ordered = [second, first, third].filter(Boolean);
+
             return ordered.map((c, idx) => {
-              // 2,3등 동일 크기(md), 1등만 크게(lg)
-              const size = idx === 1 ? "lg" : "md";
-              // 1등을 가장 높이, 2/3등은 동일하게 조금 내려서 삼각형 배치
-              const offset = idx === 1 ? 0 : 16;
+              // 1등(idx=1)만 크게(lg), 2등/3등은 중간 크기(md)
+              const size = c.rank === 1 ? "lg" : "md";
+              // 1등을 가장 높이, 2/3등은 조금 내려서 삼각형 배치
+              const offset = c.rank === 1 ? 0 : 16;
               return (
                 <View key={c.id} style={[s.topItemWrap, { marginTop: offset }]}>
                   <TopCrewItem
