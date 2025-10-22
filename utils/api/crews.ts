@@ -13,7 +13,12 @@ export type Crew = {
 // Local mock storage keys removed – using only real API
 
 export type CrewRole = "ADMIN" | "MEMBER";
-export type CrewMember = { id: string; nickname: string; role: CrewRole };
+export type CrewMember = {
+  id: string;
+  nickname: string;
+  role: CrewRole;
+  profileImage?: string | null;
+};
 export type CrewApplicant = { id: string; nickname: string; userId?: string };
 // Public crew detail (for viewing a specific crew from the list)
 export type CrewPublicDetail = {
@@ -197,6 +202,7 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
       id: String(m.userId),
       nickname: String(m.userNickname ?? ""),
       role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
+      profileImage: m.userProfileImage ?? null,
     })),
     pending: (pendingPage?.content ?? [])
       .filter((p: any) => String(p?.status ?? '').toUpperCase() === 'PENDING')
@@ -315,4 +321,24 @@ export async function leaveCrew(crewId: string): Promise<void> {
 // 운영진 권한 이임(소유권 이전)
 export async function transferOwnership(crewId: string, userId: string): Promise<void> {
   await client.post(`/v1/crews/${crewId}/transfer-ownership`, { newOwnerId: Number(userId) });
+}
+
+// 크루 멤버 목록 조회 (페이지네이션)
+export async function getCrewMembers(
+  crewId: string,
+  page: number = 0,
+  size: number = 20
+): Promise<{ members: CrewMember[]; hasMore: boolean }> {
+  const { data } = await client.get(`/v1/crews/${crewId}/members`, {
+    params: { page, size },
+  });
+  const pageData = data as any;
+  const members = (pageData?.content ?? []).map((m: any) => ({
+    id: String(m.userId),
+    nickname: String(m.userNickname ?? ""),
+    role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
+    profileImage: m.userProfileImage ?? null,
+  })) as CrewMember[];
+  const hasMore = !pageData?.last && members.length === size;
+  return { members, hasMore };
 }

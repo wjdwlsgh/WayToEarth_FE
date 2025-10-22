@@ -8,6 +8,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getMyProfile } from "../utils/api/users";
@@ -21,6 +23,7 @@ import {
   removeMember,
   approveRequest,
   rejectRequest,
+  getCrewMembers,
 } from "../utils/api/crews";
 import {
   getCrewMonthlySummary,
