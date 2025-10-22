@@ -1,11 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   name: string;
   description?: string;
   progress?: string;
+  imageUrl?: string | null;
   onPress?: () => void;
 };
 
@@ -13,6 +14,7 @@ export default function MyCrewCard({
   name,
   description,
   progress,
+  imageUrl,
   onPress,
 }: Props) {
   return (
@@ -24,20 +26,37 @@ export default function MyCrewCard({
         </View>
         <Ionicons name="chevron-forward" size={20} color="#4F46E5" />
       </View>
-      <View style={s.row}>
-        <Text style={s.title}>{name}</Text>
-        {progress ? (
-          <View style={s.progressBadge}>
-            <Ionicons name="people" size={14} color="#4F46E5" />
-            <Text style={s.progress}>{progress}</Text>
+
+      <View style={s.mainRow}>
+        {/* 프로필 이미지 */}
+        <View style={s.imageContainer}>
+          {imageUrl ? (
+            <Image source={{ uri: imageUrl }} style={s.image} resizeMode="cover" />
+          ) : (
+            <View style={s.imagePlaceholder}>
+              <Ionicons name="people" size={32} color="#8B5CF6" />
+            </View>
+          )}
+        </View>
+
+        {/* 콘텐츠 */}
+        <View style={s.content}>
+          <View style={s.row}>
+            <Text style={s.title} numberOfLines={1}>{name}</Text>
+            {progress ? (
+              <View style={s.progressBadge}>
+                <Ionicons name="people" size={14} color="#4F46E5" />
+                <Text style={s.progress}>{progress}</Text>
+              </View>
+            ) : null}
           </View>
-        ) : null}
+          {description ? (
+            <Text style={s.desc} numberOfLines={2}>
+              {description}
+            </Text>
+          ) : null}
+        </View>
       </View>
-      {description ? (
-        <Text style={s.desc} numberOfLines={2}>
-          {description}
-        </Text>
-      ) : null}
     </TouchableOpacity>
   );
 }
@@ -46,7 +65,7 @@ const s = StyleSheet.create({
   card: {
     backgroundColor: "#EEF2FF",
     borderRadius: 16,
-    padding: 18,
+    padding: 16,
     marginBottom: 16,
     borderWidth: 2,
     borderColor: "#C7D2FE",
@@ -76,14 +95,39 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
   },
+  mainRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  imageContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  image: {
+    width: 70,
+    height: 70,
+  },
+  imagePlaceholder: {
+    width: 70,
+    height: 70,
+    backgroundColor: "#DDD6FE",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 14,
+  },
+  content: {
+    flex: 1,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
     color: "#111827",
     flex: 1,
@@ -104,7 +148,6 @@ const s = StyleSheet.create({
     fontWeight: "700",
   },
   desc: {
-    marginTop: 4,
     fontSize: 13,
     color: "#4B5563",
     lineHeight: 18,

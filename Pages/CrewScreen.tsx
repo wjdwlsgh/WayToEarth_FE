@@ -150,6 +150,7 @@ export default function CrewScreen() {
               name={myCrew.name}
               description={myCrew.description}
               progress={myCrew.progress}
+              imageUrl={myCrew.imageUrl}
               onPress={() => navigation.navigate("CrewDetail")}
             />
           )}
@@ -161,6 +162,7 @@ export default function CrewScreen() {
               name={c.name}
               description={c.description}
               progress={c.progress}
+              imageUrl={c.imageUrl}
               onPress={() => {
                 if (!myCrew) {
                   setSelected({
