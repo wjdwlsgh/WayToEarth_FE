@@ -19,7 +19,6 @@ import { WeatherProvider } from "./contexts/WeatherContext";
 
 import Onboading from "./Pages/Onboading";
 import Login from "./Pages/Login";
-import Register from "./Pages/Register";
 import Main from "./Pages/Main";
 import RunSummaryScreen from "./Pages/RunSummaryscreen";
 import LiveRunningScreen from "./Pages/LiveRunningScreen";
@@ -39,7 +38,6 @@ import Emblem from "./Pages/EmblemCollectionScreen";
 import Record from "./Pages/RecordScreen";
 import RecordDetailScreen from "./Pages/RecordDetailScreen";
 import AIFeedbackScreen from "./Pages/AIFeedbackScreen";
-import UserInfoInputScreen from "./Pages/UserInfoInputScreen";
 import LoginSuccessScreen from "./Pages/LoginSuccessScreen";
 import CrewScreen from "./Pages/CrewScreen";
 import CrewDetailScreen from "./Pages/CrewDetailScreen";
@@ -119,7 +117,6 @@ export default function App() {
           screenOptions={{ headerShown: false }}
         >
         <Stack.Screen name="Onboading" component={Onboading} />
-        <Stack.Screen name="Register" component={Register} />
         <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="LoginSuccess" component={LoginSuccessScreen} />
         <Stack.Screen name="Main" component={Main} />
@@ -172,7 +169,6 @@ export default function App() {
           name="AIFeedbackScreen"
           component={AIFeedbackScreen}
         />
-        <Stack.Screen name="UserInfoInput" component={UserInfoInputScreen} />
 
         {/* 방명록 화면들 */}
         <Stack.Screen
