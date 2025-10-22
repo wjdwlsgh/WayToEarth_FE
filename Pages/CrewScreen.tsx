@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import TopCrewItem from "../components/Crew/TopCrewItem";
 import CrewCard from "../components/Crew/CrewCard";
@@ -52,40 +53,8 @@ export default function CrewScreen() {
   );
 
   return (
-    <SafeAreaView style={s.container}>
-      <StatusBar barStyle="light-content" />
-
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Text style={s.headerTime}>9:41</Text>
-        {myCrew && (
-          <TouchableOpacity
-            accessibilityLabel="크루 채팅"
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            onPress={() => {
-              Alert.alert("채팅 이동", "내 크루 채팅으로 이동 시도");
-              const params: any = {
-                crewId: String((myCrew as any).id),
-                crewName: (myCrew as any).name,
-              };
-              const state: any = (navigation as any)?.getState?.();
-              const canHere = Array.isArray(state?.routeNames) && state.routeNames.includes("CrewChat");
-              if (canHere) {
-                (navigation as any).navigate("CrewChat", params);
-              } else {
-                const parent = (navigation as any)?.getParent?.();
-                if (parent) {
-                  parent.navigate("CrewChat", params);
-                } else {
-                  Alert.alert("채팅 이동 불가", "네비게이션 경로를 찾을 수 없습니다.");
-                }
-              }
-            }}
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#fff" />
-          </TouchableOpacity>
-        )}
-      </View>
+    <View style={s.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#3B82F6" translucent={false} />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -101,7 +70,12 @@ export default function CrewScreen() {
         scrollEventThrottle={400}
       >
         {/* 상단 랭킹 */}
-        <View style={s.topWrap}>
+        <LinearGradient
+          colors={["#3B82F6", "#2563EB", "#1D4ED8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.topWrap}
+        >
           {(function orderTop() {
             const a = topCrews;
             if (!a || a.length === 0) return null;
@@ -126,7 +100,7 @@ export default function CrewScreen() {
               // idx=1이 1등(중앙)이므로 크게(lg), 나머지는 중간 크기(md)
               const size = idx === 1 ? "lg" : "md";
               // 1등(중앙)을 가장 높이, 2/3등은 조금 내려서 삼각형 배치
-              const offset = idx === 1 ? 0 : 16;
+              const offset = idx === 1 ? 20 : 40;
 
               return (
                 <View key={c.id} style={[s.topItemWrap, { marginTop: offset }]}>
@@ -142,11 +116,14 @@ export default function CrewScreen() {
               );
             });
           })()}
-        </View>
+        </LinearGradient>
 
         {/* 목록 섹션 */}
         <View style={s.content}>
-          <Text style={s.title}>크루 목록</Text>
+          <View style={s.titleRow}>
+            <Ionicons name="people" size={24} color="#3B82F6" />
+            <Text style={s.title}>크루 목록</Text>
+          </View>
           <SearchBar
             value={search}
             onChangeText={setSearch}
@@ -317,33 +294,48 @@ export default function CrewScreen() {
             : undefined
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-  header: { backgroundColor: "#4A90E2", padding: 16, paddingTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  headerTime: { color: "#fff", fontSize: 14, fontWeight: "600" },
   topWrap: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-end", // 하단 정렬 → 중앙 아이템을 더 높게 보이도록 marginTop으로 오프셋
-    backgroundColor: "#4A90E2",
+    alignItems: "flex-start",
     paddingVertical: 24,
     paddingHorizontal: 16,
+    position: "relative",
+    overflow: "hidden",
   },
-  topItemWrap: { width: "32%", alignItems: "center" },
+  topItemWrap: { width: "32%", alignItems: "center", zIndex: 1 },
   content: {
     flex: 1,
     backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     marginTop: -20,
-    paddingTop: 24,
+    paddingTop: 20,
     paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  title: { fontSize: 20, fontWeight: "700", marginBottom: 16, color: "#000" },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1F2937",
+    letterSpacing: -0.5,
+  },
   empty: {
     alignItems: "center",
     paddingVertical: 32,

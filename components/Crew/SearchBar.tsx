@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Text,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   value: string;
@@ -15,39 +16,53 @@ type Props = {
 
 export default function SearchBar({ value, onChangeText, onSearch }: Props) {
   return (
-    <View style={s.row}>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder="크루 이름으로 검색"
-        style={s.input}
-        returnKeyType="search"
-        onSubmitEditing={onSearch}
-      />
-      <TouchableOpacity style={s.btn} onPress={onSearch}>
-        <Text style={s.btnText}>검색</Text>
-      </TouchableOpacity>
+    <View style={s.container}>
+      <View style={s.inputWrapper}>
+        <Ionicons name="search" size={20} color="#9CA3AF" style={s.searchIcon} />
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder="크루 이름으로 검색"
+          placeholderTextColor="#9CA3AF"
+          style={s.input}
+          returnKeyType="search"
+          onSubmitEditing={onSearch}
+        />
+        {value.length > 0 && (
+          <TouchableOpacity onPress={() => onChangeText("")} style={s.clearBtn}>
+            <Ionicons name="close-circle" size={18} color="#D1D5DB" />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  row: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  container: {
+    marginBottom: 16,
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
+    fontSize: 15,
+    color: "#111827",
+    padding: 0,
   },
-  btn: {
-    backgroundColor: "#111827",
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+  clearBtn: {
+    padding: 4,
+    marginLeft: 4,
   },
-  btnText: { color: "#fff", fontWeight: "800" },
 });

@@ -96,7 +96,7 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 6,
   },
   rankBadge: {
     position: "absolute",
@@ -123,8 +123,8 @@ const s = StyleSheet.create({
     fontWeight: "700",
     maxWidth: 92,
     textAlign: "center",
-    marginTop: 4,
-    marginBottom: 6,
+    marginTop: 2,
+    marginBottom: 4,
     textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
@@ -137,7 +137,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    marginTop: 2,
+    marginTop: 0,
   },
   distanceText: {
     color: "#fff",
