@@ -29,7 +29,6 @@ export default function TopCrewItem({
   onPress,
 }: Props) {
   const dim = size === "lg" ? 80 : size === "md" ? 70 : 62;
-  const inner = Math.max(dim - 20, 44);
   return (
     <TouchableOpacity style={s.wrap} onPress={onPress} activeOpacity={0.8}>
       <View
@@ -42,12 +41,13 @@ export default function TopCrewItem({
         {image ? (
           <Image
             source={image}
-            style={{ width: inner, height: inner, borderRadius: inner / 2 }}
+            style={{ width: dim, height: dim, borderRadius: dim / 2 }}
+            resizeMode="cover"
           />
         ) : (
           <Ionicons
             name={size === "lg" ? "people" : "people-outline"}
-            size={inner * 0.66}
+            size={dim * 0.5}
             color="#4A90E2"
           />
         )}
