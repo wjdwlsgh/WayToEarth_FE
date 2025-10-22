@@ -81,19 +81,31 @@ export default function CrewScreen() {
         {/* 상단 랭킹 */}
         <View style={s.topWrap}>
           {(function orderTop() {
-            // topCrews에서 rank로 1등, 2등, 3등 찾기
-            const first = topCrews.find((c) => c.rank === 1);
-            const second = topCrews.find((c) => c.rank === 2);
-            const third = topCrews.find((c) => c.rank === 3);
+            const a = topCrews;
+            if (!a || a.length === 0) return null;
 
-            // 배치: [2등(왼쪽), 1등(중앙), 3등(오른쪽)]
-            const ordered = [second, first, third].filter(Boolean);
+            // topCrews는 순서대로 [1등, 2등, 3등] 형태로 들어옴
+            // 화면 배치: [2등(왼쪽), 1등(중앙), 3등(오른쪽)]
+            // 1등은 항상 중앙에 표시, 2등/3등은 있을 때만 양옆에 표시
 
-            return ordered.map((c, idx) => {
-              // 1등(idx=1)만 크게(lg), 2등/3등은 중간 크기(md)
-              const size = c.rank === 1 ? "lg" : "md";
-              // 1등을 가장 높이, 2/3등은 조금 내려서 삼각형 배치
-              const offset = c.rank === 1 ? 0 : 16;
+            const first = a[0];   // 1등 (항상 존재)
+            const second = a[1];  // 2등 (없을 수 있음)
+            const third = a[2];   // 3등 (없을 수 있음)
+
+            // 3개 슬롯: [2등 자리, 1등 자리, 3등 자리]
+            const slots = [second, first, third];
+
+            return slots.map((c, idx) => {
+              if (!c) {
+                // 빈 슬롯: 공간만 차지하고 아무것도 렌더링하지 않음
+                return <View key={`empty-${idx}`} style={s.topItemWrap} />;
+              }
+
+              // idx=1이 1등(중앙)이므로 크게(lg), 나머지는 중간 크기(md)
+              const size = idx === 1 ? "lg" : "md";
+              // 1등(중앙)을 가장 높이, 2/3등은 조금 내려서 삼각형 배치
+              const offset = idx === 1 ? 0 : 16;
+
               return (
                 <View key={c.id} style={[s.topItemWrap, { marginTop: offset }]}>
                   <TopCrewItem
