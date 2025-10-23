@@ -133,6 +133,70 @@ export default function ProfileScreen({
     ]);
   }, [navigation]);
 
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      "회원 탈퇴",
+      "정말 탈퇴하시겠습니까?\n\n모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.\n- 러닝 기록\n- 크루 정보\n- 피드 게시물\n- 방명록\n- 엠블럼",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "탈퇴",
+          style: "destructive",
+          onPress: () => {
+            // 2차 확인
+            Alert.alert(
+              "최종 확인",
+              "정말로 탈퇴하시겠습니까?\n이 작업은 되돌릴 수 없습니다.",
+              [
+                { text: "취소", style: "cancel" },
+                {
+                  text: "탈퇴",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      // 1) FCM 토큰 비활성화 (인증 필요하므로 먼저 수행)
+                      try {
+                        await deactivateToken();
+                      } catch (e) {
+                        console.warn("FCM 토큰 비활성화 실패:", e);
+                      }
+
+                      // 2) 서버에 회원 탈퇴 요청
+                      await deleteMyAccount();
+
+                      // 3) 로컬 토큰 정리
+                      try {
+                        await clearTokens();
+                      } catch {}
+
+                      // 4) 로그인 화면으로 이동
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: "Login" }],
+                      });
+
+                      // 5) 탈퇴 완료 메시지
+                      setTimeout(() => {
+                        Alert.alert("탈퇴 완료", "회원 탈퇴가 완료되었습니다.");
+                      }, 500);
+                    } catch (error: any) {
+                      console.error("회원 탈퇴 실패:", error);
+                      Alert.alert(
+                        "오류",
+                        error?.response?.data?.message ||
+                          "회원 탈퇴 중 문제가 발생했습니다."
+                      );
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }, [navigation]);
+
   // 필드 매핑
   const nickname = me?.nickname || (me as any)?.name || "사용자";
   const overrideFromRoute: string | undefined = route?.params?.avatarUrl;
