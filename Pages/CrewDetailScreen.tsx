@@ -24,7 +24,6 @@ import {
   approveRequest,
   rejectRequest,
   getCrewMembers,
-  getCrewMember,
 } from "../utils/api/crews";
 import {
   getCrewMonthlySummary,
@@ -137,26 +136,27 @@ export default function CrewDetailScreen() {
             let profileImage: string | null = null;
 
             if (mvpUserId) {
-              try {
-                // 크루 멤버 API로 프로필 이미지 가져오기
-                const crewMember = await getCrewMember(String(detail.crew.id), String(mvpUserId));
-                profileImage = crewMember.profileImage ?? null;
-                console.log('[CREW_DETAIL] MVP profile from crew member API:', profileImage);
-              } catch (e) {
-                console.warn('[CREW_DETAIL] Failed to load MVP from crew member API, trying fallback');
+              // 이미 로드된 멤버 목록에서 프로필 찾기
+              const memberInList = detail.members.find(m => String(m.id) === String(mvpUserId));
+              if (memberInList?.profileImage) {
+                profileImage = memberInList.profileImage;
+                console.log('[CREW_DETAIL] MVP profile from member list:', profileImage);
+              } else {
+                // 폴백: 멤버 목록에 프로필이 없는 경우, 사용자 프로필 API로 조회
                 try {
-                  // 폴백: 내 프로필 정보 가져오기
                   const myProfile = await getMyProfile();
                   if (String(myProfile.id) === String(mvpUserId)) {
+                    // MVP가 나인 경우
                     profileImage = myProfile.profile_image_url ?? null;
                     console.log('[CREW_DETAIL] MVP is me, using my profile image:', profileImage);
                   } else {
-                    // 멤버 목록에서 찾기 (최후 폴백)
-                    const memberInList = detail.members.find(m => String(m.id) === String(mvpUserId));
-                    profileImage = memberInList?.profileImage ?? null;
+                    // MVP가 다른 사람인 경우
+                    const mvpProfile = await getUserProfile(String(mvpUserId));
+                    profileImage = mvpProfile.profile_image_url ?? null;
+                    console.log('[CREW_DETAIL] MVP profile from user API:', profileImage);
                   }
-                } catch (e2) {
-                  console.warn('[CREW_DETAIL] All fallbacks failed:', e2);
+                } catch (e) {
+                  console.warn('[CREW_DETAIL] Failed to load profile:', e);
                 }
               }
             }

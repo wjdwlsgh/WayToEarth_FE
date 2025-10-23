@@ -51,8 +51,10 @@ export async function checkNickname(rawNickname: string) {
 export type OnboardingInput = {
   nickname: string;
   residence: string;
-  weekly_goal_distance: number; // Swagger: 최소 0.01
-  profile_image_url?: string;
+  age_group: string; // "TEENS" | "TWENTIES" | "THIRTIES" | "FORTIES" | "FIFTIES" | "SIXTIES_PLUS"
+  gender: string; // "MALE" | "FEMALE" | "OTHER"
+  weekly_goal_distance: number; // Swagger: 최소 0.1
+  profileImageUrl?: string;
   profile_image_key?: string;
 };
 
@@ -69,12 +71,13 @@ export async function submitOnboarding(input: OnboardingInput) {
   const payload = {
     nickname: (input.nickname ?? "").trim(),
     residence: (input.residence ?? "").trim(),
+    age_group: input.age_group,
+    gender: input.gender,
     weekly_goal_distance: Math.max(
-      0.01,
+      0.1,
       extractNumber(input.weekly_goal_distance)
     ),
-    profile_image_url: input.profile_image_url?.trim() || undefined,
-    profile_image_key: input.profile_image_key?.trim() || undefined,
+    profileImageUrl: input.profileImageUrl?.trim() || undefined,
   };
 
   const res = await client.post("/v1/auth/onboarding", payload);
