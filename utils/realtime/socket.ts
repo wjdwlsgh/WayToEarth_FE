@@ -24,7 +24,7 @@ export async function createSocket(): Promise<SocketLike | null> {
     (typeof process !== "undefined" && (process.env as any)?.EXPO_PUBLIC_API_BASE_URL) ||
     "https://api.waytoearth.cloud";
   const url = baseURL.replace(/\/+$/, "");
-  const token = (await AsyncStorage.getItem("jwtToken")) || "";
+  const token = (await AsyncStorage.getItem("accessToken")) || "";
 
   const socket = io.io(url, {
     path: "/socket.io",
