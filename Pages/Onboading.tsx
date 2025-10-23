@@ -114,7 +114,7 @@ export default function Onboading() {
     // 1) 자동 로그인 체크: 토큰이 있고 프로필 조회 성공이면 러닝 화면으로 즉시 이동
     (async () => {
       try {
-        const token = await AsyncStorage.getItem("jwtToken");
+        const token = await AsyncStorage.getItem("accessToken");
         if (token) {
           await getMyProfile();
 
