@@ -8,7 +8,7 @@ import {
   Animated,
   Dimensions,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ensureAccessToken } from "../utils/auth/tokenManager";
 import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "../types/types";
@@ -114,7 +114,7 @@ export default function Onboading() {
     // 1) 자동 로그인 체크: 토큰이 있고 프로필 조회 성공이면 러닝 화면으로 즉시 이동
     (async () => {
       try {
-        const token = await AsyncStorage.getItem("jwtToken");
+        const token = await ensureAccessToken();
         if (token) {
           await getMyProfile();
 

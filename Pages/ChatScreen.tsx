@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ensureAccessToken, getAccessToken } from "../utils/auth/tokenManager";
 import BottomNavigation, { BOTTOM_NAV_MIN_HEIGHT } from "../components/Layout/BottomNav";
 import { useBottomNav } from "../hooks/useBottomNav";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -61,9 +61,13 @@ export default function ChatScreen({ route }: any) {
     let isMounted = true;
     (async () => {
       try {
-        const storedToken = await AsyncStorage.getItem("jwtToken");
+        const inMem = getAccessToken();
+        if (inMem) {
+          if (!isMounted) return; setToken(inMem); return;
+        }
+        const ensured = await ensureAccessToken();
         if (!isMounted) return;
-        if (storedToken) setToken(storedToken);
+        if (ensured) setToken(ensured);
       } catch {}
     })();
     return () => { isMounted = false };

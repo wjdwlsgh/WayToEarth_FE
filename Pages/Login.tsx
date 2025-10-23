@@ -13,7 +13,7 @@ import {
 import KakaoLoginButton from "../components/KakaoLoginButton";
 import RunningManIcon from "../components/Running/RunningManIcon";
 import useKakaoLogin from "../hooks/useKakaoLogin";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ensureAccessToken } from "../utils/auth/tokenManager";
 import { getMyProfile } from "../utils/api/users";
 import { useNavigation } from "@react-navigation/native";
 import {
@@ -35,7 +35,7 @@ export default function WayToEarthOnboarding() {
     // 자동 로그인: 토큰 보유 + 프로필 조회 성공 시 러닝 화면으로 즉시 이동
     (async () => {
       try {
-        const token = await AsyncStorage.getItem("jwtToken");
+        const token = await ensureAccessToken();
         if (token) {
           await getMyProfile();
 

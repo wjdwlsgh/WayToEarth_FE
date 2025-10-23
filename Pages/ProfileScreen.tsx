@@ -21,8 +21,9 @@ import {
 } from "../utils/api/users";
 import { useFocusEffect } from "@react-navigation/native";
 import SafeLayout from "../components/Layout/SafeLayout";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearTokens } from "../utils/auth/tokenManager";
 import { deactivateToken } from "../utils/notifications";
+import { logout as apiLogout } from "../utils/api/auth";
 
 const number = (v: number | null | undefined, digits = 1) =>
   typeof v === "number" ? Number(v.toFixed(digits)) : 0;
@@ -110,18 +111,21 @@ export default function ProfileScreen({
         style: "destructive",
         onPress: async () => {
           try {
-            // FCM 토큰 비활성화
+            // 서버 로그아웃 (Authorization 필요)
+            // 1) FCM 토큰 비활성화 (인증 필요하므로 먼저 수행)
             await deactivateToken();
-            // JWT 토큰 삭제
-            await AsyncStorage.removeItem("jwtToken");
-            // 로그인 화면으로 이동
+            // 2) 서버 로그아웃 (세션 무효화)
+            try { await apiLogout(); } catch {}
+          } catch (error) {
+            console.error("로그아웃 실패:", error);
+            Alert.alert("오류", "로그아웃 중 문제가 발생했습니다.");
+          } finally {
+            // 로컬 토큰 정리 및 로그인 화면 이동
+            try { await clearTokens(); } catch {}
             navigation.reset({
               index: 0,
               routes: [{ name: "Login" }],
             });
-          } catch (error) {
-            console.error("로그아웃 실패:", error);
-            Alert.alert("오류", "로그아웃 중 문제가 발생했습니다.");
           }
         },
       },

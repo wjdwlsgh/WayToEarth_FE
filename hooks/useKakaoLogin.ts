@@ -1,8 +1,8 @@
 // hooks/useKakaoLogin.ts
 import { useCallback } from "react";
 import { Alert, Platform, NativeModules } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { kakaoLoginWithSDK } from "../utils/api/auth";
+import { setTokens } from "../utils/auth/tokenManager";
 import { useNavigation } from "@react-navigation/native";
 import {
   registerForPushNotificationsAsync,
@@ -59,13 +59,12 @@ export default function useKakaoLogin() {
         ? await Kakao.login()
         : await Kakao.loginWithKakaoAccount();
 
-      const { jwtToken, isOnboardingCompleted } = await kakaoLoginWithSDK(
+      const { accessToken: serverAccessToken, refreshToken: serverRefreshToken, isOnboardingCompleted } = await kakaoLoginWithSDK(
         accessToken
       );
 
-      if (!jwtToken) throw new Error("서버에서 JWT 토큰을 받지 못했습니다.");
-
-      await AsyncStorage.setItem("jwtToken", String(jwtToken));
+      if (!serverAccessToken) throw new Error("서버에서 액세스 토큰을 받지 못했습니다.");
+      await setTokens(String(serverAccessToken), serverRefreshToken ?? null);
 
       // FCM 토큰 등록
       const fcmToken = await registerForPushNotificationsAsync();

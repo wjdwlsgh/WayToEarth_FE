@@ -1,5 +1,5 @@
 // utils/realtime/socket.ts
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ensureAccessToken, getAccessToken } from "../auth/tokenManager";
 import Constants from "expo-constants";
 
 export type SocketLike = {
@@ -24,7 +24,7 @@ export async function createSocket(): Promise<SocketLike | null> {
     (typeof process !== "undefined" && (process.env as any)?.EXPO_PUBLIC_API_BASE_URL) ||
     "https://api.waytoearth.cloud";
   const url = baseURL.replace(/\/+$/, "");
-  const token = (await AsyncStorage.getItem("jwtToken")) || "";
+  const token = getAccessToken() || (await ensureAccessToken(baseURL)) || "";
 
   const socket = io.io(url, {
     path: "/socket.io",

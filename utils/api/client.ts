@@ -1,6 +1,6 @@
 // utils/api/client.ts
 import axios, { AxiosResponse } from "axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAccessToken, refreshAccessToken, ensureAccessToken } from "../auth/tokenManager";
 
 // 목데이터 사용 중단: 항상 실서버 연동
 
@@ -9,17 +9,19 @@ export const client = axios.create({
   timeout: 10000,
 });
 
-// 요청: JWT 자동 주입
+// 요청: 액세스 토큰 자동 주입
 client.interceptors.request.use(async (config) => {
-  try {
-    const t = await AsyncStorage.getItem("jwtToken");
-    if (t) {
-      config.headers = {
-        ...(config.headers as any),
-        Authorization: `Bearer ${t}`,
-      } as any;
-    }
-  } catch {}
+  let t = getAccessToken();
+  if (!t) {
+    const baseURL = client.defaults.baseURL || "https://api.waytoearth.cloud";
+    t = await ensureAccessToken(baseURL);
+  }
+  if (t) {
+    config.headers = {
+      ...(config.headers as any),
+      Authorization: `Bearer ${t}`,
+    } as any;
+  }
   return config;
 });
 
@@ -37,24 +39,48 @@ client.interceptors.response.use(
     }
     return res;
   },
-  (err) => {
+  async (err) => {
     const status = err?.response?.status;
-    const body = err?.response?.data;
     const cfg = err?.config || {};
-    const hasAuth = cfg.headers?.Authorization;
-    console.log(
-      "[API ERR]",
-      status,
-      "method=",
-      cfg.method,
-      "url=",
-      cfg.baseURL ? cfg.baseURL + (cfg.url || "") : cfg.url
-    );
-    console.log("[API ERR] Response Body:", JSON.stringify(body, null, 2));
-    console.log("[API ERR] Has Auth Header:", hasAuth ? "YES" : "NO");
-    if (status === 403) {
-      console.log("[API ERR] 403 Forbidden - Check Admin Role or Token");
+
+    // 401 처리: 토큰 재발급 시도 (무한루프 방지용 플래그)
+    if ((status === 401 || status === 403) && !(cfg as any)._retry) {
+      (cfg as any)._retry = true;
+      try {
+        const baseURL = client.defaults.baseURL || "https://api.waytoearth.cloud";
+        const newAccess = await refreshAccessToken(baseURL);
+        if (newAccess) {
+          cfg.headers = {
+            ...(cfg.headers as any),
+            Authorization: `Bearer ${newAccess}`,
+          } as any;
+          return client(cfg);
+        }
+      } catch (e) {
+        // fallthrough to reject below after cleanup
+      }
     }
+
+    // 로깅 (디버깅용)
+    try {
+      const body = err?.response?.data;
+      const hasAuth = cfg.headers?.Authorization;
+      console.log(
+        "[API ERR]",
+        status,
+        "method=",
+        cfg.method,
+        "url=",
+        cfg.baseURL ? cfg.baseURL + (cfg.url || "") : cfg.url
+      );
+      console.log("[API ERR] Response Body:", JSON.stringify(body, null, 2));
+      console.log("[API ERR] Has Auth Header:", hasAuth ? "YES" : "NO");
+      if (status === 403) {
+        console.log("[API ERR] 403 Forbidden - Check Admin Role or Token");
+      }
+    } catch {}
+
     return Promise.reject(err);
   }
 );
+// token refresh logic centralized in tokenManager
