@@ -61,7 +61,7 @@ export default function ChatScreen({ route }: any) {
     let isMounted = true;
     (async () => {
       try {
-        const storedToken = await AsyncStorage.getItem("jwtToken");
+        const storedToken = await AsyncStorage.getItem("accessToken");
         if (!isMounted) return;
         if (storedToken) setToken(storedToken);
       } catch {}
