@@ -142,3 +142,10 @@ export async function getMySummary(): Promise<UserSummary> {
   const res = await client.get("/v1/users/me/summary");
   return unwrap<UserSummary>(res.data);
 }
+
+// 회원 탈퇴
+export async function deleteMyAccount(): Promise<void> {
+  console.log('[USERS] Deleting account...');
+  await client.delete("/v1/users/me");
+  console.log('[USERS] Account deleted successfully');
+}
