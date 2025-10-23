@@ -18,6 +18,7 @@ import {
 import { WeatherProvider } from "./contexts/WeatherContext";
 
 import Onboading from "./Pages/Onboading";
+import OnboardingScreen from "./Pages/OnboardingScreen";
 import Login from "./Pages/Login";
 import Main from "./Pages/Main";
 import RunSummaryScreen from "./Pages/RunSummaryscreen";
@@ -118,6 +119,7 @@ export default function App() {
         >
         <Stack.Screen name="Onboading" component={Onboading} />
         <Stack.Screen name="Login" component={Login} />
+        <Stack.Screen name="Register" component={OnboardingScreen} />
         <Stack.Screen name="LoginSuccess" component={LoginSuccessScreen} />
         <Stack.Screen name="Main" component={Main} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
