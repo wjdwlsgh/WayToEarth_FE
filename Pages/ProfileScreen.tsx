@@ -367,6 +367,21 @@ export default function ProfileScreen({
             </TouchableOpacity>
           </View>
 
+          <View style={styles.menuSpacer} />
+
+          {/* 회원 탈퇴 */}
+          <View style={styles.menuSection}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              activeOpacity={0.6}
+              onPress={handleDeleteAccount}
+            >
+              <Text style={[styles.menuTitle, styles.deleteAccountText]}>
+                회원 탈퇴
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* 설정 메뉴 - 위 카드로 통합 */}
 
           {/* 하단 여백 */}
@@ -549,6 +564,10 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: "#FF3B30",
+  },
+  deleteAccountText: {
+    color: "#999",
+    fontSize: 14,
   },
   chevron: {
     fontSize: 18,
