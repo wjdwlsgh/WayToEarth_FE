@@ -21,7 +21,7 @@ import {
 } from "../utils/api/users";
 import { useFocusEffect } from "@react-navigation/native";
 import SafeLayout from "../components/Layout/SafeLayout";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearTokens } from "../utils/auth/tokenManager";
 import { deactivateToken } from "../utils/notifications";
 import { logout as apiLogout } from "../utils/api/auth";
 
@@ -120,7 +120,7 @@ export default function ProfileScreen({
             Alert.alert("오류", "로그아웃 중 문제가 발생했습니다.");
           } finally {
             // 로컬 토큰 정리 및 로그인 화면 이동
-            try { await AsyncStorage.multiRemove(["accessToken", "refreshToken"]); } catch {}
+            try { await clearTokens(); } catch {}
             navigation.reset({
               index: 0,
               routes: [{ name: "Login" }],

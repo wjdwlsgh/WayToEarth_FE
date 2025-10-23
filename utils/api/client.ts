@@ -1,6 +1,6 @@
 // utils/api/client.ts
 import axios, { AxiosResponse } from "axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAccessToken, refreshAccessToken } from "../auth/tokenManager";
 
 // 목데이터 사용 중단: 항상 실서버 연동
 
@@ -10,16 +10,14 @@ export const client = axios.create({
 });
 
 // 요청: 액세스 토큰 자동 주입
-client.interceptors.request.use(async (config) => {
-  try {
-    const t = await AsyncStorage.getItem("accessToken");
-    if (t) {
-      config.headers = {
-        ...(config.headers as any),
-        Authorization: `Bearer ${t}`,
-      } as any;
-    }
-  } catch {}
+client.interceptors.request.use((config) => {
+  const t = getAccessToken();
+  if (t) {
+    config.headers = {
+      ...(config.headers as any),
+      Authorization: `Bearer ${t}`,
+    } as any;
+  }
   return config;
 });
 
@@ -45,7 +43,8 @@ client.interceptors.response.use(
     if (status === 401 && !(cfg as any)._retry) {
       (cfg as any)._retry = true;
       try {
-        const newAccess = await refreshAccessToken();
+        const baseURL = client.defaults.baseURL || "https://api.waytoearth.cloud";
+        const newAccess = await refreshAccessToken(baseURL);
         if (newAccess) {
           cfg.headers = {
             ...(cfg.headers as any),
@@ -80,50 +79,4 @@ client.interceptors.response.use(
     return Promise.reject(err);
   }
 );
-
-// --- 토큰 재발급 유틸리티 ---
-let refreshing: Promise<string | null> | null = null;
-
-async function refreshAccessToken(): Promise<string | null> {
-  if (refreshing) return refreshing;
-
-  refreshing = (async () => {
-    try {
-      const refreshToken = await AsyncStorage.getItem("refreshToken");
-      if (!refreshToken) {
-        await AsyncStorage.multiRemove(["accessToken", "refreshToken"]);
-        return null;
-      }
-
-      const baseURL = client.defaults.baseURL || "https://api.waytoearth.cloud";
-      const res = await axios.post(`${baseURL}/v1/auth/refresh`, { refreshToken }, { timeout: 10000 });
-
-      const payload = (res?.data && typeof res.data === "object" && "data" in res.data)
-        ? (res.data as any).data
-        : res.data;
-
-      const newAccessToken: string | undefined = payload?.accessToken;
-      const newRefreshToken: string | null | undefined = payload?.refreshToken ?? null;
-
-      if (!newAccessToken) {
-        await AsyncStorage.multiRemove(["accessToken", "refreshToken"]);
-        return null;
-      }
-
-      await AsyncStorage.setItem("accessToken", newAccessToken);
-      if (newRefreshToken) {
-        await AsyncStorage.setItem("refreshToken", newRefreshToken);
-      }
-
-      return newAccessToken;
-    } catch (e) {
-      // 리프레시 실패 시 토큰 정리
-      try { await AsyncStorage.multiRemove(["accessToken", "refreshToken"]); } catch {}
-      return null;
-    } finally {
-      refreshing = null;
-    }
-  })();
-
-  return refreshing;
-}
+// token refresh logic centralized in tokenManager

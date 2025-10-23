@@ -1,5 +1,6 @@
 // utils/api/auth.ts
 import { client } from "./client";
+import { setTokens, clearTokens } from "../auth/tokenManager";
 
 type KakaoMe = {
   id: number;
@@ -73,6 +74,9 @@ export const kakaoLoginWithSDK = async (accessToken: string) => {
     );
   }
 
+  // Persist using secure strategy
+  await setTokens(String(access), refresh ?? null);
+
   return {
     accessToken: access,
     refreshToken: refresh,
@@ -84,5 +88,6 @@ export const kakaoLoginWithSDK = async (accessToken: string) => {
 
 // 서버 로그아웃 (Authorization 필요)
 export const logout = async () => {
-  await client.post("/v1/auth/logout", {});
+  try { await client.post("/v1/auth/logout", {}); } catch {}
+  await clearTokens();
 };
