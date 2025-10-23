@@ -42,8 +42,8 @@ client.interceptors.response.use(
     const cfg = err?.config || {};
 
     // 401 처리: 토큰 재발급 시도 (무한루프 방지용 플래그)
-    if (status === 401 && !cfg._retry) {
-      cfg._retry = true;
+    if (status === 401 && !(cfg as any)._retry) {
+      (cfg as any)._retry = true;
       try {
         const newAccess = await refreshAccessToken();
         if (newAccess) {
