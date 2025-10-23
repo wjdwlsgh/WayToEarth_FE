@@ -14,9 +14,9 @@ type KakaoMe = {
 export type LoginResponse = {
   // 서버 실제 페이로드(언래핑 가정). 프로젝트 상황에 맞춰 유연하게 사용.
   userId?: number;
-  jwtToken?: string; // 서버가 jwtToken 키로 반환
-  accessToken?: string; // 혹은 accessToken 키로 반환하는 서버도 대비
-  refreshToken?: string;
+  jwtToken?: string; // 구버전 호환
+  accessToken?: string; // 신버전 액세스 토큰
+  refreshToken?: string; // 신버전 리프레시 토큰
   tokenType?: string; // "Bearer"
   isNewUser?: boolean;
   isOnboardingCompleted?: boolean;
@@ -60,28 +60,29 @@ export const kakaoLoginWithSDK = async (accessToken: string) => {
 
   const res = await client.post<LoginResponse>("/v1/auth/kakao", payload);
 
-  // 3) JWT 픽업(언래핑 유/무 모두 커버)
-  const body: any = res.data; // 언래핑되면 페이로드, 아니면 {success,data,...}
-  const jwt =
-    body?.jwtToken ??
-    body?.accessToken ??
-    body?.token ??
-    body?.data?.jwtToken ??
-    body?.data?.accessToken ??
-    body?.data?.token;
+  // 3) 토큰 픽업(언래핑 유/무 모두 커버)
+  const body: any = res.data; // client가 언래핑했으면 페이로드, 아니면 래퍼
+  const data = body?.data ?? body;
 
-  if (!jwt) {
+  const access = data?.accessToken ?? data?.jwtToken ?? data?.token;
+  const refresh = data?.refreshToken;
+
+  if (!access) {
     throw new Error(
-      `서버에서 JWT 토큰을 받지 못했습니다. resp=${JSON.stringify(body)}`
+      `서버에서 액세스 토큰을 받지 못했습니다. resp=${JSON.stringify(body)}`
     );
   }
 
-  // 필요한 플래그도 래퍼 유무에 상관없이 동일 인터페이스로
-  const data = body?.data ?? body;
   return {
-    jwtToken: jwt,
+    accessToken: access,
+    refreshToken: refresh,
     isOnboardingCompleted: data?.isOnboardingCompleted ?? false,
     userId: data?.userId,
     isNewUser: data?.isNewUser,
   } as LoginResponse;
+};
+
+// 서버 로그아웃 (Authorization 필요)
+export const logout = async () => {
+  await client.post("/v1/auth/logout", {});
 };
