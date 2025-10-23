@@ -59,13 +59,16 @@ export default function useKakaoLogin() {
         ? await Kakao.login()
         : await Kakao.loginWithKakaoAccount();
 
-      const { jwtToken, isOnboardingCompleted } = await kakaoLoginWithSDK(
+      const { accessToken: serverAccessToken, refreshToken: serverRefreshToken, isOnboardingCompleted } = await kakaoLoginWithSDK(
         accessToken
       );
 
-      if (!jwtToken) throw new Error("서버에서 JWT 토큰을 받지 못했습니다.");
+      if (!serverAccessToken) throw new Error("서버에서 액세스 토큰을 받지 못했습니다.");
 
-      await AsyncStorage.setItem("jwtToken", String(jwtToken));
+      await AsyncStorage.setItem("accessToken", String(serverAccessToken));
+      if (serverRefreshToken) {
+        await AsyncStorage.setItem("refreshToken", String(serverRefreshToken));
+      }
 
       // FCM 토큰 등록
       const fcmToken = await registerForPushNotificationsAsync();
