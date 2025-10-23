@@ -51,10 +51,10 @@ export async function checkNickname(rawNickname: string) {
 export type OnboardingInput = {
   nickname: string;
   residence: string;
-  age_group: string; // "TEENS" | "TWENTIES" | "THIRTIES" | "FORTIES" | "FIFTIES" | "SIXTIES_PLUS"
-  gender: string; // "MALE" | "FEMALE" | "OTHER"
+  age_group: string; // "10대" | "20대" | "30대" | "40대" | "50대" | "60대 이상"
+  gender: string; // "남성" | "여성" | "기타"
   weekly_goal_distance: number; // Swagger: 최소 0.1
-  profileImageUrl?: string;
+  profile_Image_Url?: string;
   profile_image_key?: string;
 };
 
@@ -77,10 +77,16 @@ export async function submitOnboarding(input: OnboardingInput) {
       0.1,
       extractNumber(input.weekly_goal_distance)
     ),
-    profileImageUrl: input.profileImageUrl?.trim() || undefined,
+    profile_Image_Url: input.profile_Image_Url?.trim() || undefined,
   };
 
+  console.log('[ONBOARDING] Payload:', JSON.stringify(payload, null, 2));
+  console.log('[ONBOARDING] Calling POST /v1/auth/onboarding...');
+
   const res = await client.post("/v1/auth/onboarding", payload);
+
+  console.log('[ONBOARDING] Response received:', res.data);
+
   return unwrap(res.data);
 }
 

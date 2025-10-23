@@ -22,22 +22,22 @@ import { client } from "../utils/api/client";
 
 const { width } = Dimensions.get("window");
 
-type AgeGroup = "TEENS" | "TWENTIES" | "THIRTIES" | "FORTIES" | "FIFTIES" | "SIXTIES_PLUS";
-type Gender = "MALE" | "FEMALE" | "OTHER";
+type AgeGroup = "10대" | "20대" | "30대" | "40대" | "50대" | "60대 이상";
+type Gender = "남성" | "여성" | "기타";
 
 const AGE_OPTIONS: { value: AgeGroup; label: string }[] = [
-  { value: "TEENS", label: "10대" },
-  { value: "TWENTIES", label: "20대" },
-  { value: "THIRTIES", label: "30대" },
-  { value: "FORTIES", label: "40대" },
-  { value: "FIFTIES", label: "50대" },
-  { value: "SIXTIES_PLUS", label: "60대 이상" },
+  { value: "10대", label: "10대" },
+  { value: "20대", label: "20대" },
+  { value: "30대", label: "30대" },
+  { value: "40대", label: "40대" },
+  { value: "50대", label: "50대" },
+  { value: "60대 이상", label: "60대 이상" },
 ];
 
 const GENDER_OPTIONS: { value: Gender; label: string; icon: string }[] = [
-  { value: "MALE", label: "남성", icon: "male" },
-  { value: "FEMALE", label: "여성", icon: "female" },
-  { value: "OTHER", label: "기타", icon: "person" },
+  { value: "남성", label: "남성", icon: "male" },
+  { value: "여성", label: "여성", icon: "female" },
+  { value: "기타", label: "기타", icon: "person" },
 ];
 
 export default function OnboardingScreen() {
@@ -250,13 +250,22 @@ export default function OnboardingScreen() {
     try {
       setSaving(true);
 
+      console.log('[ONBOARDING] Starting submission...');
+      console.log('[ONBOARDING] Form data:', {
+        nickname: nickname.trim(),
+        residence: residence.trim(),
+        age_group: ageGroup,
+        gender: gender,
+        weekly_goal_distance: parseFloat(weeklyGoal),
+      });
+
       await submitOnboarding({
         nickname: nickname.trim(),
         residence: residence.trim(),
         age_group: ageGroup!,
         gender: gender!,
         weekly_goal_distance: parseFloat(weeklyGoal),
-        profileImageUrl: profileImageUrl || undefined,
+        profile_Image_Url: profileImageUrl || undefined,
       });
 
       Alert.alert("환영합니다!", "Way to Earth에 오신 것을 환영합니다.", [

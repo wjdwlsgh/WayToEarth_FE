@@ -39,7 +39,13 @@ type Member = {
   distance?: number;
   profileImage?: string | null;
 };
-type Applicant = { id: string; nickname: string; level?: string; userId?: string };
+type Applicant = {
+  id: string;
+  nickname: string;
+  level?: string;
+  userId?: string;
+  profileImage?: string | null;
+};
 
 export default function CrewDetailScreen() {
   const navigation = useNavigation<any>();
@@ -405,7 +411,16 @@ export default function CrewDetailScreen() {
                 {pending.map((a) => (
                   <View key={a.id} style={s.applicationRow}>
                     <View style={s.applicantInfo}>
-                      <View style={s.applicantAvatar} />
+                      {a.profileImage ? (
+                        <Image
+                          source={{ uri: a.profileImage }}
+                          style={s.applicantAvatar}
+                        />
+                      ) : (
+                        <View style={s.applicantAvatar}>
+                          <Ionicons name="person" size={20} color="#999" />
+                        </View>
+                      )}
                       <View>
                         <Text style={s.applicantName}>{a.nickname}</Text>
                         <Text style={s.applicantLevel}>{a.level}</Text>
@@ -865,6 +880,8 @@ const s = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFB4B4",
     marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
   applicantName: {
     fontSize: 15,

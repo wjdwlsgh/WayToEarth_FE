@@ -19,7 +19,12 @@ export type CrewMember = {
   role: CrewRole;
   profileImage?: string | null;
 };
-export type CrewApplicant = { id: string; nickname: string; userId?: string };
+export type CrewApplicant = {
+  id: string;
+  nickname: string;
+  userId?: string;
+  profileImage?: string | null;
+};
 // Public crew detail (for viewing a specific crew from the list)
 export type CrewPublicDetail = {
   id: string;
@@ -210,6 +215,7 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
         id: String(p.id),
         nickname: String(p.userNickname ?? p.applicantNickname ?? ''),
         userId: p.userId != null ? String(p.userId) : (p.applicantId != null ? String(p.applicantId) : undefined),
+        profileImage: p.userProfileImage ?? p.applicantProfileImage ?? p.profile_image_url ?? p.user_profile_image_url ?? null,
       })),
   };
   console.log('[CREWS][getMyCrewDetail] mapped detail ok');
