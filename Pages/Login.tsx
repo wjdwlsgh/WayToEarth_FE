@@ -35,7 +35,7 @@ export default function WayToEarthOnboarding() {
     // 자동 로그인: 토큰 보유 + 프로필 조회 성공 시 러닝 화면으로 즉시 이동
     (async () => {
       try {
-        const token = await AsyncStorage.getItem("jwtToken");
+        const token = await AsyncStorage.getItem("accessToken");
         if (token) {
           await getMyProfile();
 
