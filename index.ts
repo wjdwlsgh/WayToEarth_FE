@@ -7,7 +7,7 @@ import { navigationRef } from "./navigation/RootNavigation";
 // Ensure background location task is registered at startup
 import "./utils/backgroundLocation";
 import App from "./App";
-import { migrateLegacyTokens } from "./utils/auth/tokenManager";
+import { migrateLegacyTokens, logStorageBackendOnce } from "./utils/auth/tokenManager";
 
 // FCM 백그라운드 메시지 핸들러 (앱 시작 전 등록 필수)
 messaging().setBackgroundMessageHandler(async (remoteMessage) => {
@@ -51,6 +51,7 @@ messaging().setBackgroundMessageHandler(async (remoteMessage) => {
 
 // Migrate legacy tokens into secure strategy at startup (fire-and-forget)
 try { migrateLegacyTokens(); } catch {}
+try { logStorageBackendOnce(); } catch {}
 
 registerRootComponent(App);
 // Android foreground service registration for Notifee (required for asForegroundService)

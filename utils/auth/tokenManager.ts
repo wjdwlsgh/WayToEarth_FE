@@ -30,11 +30,13 @@ async function secureSetItem(key: string, value: string): Promise<void> {
       await SecureStore.setItemAsync(key, value, {
         keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
       });
+      if (__DEV__) console.log(`[auth] Saved ${key} in SecureStore`);
       return;
     }
   } catch {}
   try {
     await AsyncStorage.setItem(key, value);
+    if (__DEV__) console.log(`[auth] Saved ${key} in AsyncStorage (fallback)`);
   } catch {}
 }
 
@@ -42,11 +44,13 @@ async function secureDeleteItem(key: string): Promise<void> {
   try {
     if (SecureStore?.deleteItemAsync) {
       await SecureStore.deleteItemAsync(key);
+      if (__DEV__) console.log(`[auth] Deleted ${key} from SecureStore`);
       return;
     }
   } catch {}
   try {
     await AsyncStorage.removeItem(key);
+    if (__DEV__) console.log(`[auth] Deleted ${key} from AsyncStorage (fallback)`);
   } catch {}
 }
 
@@ -124,6 +128,24 @@ export async function migrateLegacyTokens() {
     const legacyRefresh = await AsyncStorage.getItem("refreshToken");
     accessTokenMemory = legacyAccess || legacyJwt || accessTokenMemory;
     if (legacyRefresh) await secureSetItem(REFRESH_KEY, legacyRefresh);
+  } catch {}
+}
+
+// Diagnostics: check whether SecureStore is available and which backend is used
+export async function isSecureStoreAvailable(): Promise<boolean> {
+  try {
+    if (SecureStore?.isAvailableAsync) return !!(await SecureStore.isAvailableAsync());
+    return !!SecureStore?.getItemAsync;
+  } catch {
+    return false;
+  }
+}
+
+export async function logStorageBackendOnce() {
+  try {
+    const available = await isSecureStoreAvailable();
+    console.log(`[auth] SecureStore available: ${available ? 'YES' : 'NO'}`);
+    console.log(`[auth] refreshToken backend: ${available ? 'SecureStore' : 'AsyncStorage (fallback)'}`);
   } catch {}
 }
 
