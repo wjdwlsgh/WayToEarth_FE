@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import * as Location from "expo-location";
 import { getCurrentWeather } from "../utils/api/weather";
+import { ensureAccessToken, onAuthTokenChange } from "../utils/auth/tokenManager";
 
 export interface WeatherData {
   condition: string;
@@ -44,6 +45,15 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         setLoading(true);
       }
       setError(null);
+
+      // 인증 토큰 확인: 없으면 조용히 스킵 (로그인 전 403 방지)
+      const token = await ensureAccessToken();
+      if (!token) {
+        console.log("[WeatherContext] 토큰 없음 → 호출 스킵");
+        isFetchingRef.current = false;
+        if (!isBackground) setLoading(false);
+        return;
+      }
 
       console.log("[WeatherContext] 위치 권한 확인 중...");
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -98,6 +108,15 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         clearInterval(intervalRef.current);
       }
     };
+  }, []);
+
+  // 로그인 등 토큰 상태 변경 시 즉시 갱신
+  useEffect(() => {
+    const off = onAuthTokenChange(() => {
+      // 토큰이 생겼을 때만 호출하도록 가드
+      ensureAccessToken().then((t) => { if (t) fetchWeather(false); });
+    });
+    return off;
   }, []);
 
   return (

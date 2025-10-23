@@ -22,6 +22,13 @@ client.interceptors.request.use(async (config) => {
       Authorization: `Bearer ${t}`,
     } as any;
   }
+  if (__DEV__) {
+    try {
+      const fullUrl = config.baseURL ? config.baseURL + (config.url || "") : config.url;
+      // eslint-disable-next-line no-console
+      console.log("[API REQ]", config.method, fullUrl, "Has Auth:", t ? "YES" : "NO");
+    } catch {}
+  }
   return config;
 });
 

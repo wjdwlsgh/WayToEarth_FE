@@ -12,6 +12,18 @@ const ACCESS_KEY = "accessToken"; // kept in-memory primarily
 const REFRESH_KEY = "refreshToken"; // stored securely
 
 let accessTokenMemory: string | null = null;
+const tokenListeners = new Set<() => void>();
+
+function emitTokenChange() {
+  tokenListeners.forEach((fn) => {
+    try { fn(); } catch {}
+  });
+}
+
+export function onAuthTokenChange(listener: () => void): () => void {
+  tokenListeners.add(listener);
+  return () => tokenListeners.delete(listener);
+}
 
 async function secureGetItem(key: string): Promise<string | null> {
   try {
@@ -63,6 +75,7 @@ export async function setTokens(accessToken: string, refreshToken?: string | nul
   if (refreshToken) {
     await secureSetItem(REFRESH_KEY, refreshToken);
   }
+  emitTokenChange();
 }
 
 export async function clearTokens() {
@@ -73,6 +86,7 @@ export async function clearTokens() {
     AsyncStorage.removeItem(ACCESS_KEY).catch(() => {}),
     AsyncStorage.removeItem("jwtToken").catch(() => {}),
   ]);
+  emitTokenChange();
 }
 
 export async function getRefreshToken(): Promise<string | null> {
@@ -83,9 +97,20 @@ export async function getRefreshToken(): Promise<string | null> {
 export async function ensureAccessToken(baseURL = "https://api.waytoearth.cloud"): Promise<string | null> {
   if (accessTokenMemory) return accessTokenMemory;
   const rt = await getRefreshToken();
-  if (!rt) return null;
-  const newAccess = await refreshAccessToken(baseURL);
-  return newAccess;
+  if (rt) {
+    const newAccess = await refreshAccessToken(baseURL);
+    return newAccess;
+  }
+  // Legacy fallback: try to hydrate from AsyncStorage once
+  try {
+    const legacyAccess = (await AsyncStorage.getItem("accessToken")) || (await AsyncStorage.getItem("jwtToken"));
+    if (legacyAccess) {
+      accessTokenMemory = legacyAccess;
+      if (__DEV__) console.log("[auth] Hydrated accessToken from legacy storage");
+      return accessTokenMemory;
+    }
+  } catch {}
+  return null;
 }
 
 let refreshing: Promise<string | null> | null = null;
@@ -109,6 +134,7 @@ export async function refreshAccessToken(baseURL = "https://api.waytoearth.cloud
       }
       accessTokenMemory = accessToken;
       if (newRefresh) await secureSetItem(REFRESH_KEY, newRefresh);
+      emitTokenChange();
       return accessToken;
     } catch (e) {
       await clearTokens();
