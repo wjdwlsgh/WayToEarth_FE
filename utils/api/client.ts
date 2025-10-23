@@ -1,6 +1,6 @@
 // utils/api/client.ts
 import axios, { AxiosResponse } from "axios";
-import { getAccessToken, refreshAccessToken } from "../auth/tokenManager";
+import { getAccessToken, refreshAccessToken, ensureAccessToken } from "../auth/tokenManager";
 
 // 목데이터 사용 중단: 항상 실서버 연동
 
@@ -10,8 +10,12 @@ export const client = axios.create({
 });
 
 // 요청: 액세스 토큰 자동 주입
-client.interceptors.request.use((config) => {
-  const t = getAccessToken();
+client.interceptors.request.use(async (config) => {
+  let t = getAccessToken();
+  if (!t) {
+    const baseURL = client.defaults.baseURL || "https://api.waytoearth.cloud";
+    t = await ensureAccessToken(baseURL);
+  }
   if (t) {
     config.headers = {
       ...(config.headers as any),
@@ -40,7 +44,7 @@ client.interceptors.response.use(
     const cfg = err?.config || {};
 
     // 401 처리: 토큰 재발급 시도 (무한루프 방지용 플래그)
-    if (status === 401 && !(cfg as any)._retry) {
+    if ((status === 401 || status === 403) && !(cfg as any)._retry) {
       (cfg as any)._retry = true;
       try {
         const baseURL = client.defaults.baseURL || "https://api.waytoearth.cloud";

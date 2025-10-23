@@ -88,6 +88,6 @@ export const kakaoLoginWithSDK = async (accessToken: string) => {
 
 // 서버 로그아웃 (Authorization 필요)
 export const logout = async () => {
+  // 서버 세션 무효화만 담당. 토큰 삭제는 호출자가 순서 제어(FCM 비활성화 등) 후 수행.
   try { await client.post("/v1/auth/logout", {}); } catch {}
-  await clearTokens();
 };

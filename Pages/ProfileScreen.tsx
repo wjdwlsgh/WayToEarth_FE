@@ -112,9 +112,10 @@ export default function ProfileScreen({
         onPress: async () => {
           try {
             // 서버 로그아웃 (Authorization 필요)
-            try { await apiLogout(); } catch {}
-            // FCM 토큰 비활성화
+            // 1) FCM 토큰 비활성화 (인증 필요하므로 먼저 수행)
             await deactivateToken();
+            // 2) 서버 로그아웃 (세션 무효화)
+            try { await apiLogout(); } catch {}
           } catch (error) {
             console.error("로그아웃 실패:", error);
             Alert.alert("오류", "로그아웃 중 문제가 발생했습니다.");
