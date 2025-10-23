@@ -16,6 +16,7 @@ import {
 import {
   getMyProfile,
   getMySummary,
+  deleteMyAccount,
   type UserProfile,
   type UserSummary,
 } from "../utils/api/users";
