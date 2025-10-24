@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Modal, ActivityIndicator, Animated } from 'react-native';
 import useRouteDetail from '../hooks/journey/useJourneyRouteDetail';
 import { getJourneyRoutes, type RouteId, type JourneyRoute } from '../utils/api/journeyRoutes';
 import { getJourneyLandmarks } from '../utils/api/landmarks';
@@ -17,12 +17,16 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
   const [routeData, setRouteData] = useState<JourneyRoute[]>([]);
   const [landmarkData, setLandmarkData] = useState<JourneyLandmark[]>([]);
   const [loadingJourneyData, setLoadingJourneyData] = useState(false);
+  const [dataReady, setDataReady] = useState(false);
+  const fadeAnim = useMemo(() => new Animated.Value(0), []);
 
   // 여정 데이터 로드
   useEffect(() => {
     if (!id) return;
 
     setLoadingJourneyData(true);
+    setDataReady(false);
+
     Promise.all([
       getJourneyRoutes(id),
       getJourneyLandmarks(Number(id)),
@@ -30,14 +34,28 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
       .then(([routes, landmarks]) => {
         setRouteData(routes);
         setLandmarkData(landmarks);
+        // 데이터 준비 완료
+        setDataReady(true);
       })
       .catch((err) => {
         console.error('여정 데이터 로드 실패:', err);
+        setDataReady(true); // 에러 시에도 화면 표시
       })
       .finally(() => {
         setLoadingJourneyData(false);
       });
   }, [id]);
+
+  // 데이터 준비 완료 시 페이드인
+  useEffect(() => {
+    if (dataReady && !loading) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [dataReady, loading, fadeAnim]);
 
   // 랜드마크 이미지 URL 수집 (메모이제이션)
   const landmarkImages = useMemo(() => {
@@ -46,42 +64,53 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
       .filter((url): url is string => url !== null && url !== undefined && url.trim() !== '');
   }, [landmarkData]);
 
+  // 로딩 중이면 로딩 화면만 표시
+  if (loading || loadingJourneyData || !dataReady) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#1F2937" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6366F1" />
+          <Text style={styles.loadingText}>여정 정보를 불러오는 중...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1F2937" />
 
-      <View style={styles.headerContainer}>
-        {/* 배경 이미지 캐러셀 */}
-        <ImageCarousel
-          images={landmarkImages}
-          height={300}
-          borderRadius={0}
-          autoPlayInterval={4000}
-          showGradient={true}
-        />
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        <View style={styles.headerContainer}>
+          {/* 배경 이미지 캐러셀 */}
+          <ImageCarousel
+            images={landmarkImages}
+            height={300}
+            borderRadius={0}
+            autoPlayInterval={4000}
+            showGradient={true}
+          />
 
-        {/* 오버레이 컨텐츠 */}
-        <View style={styles.headerOverlay}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuButton}>
-            <Text style={styles.menuIcon}>⋯</Text>
-          </TouchableOpacity>
+          {/* 오버레이 컨텐츠 */}
+          <View style={styles.headerOverlay}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
+              <Text style={styles.backIcon}>←</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuButton}>
+              <Text style={styles.menuIcon}>⋯</Text>
+            </TouchableOpacity>
 
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>{data?.title ?? '여정 상세'}</Text>
-            <View style={styles.headerBadge}>
-              <Text style={styles.headerBadgeText}>역사 탐방</Text>
+            <View style={styles.headerContent}>
+              <Text style={styles.headerTitle}>{data?.title ?? '여정 상세'}</Text>
+              <View style={styles.headerBadge}>
+                <Text style={styles.headerBadgeText}>역사 탐방</Text>
+              </View>
             </View>
           </View>
         </View>
-      </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {loading && (
-          <Text style={{ padding: 16, color: '#6B7280' }}>로딩 중...</Text>
-        )}
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.infoCard}>
           <Text style={styles.sectionTitle}>여정 소개</Text>
           <Text style={styles.description}>{data?.description ?? '설명이 없습니다.'}</Text>
@@ -301,12 +330,25 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
           </TouchableOpacity>
         </View>
       </Modal>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
   headerContainer: {
     height: 300,
     position: 'relative',
