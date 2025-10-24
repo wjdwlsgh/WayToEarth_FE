@@ -4,6 +4,7 @@ import useRouteDetail from '../hooks/journey/useJourneyRouteDetail';
 import { getJourneyRoutes, type RouteId, type JourneyRoute } from '../utils/api/journeyRoutes';
 import { getJourneyLandmarks } from '../utils/api/landmarks';
 import type { LandmarkSummary as JourneyLandmark } from '../types/landmark';
+import ImageCarousel from '../components/Common/ImageCarousel';
 
 type RouteParams = { route: { params?: { id?: RouteId } } ; navigation?: any };
 
@@ -38,6 +39,11 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
       });
   }, [id]);
 
+  // 랜드마크 이미지 URL 수집
+  const landmarkImages = landmarkData
+    .map((lm) => lm.imageUrl)
+    .filter((url): url is string => url !== null && url !== undefined && url.trim() !== '');
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1F2937" />
@@ -57,9 +63,12 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
           </View>
         </View>
 
-        <View style={styles.headerImagePlaceholder}>
-          <Text style={styles.headerImageIcon}>🏯</Text>
-        </View>
+        <ImageCarousel
+          images={landmarkImages}
+          height={200}
+          borderRadius={0}
+          autoPlayInterval={4000}
+        />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
