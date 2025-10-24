@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
 import useRouteList from "../hooks/journey/useJourneyRouteList";
 import type { RouteSummary } from "../utils/api/journeyRoutes";
+import ImageCarousel from '../components/Common/ImageCarousel';
 
 export default function RouteListScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState('전체');
@@ -60,59 +61,68 @@ export default function RouteListScreen({ navigation }: any) {
         {loading && (
           <Text style={{ padding: 16, color: '#6B7280' }}>로딩 중...</Text>
         )}
-        {((routes ?? []) as RouteSummary[]).map((route: RouteSummary) => (
-          <TouchableOpacity
-            key={route.id}
-            style={styles.routeCard}
-            onPress={() => navigation?.navigate?.('JourneyRouteDetail', { id: route.id })}
-          >
-            <View style={styles.routeImageContainer}>
-              <View style={styles.routeImage}>
-                <Text style={styles.routeImagePlaceholder}>
-                  {route.image === 'palace' ? '🏯' : route.image === 'jeju' ? '🏝️' : '🌉'}
+        {((routes ?? []) as RouteSummary[]).map((route: RouteSummary) => {
+          // TODO: 백엔드 API에서 여정의 랜드마크 이미지 목록을 포함하도록 개선 필요
+          // 현재는 thumbnailUrl만 사용, 향후 landmarkImages[] 사용 예정
+          const carouselImages = route.image && route.image.startsWith('http')
+            ? [route.image]
+            : [];
+
+          return (
+            <TouchableOpacity
+              key={route.id}
+              style={styles.routeCard}
+              onPress={() => navigation?.navigate?.('JourneyRouteDetail', { id: route.id })}
+            >
+              <View style={styles.routeImageContainer}>
+                <ImageCarousel
+                  images={carouselImages}
+                  height={200}
+                  borderRadius={0}
+                  autoPlayInterval={4000}
+                />
+                <View style={styles.progressBadge}>
+                  <Text style={styles.progressText}>{getProgressPercentage(route)}% 완료</Text>
+                </View>
+                <TouchableOpacity style={styles.favoriteButton}>
+                  <Text style={styles.favoriteIcon}>역사 탐방</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.routeInfo}>
+                <Text style={styles.routeTitle}>{route.title ?? ''}</Text>
+                <Text style={styles.routeDescription} numberOfLines={3}>
+                  {route.description ?? ''}
+                </Text>
+
+                <View style={styles.routeTags}>
+                  {(route.tags ?? []).map((tag, index) => (
+                    <View key={`${route.id}-tag-${index}`} style={styles.tag}>
+                      <Text style={styles.tagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.routeStats}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{route.distance ?? ''}</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{route.duration ?? ''}</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statValue, { color: getDifficultyColor(String(route.difficulty ?? '')) }]}>{route.difficulty ?? ''}</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.participantCount}>
+                  함께한 러너 {Number((route as any).total ?? 0).toLocaleString()}명
+                  <Text style={styles.completedCount}> ▶ 8개 랜드마크</Text>
                 </Text>
               </View>
-              <View style={styles.progressBadge}>
-                <Text style={styles.progressText}>{getProgressPercentage(route)}% 완료</Text>
-              </View>
-              <TouchableOpacity style={styles.favoriteButton}>
-                <Text style={styles.favoriteIcon}>역사 탐방</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.routeInfo}>
-              <Text style={styles.routeTitle}>{route.title ?? ''}</Text>
-              <Text style={styles.routeDescription} numberOfLines={3}>
-                {route.description ?? ''}
-              </Text>
-
-              <View style={styles.routeTags}>
-                {(route.tags ?? []).map((tag, index) => (
-                  <View key={`${route.id}-tag-${index}`} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.routeStats}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{route.distance ?? ''}</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{route.duration ?? ''}</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statValue, { color: getDifficultyColor(String(route.difficulty ?? '')) }]}>{route.difficulty ?? ''}</Text>
-                </View>
-              </View>
-
-              <Text style={styles.participantCount}>
-                함께한 러너 {Number((route as any).total ?? 0).toLocaleString()}명
-                <Text style={styles.completedCount}> ▶ 8개 랜드마크</Text>
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </View>
   );
