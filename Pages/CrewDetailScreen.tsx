@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  RefreshControl,
+  AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getMyProfile, getUserProfile } from "../utils/api/users";
@@ -29,7 +31,7 @@ import {
   getCrewMonthlySummary,
   getCrewMemberRanking,
 } from "../utils/api/crewStats";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Member = {
@@ -80,8 +82,12 @@ export default function CrewDetailScreen() {
   const [hasMoreMembers, setHasMoreMembers] = useState(true);
   const [loadingMoreMembers, setLoadingMoreMembers] = useState(false);
 
-  const refresh = async () => {
-    setLoading(true);
+  const isRefreshingRef = useRef(false);
+
+  const refresh = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
     try {
       console.log("[CREW_DETAIL] refresh start");
       const detail = await getMyCrewDetail();
@@ -101,7 +107,9 @@ export default function CrewDetailScreen() {
         setCrewImageUrl(detail.crew.imageUrl ?? null);
         console.log("[CREW_DETAIL] crew image:", detail.crew.imageUrl);
         console.log("[CREW_DETAIL] members with profiles:", detail.members.map(m => ({ id: m.id, nick: m.nickname, profile: m.profileImage })));
-        setMembers(detail.members as Member[]);
+        if (selectedTab !== "멤버") {
+          setMembers(detail.members as Member[]);
+        }
         setPending(detail.pending as Applicant[]);
         // 월간 요약/멤버 랭킹 조회
         try {
@@ -202,7 +210,8 @@ export default function CrewDetailScreen() {
       }
     } finally {
       console.log("[CREW_DETAIL] refresh done");
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
+      isRefreshingRef.current = false;
     }
   };
 
@@ -217,6 +226,35 @@ export default function CrewDetailScreen() {
       } catch {}
     })();
   }, []);
+
+  // 포커스 시/주기적 새로고침 (실시간에 가깝게)
+  useFocusEffect(
+    React.useCallback(() => {
+      let cancelled = false;
+      // 즉시 소프트 리프레시
+      refresh({ silent: true });
+      // 포커스 중 폴링 (멤버 탭이면 더 짧게)
+      const interval = setInterval(() => {
+        if (!cancelled) refresh({ silent: true });
+      }, selectedTab === "멤버" ? 15000 : 30000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
+    }, [selectedTab, crewId])
+  );
+
+  // 앱이 Active로 전환될 때 소프트 리프레시
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        refresh({ silent: true });
+      }
+    });
+    return () => {
+      try { sub.remove(); } catch {}
+    };
+  }, [crewId]);
 
   // 무한 스크롤: 추가 멤버 로드
   const loadMoreMembers = async () => {
@@ -339,6 +377,14 @@ export default function CrewDetailScreen() {
       <ScrollView
         style={s.scrollView}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={() => refresh({ silent: false })}
+            tintColor="#4A7FE8"
+            titleColor="#4A7FE8"
+          />
+        }
         onScroll={({ nativeEvent }) => {
           const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
           const isCloseToBottom =
@@ -454,14 +500,14 @@ export default function CrewDetailScreen() {
                         onPress={async () => {
                           try {
                             await approveRequest(a.id);
-                            await refresh();
+                            await refresh({ silent: true });
                           } catch (e: any) {
                             // 500/409 등 재시도 플로우: 상세 재조회 후 이미 멤버라면 성공으로 간주
                             try {
                               const detail = await getMyCrewDetail();
                               const already = detail?.members?.some(m => a.userId && String(m.id) === String(a.userId));
                               if (already) {
-                                await refresh();
+                                await refresh({ silent: true });
                               } else {
                                 Alert.alert('승인 실패', e?.response?.data?.message || '서버 오류로 승인에 실패했습니다. 잠시 후 다시 시도해주세요.');
                               }
@@ -478,7 +524,7 @@ export default function CrewDetailScreen() {
                         style={s.rejectPill}
                         onPress={async () => {
                           await rejectRequest(a.id);
-                          await refresh();
+                          await refresh({ silent: true });
                         }}
                         accessibilityLabel="거부"
                       >
@@ -599,7 +645,7 @@ export default function CrewDetailScreen() {
                                   style: "default",
                                   onPress: async () => {
                                     await promoteMember(crewId, m.id);
-                                    await refresh();
+                                    await refresh({ silent: true });
                                   },
                                 },
                               ]
@@ -627,7 +673,7 @@ export default function CrewDetailScreen() {
                                   style: "destructive",
                                   onPress: async () => {
                                     await demoteMember(crewId, m.id);
-                                    await refresh();
+                                    await refresh({ silent: true });
                                   },
                                 },
                               ]
@@ -652,7 +698,7 @@ export default function CrewDetailScreen() {
                                   style: "destructive",
                                   onPress: async () => {
                                     await transferOwnership(crewId, m.id);
-                                    await refresh();
+                                    await refresh({ silent: true });
                                   },
                                 },
                               ]
@@ -681,7 +727,7 @@ export default function CrewDetailScreen() {
                                   style: "destructive",
                                   onPress: async () => {
                                     await removeMember(crewId, m.id);
-                                    await refresh();
+                                    await refresh({ silent: true });
                                   },
                                 },
                               ]
