@@ -9,6 +9,10 @@ export interface GalleryImage {
   orderIndex: number;
 }
 
+// 백엔드 응답 형식 (스펙 문서: images는 List<String>)
+// 실제로는 문자열 배열로 올 가능성이 높음
+export type GalleryImageResponse = string[] | GalleryImage[];
+
 export interface StoryCard {
   id: number;
   title: string;

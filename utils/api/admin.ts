@@ -123,39 +123,54 @@ export async function deleteStoryCard(storyId: number): Promise<void> {
 // ========== 랜드마크 갤러리 관리 ==========
 
 // 랜드마크 갤러리 이미지 추가
-export async function addLandmarkGalleryImage(landmarkId: number | string, imageUrl: string): Promise<void> {
+// TODO: 백엔드 API가 journeyId를 받도록 수정되면 경로를 /v1/admin/landmarks/${journeyId}/${landmarkId}/images로 변경
+export async function addLandmarkGalleryImage(
+  landmarkId: number | string,
+  imageUrl: string
+): Promise<void> {
+  console.log('[API] 갤러리 이미지 추가:', { landmarkId, imageUrl });
   await client.post(`/v1/admin/landmarks/${landmarkId}/images`, { imageUrl });
 }
 
 // 랜드마크 갤러리 이미지 삭제
+// TODO: 백엔드 API가 journeyId를 받도록 수정되면 경로를 /v1/admin/landmarks/${journeyId}/images/${imageId}로 변경
 export async function deleteLandmarkGalleryImage(imageId: number | string): Promise<void> {
+  console.log('[API] 갤러리 이미지 삭제:', { imageId });
   await client.delete(`/v1/admin/landmarks/images/${imageId}`);
 }
 
 // 랜드마크 갤러리 이미지 순서 변경
+// TODO: 백엔드 API가 journeyId를 받도록 수정되면 경로를 /v1/admin/landmarks/${journeyId}/${landmarkId}/images/reorder로 변경
 export async function reorderLandmarkGalleryImages(
   landmarkId: number | string,
   imageIds: number[]
 ): Promise<void> {
+  console.log('[API] 갤러리 순서 변경:', { landmarkId, imageIds });
   await client.patch(`/v1/admin/landmarks/${landmarkId}/images/reorder`, { imageIds });
 }
 
 // ========== 스토리카드 갤러리 관리 ==========
 
 // 스토리카드 갤러리 이미지 추가
+// TODO: 백엔드 API가 journeyId를 받도록 수정되면 경로 변경
 export async function addStoryGalleryImage(storyId: number | string, imageUrl: string): Promise<void> {
+  console.log('[API] 스토리 갤러리 이미지 추가:', { storyId, imageUrl });
   await client.post(`/v1/admin/story-cards/${storyId}/images`, { imageUrl });
 }
 
 // 스토리카드 갤러리 이미지 삭제
+// TODO: 백엔드 API가 journeyId를 받도록 수정되면 경로 변경
 export async function deleteStoryGalleryImage(imageId: number | string): Promise<void> {
+  console.log('[API] 스토리 갤러리 이미지 삭제:', { imageId });
   await client.delete(`/v1/admin/story-cards/images/${imageId}`);
 }
 
 // 스토리카드 갤러리 이미지 순서 변경
+// TODO: 백엔드 API가 journeyId를 받도록 수정되면 경로 변경
 export async function reorderStoryGalleryImages(
   storyId: number | string,
   imageIds: number[]
 ): Promise<void> {
+  console.log('[API] 스토리 갤러리 순서 변경:', { storyId, imageIds });
   await client.patch(`/v1/admin/story-cards/${storyId}/images/reorder`, { imageIds });
 }

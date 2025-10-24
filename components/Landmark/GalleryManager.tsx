@@ -54,6 +54,11 @@ export default function GalleryManager({
     return null; // 관리자가 아니면 표시하지 않음
   }
 
+  // 안전한 이미지 배열 (null, undefined 필터링)
+  const safeImages = (images || []).filter(
+    (img) => img && img.imageUrl && typeof img.imageUrl === 'string'
+  );
+
   // 이미지 선택 헬퍼
   const pickImage = async (): Promise<{ uri: string; mime: string; size: number } | null> => {
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -150,9 +155,11 @@ export default function GalleryManager({
     if (index === 0) return; // 이미 첫 번째면 이동 불가
     try {
       setReordering(true);
-      const newOrder = [...images];
+      const newOrder = [...safeImages];
       [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
       const imageIds = newOrder.map((img) => img.id);
+
+      console.log('[GalleryManager] 순서 변경 (위로):', { type, targetId, imageIds });
 
       if (type === 'landmark') {
         await reorderLandmarkGalleryImages(targetId, imageIds);
@@ -160,6 +167,7 @@ export default function GalleryManager({
         await reorderStoryGalleryImages(targetId, imageIds);
       }
 
+      Alert.alert('완료', '순서가 변경되었습니다.');
       onRefresh();
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.message || '순서 변경에 실패했습니다.';
@@ -171,12 +179,14 @@ export default function GalleryManager({
 
   // 이미지를 한 칸 뒤로 이동
   const moveImageDown = async (index: number) => {
-    if (index === images.length - 1) return; // 이미 마지막이면 이동 불가
+    if (index === safeImages.length - 1) return; // 이미 마지막이면 이동 불가
     try {
       setReordering(true);
-      const newOrder = [...images];
+      const newOrder = [...safeImages];
       [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
       const imageIds = newOrder.map((img) => img.id);
+
+      console.log('[GalleryManager] 순서 변경 (아래로):', { type, targetId, imageIds });
 
       if (type === 'landmark') {
         await reorderLandmarkGalleryImages(targetId, imageIds);
@@ -184,6 +194,7 @@ export default function GalleryManager({
         await reorderStoryGalleryImages(targetId, imageIds);
       }
 
+      Alert.alert('완료', '순서가 변경되었습니다.');
       onRefresh();
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.message || '순서 변경에 실패했습니다.';
@@ -196,7 +207,7 @@ export default function GalleryManager({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>갤러리 이미지 ({images.length})</Text>
+        <Text style={styles.title}>갤러리 이미지 ({safeImages.length})</Text>
         <TouchableOpacity
           style={[styles.addButton, uploading && { opacity: 0.6 }]}
           onPress={handleAddImage}
@@ -206,15 +217,15 @@ export default function GalleryManager({
         </TouchableOpacity>
       </View>
 
-      {images.length === 0 ? (
+      {safeImages.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>갤러리 이미지가 없습니다.</Text>
           <Text style={styles.emptySubText}>이미지를 추가해보세요.</Text>
         </View>
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
-          {images.map((image, index) => (
-            <View key={image.id} style={styles.imageCard}>
+          {safeImages.map((image, index) => (
+            <View key={`gallery-${image.id}-${index}`} style={styles.imageCard}>
               <Image source={{ uri: image.imageUrl }} style={styles.image} resizeMode="cover" />
 
               {/* 순서 표시 */}
@@ -233,9 +244,9 @@ export default function GalleryManager({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.controlButton, index === images.length - 1 && { opacity: 0.3 }]}
+                  style={[styles.controlButton, index === safeImages.length - 1 && { opacity: 0.3 }]}
                   onPress={() => moveImageDown(index)}
-                  disabled={uploading || reordering || index === images.length - 1}
+                  disabled={uploading || reordering || index === safeImages.length - 1}
                 >
                   <Text style={styles.controlButtonText}>▶</Text>
                 </TouchableOpacity>

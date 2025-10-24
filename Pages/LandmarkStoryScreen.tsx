@@ -91,6 +91,34 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
       setLoading(true);
       setError(null);
       const data = await getLandmarkDetail(landmarkId, userId);
+
+      // 백엔드가 images를 문자열 배열로 보내는 경우 GalleryImage[] 형태로 변환
+      if (data.images && Array.isArray(data.images)) {
+        data.images = data.images.map((img: any, idx: number) => {
+          if (typeof img === 'string') {
+            return { id: -(idx + 1), imageUrl: img, orderIndex: idx };
+          }
+          return img;
+        });
+      }
+
+      // storyCards의 images도 동일하게 변환
+      if (data.storyCards && Array.isArray(data.storyCards)) {
+        data.storyCards = data.storyCards.map((story: any) => {
+          if (story.images && Array.isArray(story.images)) {
+            story.images = story.images.map((img: any, idx: number) => {
+              if (typeof img === 'string') {
+                return { id: -(idx + 1), imageUrl: img, orderIndex: idx };
+              }
+              return img;
+            });
+          }
+          return story;
+        });
+      }
+
+      console.log('[LandmarkStoryScreen] 랜드마크 데이터:', data);
+      console.log('[LandmarkStoryScreen] 갤러리 이미지:', data.images);
       setLandmark(data);
     } catch (err: any) {
       console.error('[LandmarkStoryScreen] 랜드마크 로드 실패:', err);
