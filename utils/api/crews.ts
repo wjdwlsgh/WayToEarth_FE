@@ -18,6 +18,7 @@ export type CrewMember = {
   nickname: string;
   role: CrewRole;
   profileImage?: string | null;
+  lastRunningDate?: string | null;
 };
 export type CrewApplicant = {
   id: string;
@@ -141,6 +142,11 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
   const pendingPage = pendingRes.data as any; // PageJoinRequestResponse
   const memberships = membershipsRes.data as any[];
 
+  // 멤버 데이터 샘플 로그 (API 응답 구조 확인용)
+  if (membersPage?.content?.[0]) {
+    console.log('[CREWS] Sample member data:', JSON.stringify(membersPage.content[0], null, 2));
+  }
+
   // 안정적인 ID 선택: 상세가 비어있으면 my.id 사용
   const rawId = d?.id ?? (my as any)?.id;
   if (!rawId) {
@@ -168,7 +174,9 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
   let membersList: any[] = Array.isArray(membersPage?.content)
     ? membersPage.content
     : [];
+  console.log('[CREWS][getMyCrewDetail] Initial members from /members:', membersList.length);
   if (membersList.length <= 1) {
+    console.log('[CREWS][getMyCrewDetail] Members <= 1, trying /members/regular fallback');
     try {
       const { data: reg } = await client.get(`/v1/crews/${my.id}/members/regular`, { params: { page: 0, size: 100 } });
       const regulars = Array.isArray(reg?.content) ? reg.content : Array.isArray(reg) ? reg : [];
@@ -188,10 +196,13 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
         seen.add(key);
         return true;
       });
-    } catch {
-      // ignore
+      console.log('[CREWS][getMyCrewDetail] After fallback, members count:', membersList.length);
+    } catch (e) {
+      console.warn('[CREWS][getMyCrewDetail] Fallback failed:', e);
     }
   }
+
+  console.log('[CREWS][getMyCrewDetail] Final members count before mapping:', membersList.length);
 
   const mapped: CrewDetail = {
     crew: {
@@ -208,6 +219,7 @@ export async function getMyCrewDetail(): Promise<CrewDetail | null> {
       nickname: String(m.userNickname ?? ""),
       role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
       profileImage: m.userProfileImage ?? m.user_profile_image_url ?? m.profile_image_url ?? null,
+      lastRunningDate: m.lastRunningDate ?? null,
     })),
     pending: (pendingPage?.content ?? [])
       .filter((p: any) => String(p?.status ?? '').toUpperCase() === 'PENDING')
@@ -355,6 +367,7 @@ export async function getAllCrewMembers(crewId: string): Promise<CrewMember[]> {
       nickname: String(m.userNickname ?? ""),
       role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
       profileImage: cleanUrl,
+      lastRunningDate: m.lastRunningDate ?? null,
     };
   }) as CrewMember[];
   console.log('[CREWS][getAllCrewMembers] mapped members:', JSON.stringify(members, null, 2));
@@ -370,6 +383,7 @@ export async function getCrewMember(crewId: string, userId: string): Promise<Cre
     nickname: String(m.userNickname ?? ""),
     role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
     profileImage: m.userProfileImage ?? null,
+    lastRunningDate: m.lastRunningDate ?? null,
   };
 }
 
@@ -388,6 +402,7 @@ export async function getCrewMembers(
     nickname: String(m.userNickname ?? ""),
     role: m.isOwner || m.role === "OWNER" ? "ADMIN" : "MEMBER",
     profileImage: m.userProfileImage ?? null,
+    lastRunningDate: m.lastRunningDate ?? null,
   })) as CrewMember[];
   const hasMore = !pageData?.last && members.length === size;
   return { members, hasMore };

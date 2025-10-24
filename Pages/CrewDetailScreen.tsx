@@ -38,6 +38,7 @@ type Member = {
   role: "ADMIN" | "MEMBER";
   distance?: number;
   profileImage?: string | null;
+  lastRunningDate?: string | null;
 };
 type Applicant = {
   id: string;
@@ -128,9 +129,17 @@ export default function CrewDetailScreen() {
             }),
           ]);
           const dist = summary?.totalDistance ?? 0;
-          const active = summary?.totalActiveMembers ?? detail.members.length;
+          const memberCount = detail.members?.length ?? 0;
+          const active = summary?.totalActiveMembers ?? memberCount;
+
+          console.log('[CREW_DETAIL] Setting crew info:', {
+            memberCount,
+            active,
+            dist
+          });
+
           setCrewInfo({
-            members: `멤버 ${detail.members.length}명`,
+            members: `멤버 ${memberCount}명`,
             roleLabel: `내 역할 ${detail.role === "ADMIN" ? "관리자" : "멤버"}`,
             totalDistance: formatKm(dist),
             activeMembers: `${active}명`,
@@ -260,6 +269,19 @@ export default function CrewDetailScreen() {
     return r % 1 === 0 ? `${r | 0}km` : `${r}km`;
   }
 
+  function formatLastRunning(date: string | null | undefined): string {
+    if (!date) return "러닝기록 없음";
+    const runningDate = new Date(date);
+    if (isNaN(runningDate.getTime())) return "-";
+    const now = new Date();
+    const diffMs = now.getTime() - runningDate.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return "오늘";
+    if (diffDays === 1) return "어제";
+    if (diffDays <= 7) return `${diffDays}일전`;
+    return runningDate.toLocaleDateString("ko-KR");
+  }
+
   return (
     <SafeAreaView style={s.container}>
       <StatusBar barStyle="light-content" />
@@ -347,7 +369,7 @@ export default function CrewDetailScreen() {
             <View style={s.crewHeaderText}>
               <Text style={s.crewName}>{crewName}</Text>
               <Text style={s.crewSubInfo}>
-                {crewInfo.members}
+                {loading ? "로딩 중..." : crewInfo.members || "멤버 0명"}
                 {crewInfo.roleLabel ? ` • ${crewInfo.roleLabel}` : ""}
               </Text>
             </View>
@@ -360,7 +382,7 @@ export default function CrewDetailScreen() {
             </View>
             <View style={s.statItem}>
               <Text style={s.statValue}>{crewInfo.activeMembers}</Text>
-              <Text style={s.statLabel}>활동 멤버</Text>
+              <Text style={s.statLabel}>이번 달 활동</Text>
             </View>
           </View>
         </View>
@@ -555,6 +577,9 @@ export default function CrewDetailScreen() {
                       <Text style={s.memberName}>
                         {m.nickname}
                         {m.role === "ADMIN" && <Text style={s.adminBadge}> 관리자</Text>}
+                      </Text>
+                      <Text style={s.memberSub}>
+                        최근 러닝: {formatLastRunning(m.lastRunningDate)}
                       </Text>
                     </View>
                   </View>
@@ -1071,6 +1096,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
   memberName: { fontSize: 15, color: "#111827", fontWeight: "500" },
+  memberSub: { fontSize: 12, color: "#6B7280", marginTop: 2 },
   adminBadge: {
     fontSize: 12,
     color: "#F59E0B",
