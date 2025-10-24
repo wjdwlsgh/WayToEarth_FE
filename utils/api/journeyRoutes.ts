@@ -17,6 +17,7 @@ export type Journey = {
   estimatedDays: number;
   thumbnailUrl: string;
   completedUserCount?: number;
+  runningTogether?: number; // 함께 뛰는 러너 수
 };
 
 // 여정 경로 좌표 타입
@@ -41,6 +42,7 @@ export type RouteSummary = {
   total: number;
   image: string;
   tags: string[];
+  runningTogether?: number; // 함께 뛰는 러너 수
 };
 
 export type Landmark = {
@@ -70,6 +72,7 @@ function mapJourneyToSummary(j: Journey): RouteSummary {
     total: j.completedUserCount || 0,
     image: j.thumbnailUrl || "palace",
     tags: [],
+    runningTogether: j.runningTogether, // 함께 뛰는 러너 수
   };
 }
 
@@ -77,6 +80,7 @@ function mapJourneyToSummary(j: Journey): RouteSummary {
 export async function listRoutes(): Promise<RouteSummary[]> {
   const res = await client.get("/v1/journeys");
   const arr: any[] = Array.isArray(res.data) ? res.data : res.data?.content ?? [];
+  console.log('[JourneyRoutes] API Response Sample:', JSON.stringify(arr[0], null, 2));
   return arr.map((x: any) => mapJourneyToSummary({
     id: Number(x.id ?? x.journeyId ?? 0),
     title: String(x.title ?? x.name ?? ""),
@@ -87,6 +91,7 @@ export async function listRoutes(): Promise<RouteSummary[]> {
     estimatedDays: Number(x.estimatedDays ?? x.days ?? 0),
     thumbnailUrl: String(x.thumbnailUrl ?? x.imageUrl ?? ""),
     completedUserCount: Number(x.completedUserCount ?? x.completed ?? 0),
+    runningTogether: Number(x.runningTogether ?? 0), // 함께 뛰는 러너 수
   } as Journey));
 }
 
@@ -107,6 +112,7 @@ export async function getRouteDetail(id: RouteId): Promise<RouteDetail> {
     estimatedDays: Number(j.estimatedDays ?? j.days ?? 0),
     thumbnailUrl: String(j.thumbnailUrl ?? j.imageUrl ?? ""),
     completedUserCount: Number(j.completedUserCount ?? j.completed ?? 0),
+    runningTogether: Number(j.runningTogether ?? 0), // 함께 뛰는 러너 수
   } as Journey);
 
   // 랜드마크는 공용 유틸을 통해 로드(엔드포인트 폴백/매핑 포함)

@@ -143,7 +143,7 @@ export default function RouteListScreen({ navigation }: any) {
                 </View>
 
                 <Text style={styles.participantCount}>
-                  함께한 러너 {Number((route as any).total ?? 0).toLocaleString()}명
+                  함께한 러너 {Number(route.runningTogether ?? 0).toLocaleString()}명
                   <Text style={styles.completedCount}> ▶ 8개 랜드마크</Text>
                 </Text>
               </View>

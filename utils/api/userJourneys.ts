@@ -20,6 +20,7 @@ export type UserJourneyProgressSummary = {
   percent: number;
   lastLandmarkOrder?: number;
   todayRunM?: number;
+  runningTogether?: number; // 함께 뛰는 러너 수
 };
 
 const progressKey = (userId: string, journeyId: JourneyId) => `@journey_progress_id:${userId}:${journeyId}`;
@@ -293,6 +294,7 @@ export async function listUserProgress(_userId: string): Promise<UserJourneyProg
           percent,
           lastLandmarkOrder: Number(x?.lastLandmarkOrder ?? 0),
           todayRunM: Number(x?.todayRunM ?? 0),
+          runningTogether: Number(x?.runningTogether ?? 0), // 함께 뛰는 러너 수
         } as UserJourneyProgressSummary;
       })
       .filter(Boolean) as UserJourneyProgressSummary[];

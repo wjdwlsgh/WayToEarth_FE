@@ -23,9 +23,11 @@ export default function useRouteList() {
           const progressList = await listUserProgress(String(me.id));
           const percentMap = new Map<number, number>();
           const progressMMap = new Map<number, number>();
+          const runningTogetherMap = new Map<number, number>();
           progressList.forEach((p) => {
             percentMap.set(Number(p.journeyId), Number(p.percent) || 0);
             progressMMap.set(Number(p.journeyId), Number(p.progressM) || 0);
+            runningTogetherMap.set(Number(p.journeyId), Number(p.runningTogether) || 0);
           });
           enriched = routes.map((r) => {
             const jid = Number(r.id);
@@ -37,7 +39,8 @@ export default function useRouteList() {
               const totalM = totalKm * 1000;
               percent = totalM > 0 ? (progressM / totalM) * 100 : 0;
             }
-            return { ...r, userProgressPercent: percent } as any;
+            const runningTogether = runningTogetherMap.get(jid) ?? r.runningTogether ?? 0;
+            return { ...r, userProgressPercent: percent, runningTogether } as any;
           });
         } catch {
           // 진행률 병합 실패 시 리스트만 표시
