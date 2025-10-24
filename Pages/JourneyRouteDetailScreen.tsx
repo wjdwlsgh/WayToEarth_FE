@@ -51,26 +51,31 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
       <StatusBar barStyle="light-content" backgroundColor="#1F2937" />
 
       <View style={styles.headerContainer}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuButton}>
-          <Text style={styles.menuIcon}>⋯</Text>
-        </TouchableOpacity>
-
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>{data?.title ?? '여정 상세'}</Text>
-          <View style={styles.headerBadge}>
-            <Text style={styles.headerBadgeText}>역사 탐방</Text>
-          </View>
-        </View>
-
+        {/* 배경 이미지 캐러셀 */}
         <ImageCarousel
           images={landmarkImages}
-          height={200}
+          height={300}
           borderRadius={0}
           autoPlayInterval={4000}
+          showGradient={true}
         />
+
+        {/* 오버레이 컨텐츠 */}
+        <View style={styles.headerOverlay}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuButton}>
+            <Text style={styles.menuIcon}>⋯</Text>
+          </TouchableOpacity>
+
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>{data?.title ?? '여정 상세'}</Text>
+            <View style={styles.headerBadge}>
+              <Text style={styles.headerBadgeText}>역사 탐방</Text>
+            </View>
+          </View>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -302,17 +307,82 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  headerContainer: { height: 300, backgroundColor: '#1F2937', position: 'relative', justifyContent: 'center', alignItems: 'center' },
-  backButton: { position: 'absolute', top: 60, left: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0, 0, 0, 0.3)', alignItems: 'center', justifyContent: 'center' },
-  backIcon: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
-  menuButton: { position: 'absolute', top: 60, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0, 0, 0, 0.3)', alignItems: 'center', justifyContent: 'center' },
-  menuIcon: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
-  headerContent: { alignItems: 'center' },
-  headerTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginBottom: 8 },
-  headerBadge: { backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  headerBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  headerImagePlaceholder: { position: 'absolute', bottom: 16, right: 20 },
-  headerImageIcon: { fontSize: 40 },
+  headerContainer: {
+    height: 300,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  headerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backdropFilter: 'blur(10px)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  backIcon: { color: '#FFFFFF', fontSize: 24, fontWeight: '700' },
+  menuButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backdropFilter: 'blur(10px)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  menuIcon: { color: '#FFFFFF', fontSize: 24, fontWeight: '700' },
+  headerContent: {
+    position: 'absolute',
+    bottom: 24,
+    left: 20,
+    right: 20,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  headerBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.9)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  headerBadgeText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   content: { flex: 1 },
   infoCard: { margin: 16, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 8 },
