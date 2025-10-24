@@ -5,7 +5,7 @@ import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { navigationRef } from "./navigation/RootNavigation";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createStackNavigator, CardStyleInterpolators, TransitionSpecs } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "./types/types";
 import "./global.css";
@@ -115,7 +115,17 @@ export default function App() {
       <NavigationContainer ref={navigationRef} onReady={handleNavReady}>
         <Stack.Navigator
           initialRouteName={"Onboading"}
-          screenOptions={{ headerShown: false }}
+          screenOptions={{
+            headerShown: false,
+            // 부드러운 페이지 전환 애니메이션
+            gestureEnabled: true,
+            gestureDirection: 'horizontal',
+            cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+            transitionSpec: {
+              open: TransitionSpecs.TransitionIOSSpec,
+              close: TransitionSpecs.TransitionIOSSpec,
+            },
+          }}
         >
         <Stack.Screen name="Onboading" component={Onboading} />
         <Stack.Screen name="Login" component={Login} />
