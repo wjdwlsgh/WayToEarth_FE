@@ -12,6 +12,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   ViewStyle,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -37,11 +38,24 @@ export default function ImageCarousel({
   style,
 }: ImageCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const scrollX = useRef(0);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // 유효한 이미지만 필터링
   const validImages = images.filter((img) => img && typeof img === 'string' && img.trim() !== '');
+
+  // 첫 이미지 로드 시 페이드인
+  useEffect(() => {
+    if (imageLoaded) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [imageLoaded, fadeAnim]);
 
   // 자동 슬라이드
   useEffect(() => {
@@ -82,12 +96,17 @@ export default function ImageCarousel({
   };
 
   // 이미지 렌더링
-  const renderItem = ({ item }: { item: string }) => (
+  const renderItem = ({ item, index }: { item: string; index: number }) => (
     <View style={[styles.imageContainer, { width: SCREEN_WIDTH }]}>
       <Image
         source={{ uri: item }}
         style={[styles.image, { height, borderRadius }]}
         resizeMode="cover"
+        onLoad={() => {
+          if (index === 0 && !imageLoaded) {
+            setImageLoaded(true);
+          }
+        }}
       />
       {showGradient && (
         <LinearGradient
@@ -100,35 +119,44 @@ export default function ImageCarousel({
 
   return (
     <View style={[styles.container, { height, borderRadius }, style]}>
-      <FlatList
-        ref={flatListRef}
-        data={validImages}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => `carousel-${index}-${item.substring(0, 20)}`}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        getItemLayout={(_, index) => ({
-          length: SCREEN_WIDTH,
-          offset: SCREEN_WIDTH * index,
-          index,
-        })}
-      />
+      <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
+        <FlatList
+          ref={flatListRef}
+          data={validImages}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => `carousel-${index}-${item.substring(0, 20)}`}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          getItemLayout={(_, index) => ({
+            length: SCREEN_WIDTH,
+            offset: SCREEN_WIDTH * index,
+            index,
+          })}
+        />
 
-      {/* 인디케이터 Dots */}
-      {showIndicators && validImages.length > 1 && (
-        <View style={styles.indicatorContainer}>
-          {validImages.map((_, index) => (
-            <View
-              key={`dot-${index}`}
-              style={[
-                styles.dot,
-                index === currentIndex ? styles.activeDot : styles.inactiveDot,
-              ]}
-            />
-          ))}
+        {/* 인디케이터 Dots */}
+        {showIndicators && validImages.length > 1 && (
+          <View style={styles.indicatorContainer}>
+            {validImages.map((_, index) => (
+              <View
+                key={`dot-${index}`}
+                style={[
+                  styles.dot,
+                  index === currentIndex ? styles.activeDot : styles.inactiveDot,
+                ]}
+              />
+            ))}
+          </View>
+        )}
+      </Animated.View>
+
+      {/* 로딩 중 플레이스홀더 */}
+      {!imageLoaded && (
+        <View style={[StyleSheet.absoluteFill, styles.loadingPlaceholder]}>
+          <Text style={styles.placeholderIcon}>🏞️</Text>
         </View>
       )}
     </View>
@@ -162,6 +190,11 @@ const styles = StyleSheet.create({
   placeholderIcon: {
     fontSize: 48,
     opacity: 0.5,
+  },
+  loadingPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E5E7EB',
   },
   indicatorContainer: {
     position: 'absolute',
