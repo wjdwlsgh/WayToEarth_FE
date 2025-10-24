@@ -20,6 +20,7 @@ import StoryCard from '../components/Landmark/StoryCard';
 import StoryTypeTabs from '../components/Landmark/StoryTypeTabs';
 import GuestbookCreateModal from '../components/Guestbook/GuestbookCreateModal';
 import LandmarkStatistics from '../components/Guestbook/LandmarkStatistics';
+import GalleryManager from '../components/Landmark/GalleryManager';
 import { getLandmarkDetail } from '../utils/api/landmarks';
 import { getMyProfile } from '../utils/api/users';
 import { presignLandmarkImage, presignStoryImage, updateLandmarkImage, updateStoryImage, uploadToS3, guessImageMime, createStoryCard, updateStoryCard, deleteStoryCard } from '../utils/api/admin';
@@ -362,9 +363,22 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
               onChangeText={setJourneyIdInput}
             />
             <TouchableOpacity style={[styles.adminBtn, uploading && { opacity: 0.6 }]} disabled={uploading} onPress={handleUploadLandmarkImage}>
-              <Text style={styles.adminBtnText}>{uploading ? '업로드 중…' : '랜드마크 이미지 업로드'}</Text>
+              <Text style={styles.adminBtnText}>{uploading ? '업로드 중…' : '랜드마크 커버 이미지 업로드'}</Text>
             </TouchableOpacity>
-            <Text style={styles.adminHelp}>스토리 이미지는 각 카드의 버튼으로 업로드하세요.</Text>
+            <Text style={styles.adminHelp}>커버 이미지는 랜드마크 대표 이미지입니다.</Text>
+
+            {/* 랜드마크 갤러리 관리 */}
+            {journeyIdInput && Number(journeyIdInput) > 0 && (
+              <GalleryManager
+                type="landmark"
+                targetId={landmarkId}
+                journeyId={Number(journeyIdInput)}
+                landmarkId={landmarkId}
+                images={landmark?.images || []}
+                onRefresh={loadLandmarkDetail}
+                isAdmin={isAdmin}
+              />
+            )}
           </View>
         )}
 
