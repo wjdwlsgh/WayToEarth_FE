@@ -269,15 +269,43 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         onMapReady={() => setMapReady(true)}
       />
 
-      {/* 지도 비네팅 효과 */}
+      {/* 상단 비네팅 효과 */}
       <LinearGradient
-        colors={['rgba(249, 250, 251, 0.7)', 'transparent', 'rgba(249, 250, 251, 0.7)']}
+        colors={['rgba(255, 255, 255, 1)', 'rgba(255, 255, 255, 0.7)', 'transparent']}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 180,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* 좌우 비네팅 효과 */}
+      <LinearGradient
+        colors={['rgba(255, 255, 255, 0.9)', 'transparent', 'rgba(255, 255, 255, 0.9)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* 하단 비네팅 효과 */}
+      <LinearGradient
+        colors={['transparent', 'rgba(255, 255, 255, 0.6)', 'rgba(255, 255, 255, 1)']}
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 200,
           pointerEvents: 'none',
         }}
       />
@@ -379,9 +407,10 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         <View
           style={{
             position: "absolute",
-            left: 20,
-            right: 20,
-            bottom: bottomSafe + 24,
+            left: 0,
+            right: 0,
+            bottom: bottomSafe + 90,
+            alignItems: "center",
           }}
         >
           <TouchableOpacity
@@ -389,36 +418,57 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
               if (activeTab === 'running') {
                 handleRunningStart();
               } else {
-                navigation.navigate("JourneyRouteList");
+                // Tab Navigator에서 Root Stack으로 이동
+                if (navigationRef.isReady()) {
+                  navigationRef.navigate('JourneyRouteList' as never);
+                } else {
+                  // fallback: parent navigation 사용
+                  const parentNav = navigation.getParent?.();
+                  if (parentNav) {
+                    parentNav.navigate('JourneyRouteList');
+                  } else {
+                    navigation.navigate('JourneyRouteList');
+                  }
+                }
               }
             }}
             disabled={activeTab === 'running' && (!t.isReady || t.isInitializing)}
             style={{
-              height: 64,
-              borderRadius: 32,
+              width: 80,
+              height: 80,
+              borderRadius: 40,
               backgroundColor:
                 activeTab === 'running' && (!t.isReady || t.isInitializing)
-                  ? "#9CA3AF"
-                  : "#3B82F6",
+                  ? "rgba(0, 0, 0, 0.3)"
+                  : "rgba(0, 0, 0, 0.85)",
               alignItems: "center",
               justifyContent: "center",
               shadowColor: "#000",
-              shadowOpacity: 0.2,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 8,
+              shadowOpacity: 0.3,
+              shadowRadius: 30,
+              shadowOffset: { width: 0, height: 10 },
+              elevation: 15,
+              borderWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.2)",
             }}
           >
             <Text
-              style={{ fontSize: 18, fontWeight: "700", color: "#fff" }}
+              style={{
+                fontSize: 15,
+                fontWeight: "800",
+                color: activeTab === 'running' && (!t.isReady || t.isInitializing)
+                  ? "rgba(255, 255, 255, 0.5)"
+                  : "#FFFFFF",
+                textAlign: "center",
+              }}
             >
               {activeTab === 'running'
                 ? (!t.isReady
-                  ? "준비중..."
+                  ? "준비중"
                   : t.isInitializing
-                  ? "시작중..."
-                  : "러닝 시작")
-                : "여정 리스트 보기"}
+                  ? "시작중"
+                  : "시작")
+                : "여정"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -450,14 +500,16 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
 const styles = StyleSheet.create({
   segmentControl: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     borderRadius: 24,
     padding: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   segmentButton: {
     paddingHorizontal: 20,
@@ -465,12 +517,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   segmentButtonActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   segmentText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   segmentTextActive: {
     color: '#FFFFFF',

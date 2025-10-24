@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
 } from "react-native";
+import { LinearGradient } from 'expo-linear-gradient';
 import Feather from "@expo/vector-icons/Feather";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
@@ -20,6 +21,7 @@ interface NavItem {
 interface BottomNavigationProps {
   activeTab: string;
   onTabPress: (tabKey: string) => void;
+  isRunningScreen?: boolean;
 }
 
 // 네비게이션 아이템 데이터
@@ -31,18 +33,26 @@ const navItems: NavItem[] = [
   { key: "record", label: "기록" },
 ];
 
-const ACTIVE = "#2c5530";
 export const BOTTOM_NAV_MIN_HEIGHT = 70; // 스크롤 하단 패딩 계산용(선택)
 
 // ✅ 핵심: 절대 하단 고정 + SafeAreaView로 하단 노치 공간 확보
 const BottomNavigation: React.FC<BottomNavigationProps> = ({
   activeTab,
   onTabPress,
+  isRunningScreen = false,
 }) => {
+  const ACTIVE = "#000000";
+
   return (
     <View pointerEvents="box-none" style={styles.absoluteBottom}>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.navContainer}>
+      <SafeAreaView style={[
+        styles.container,
+        !isRunningScreen && styles.containerNormal
+      ]}>
+        <View style={[
+          styles.floatingBar,
+          isRunningScreen && styles.floatingBarRunning
+        ]}>
           {navItems.map((item) => {
             const active = activeTab === item.key;
             return (
@@ -55,42 +65,45 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 <View
                   style={[
                     styles.iconContainer,
-                    active && styles.activeIconContainer,
+                    active && { backgroundColor: ACTIVE },
                   ]}
                 >
                   {item.key === "crew" ? (
                     <Feather
                       name="users"
-                      size={20}
-                      color={active ? "#ffffff" : "#2a2a2a"}
+                      size={24}
+                      color={active ? "#ffffff" : "#4B5563"}
                     />
                   ) : item.key === "profile" ? (
                     <Feather
                       name="user"
-                      size={20}
-                      color={active ? "#ffffff" : "#2a2a2a"}
+                      size={24}
+                      color={active ? "#ffffff" : "#4B5563"}
                     />
                   ) : item.key === "running" ? (
                     <MaterialCommunityIcons
                       name="run"
-                      size={20}
-                      color={active ? "#ffffff" : "#2a2a2a"}
+                      size={24}
+                      color={active ? "#ffffff" : "#4B5563"}
                     />
                   ) : item.key === "feed" ? (
                     <Feather
                       name="list"
-                      size={20}
-                      color={active ? "#ffffff" : "#2a2a2a"}
+                      size={24}
+                      color={active ? "#ffffff" : "#4B5563"}
                     />
                   ) : item.key === "record" ? (
                     <Feather
                       name="bar-chart-2"
-                      size={20}
-                      color={active ? "#ffffff" : "#2a2a2a"}
+                      size={24}
+                      color={active ? "#ffffff" : "#4B5563"}
                     />
                   ) : null}
                 </View>
-                <Text style={[styles.label, active && styles.activeLabel]}>
+                <Text style={[
+                  styles.label,
+                  active && { color: ACTIVE, fontWeight: "700" }
+                ]}>
                   {item.label}
                 </Text>
               </TouchableOpacity>
@@ -103,16 +116,25 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
 };
 
 const styles = StyleSheet.create({
-  // ⚠️ 전체 화면을 덮는 absoluteFillObject / top:0 쓰지 말고,
-  // 하단에만 고정시킵니다.
   absoluteBottom: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 100, // 콘텐츠 위에 보이도록
+    zIndex: 100,
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 180,
+    zIndex: 99,
   },
   container: {
+    backgroundColor: "transparent",
+  },
+  containerNormal: {
     backgroundColor: "#ffffff",
     borderTopWidth: 1,
     borderTopColor: "#e5e5e5",
@@ -122,13 +144,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
   },
-  navContainer: {
+  floatingBar: {
     flexDirection: "row",
     paddingVertical: 8,
     paddingHorizontal: 16,
     justifyContent: "space-around",
     alignItems: "center",
     minHeight: BOTTOM_NAV_MIN_HEIGHT,
+  },
+  floatingBarRunning: {
+    backgroundColor: "transparent",
   },
   navItem: {
     flex: 1,
@@ -137,27 +162,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 2,
     backgroundColor: "transparent",
   },
-  activeIconContainer: {
-    backgroundColor: ACTIVE,
-  },
-  
   label: {
     fontSize: 11,
-    fontWeight: "500",
-    color: "#666666",
-    textAlign: "center",
-  },
-  activeLabel: {
-    color: ACTIVE,
     fontWeight: "600",
+    color: "#6B7280",
+    textAlign: "center",
   },
 });
 

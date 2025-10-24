@@ -66,5 +66,5 @@ export default function TabBarAdapter({
   };
 
   if (hidden) return null;
-  return <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />;
+  return <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} isRunningScreen={route.name === 'LiveRunningScreen'} />;
 }
