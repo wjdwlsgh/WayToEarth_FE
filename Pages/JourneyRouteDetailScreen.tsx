@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Modal, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Modal, ActivityIndicator, Animated, Easing } from 'react-native';
 import useRouteDetail from '../hooks/journey/useJourneyRouteDetail';
 import { getJourneyRoutes, type RouteId, type JourneyRoute } from '../utils/api/journeyRoutes';
 import { getJourneyLandmarks } from '../utils/api/landmarks';
@@ -19,6 +19,8 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
   const [loadingJourneyData, setLoadingJourneyData] = useState(false);
   const [dataReady, setDataReady] = useState(false);
   const fadeAnim = useMemo(() => new Animated.Value(0), []);
+  const slideAnim = useMemo(() => new Animated.Value(30), []);
+  const spinValue = React.useRef(new Animated.Value(0)).current;
 
   // 여정 데이터 로드
   useEffect(() => {
@@ -46,16 +48,45 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
       });
   }, [id]);
 
-  // 데이터 준비 완료 시 페이드인
+  // 로딩 스피너 회전 애니메이션
+  useEffect(() => {
+    spinValue.setValue(0); // 리셋
+
+    const spinAnimation = Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+
+    spinAnimation.start();
+
+    return () => {
+      spinAnimation.stop();
+    };
+  }, []);
+
+  // 데이터 준비 완료 시 페이드인 + 슬라이드업
   useEffect(() => {
     if (dataReady && !loading) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1), // 부드러운 이징
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 500,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [dataReady, loading, fadeAnim]);
+  }, [dataReady, loading, fadeAnim, slideAnim]);
 
   // 랜드마크 이미지 URL 수집 (메모이제이션)
   const landmarkImages = useMemo(() => {
@@ -64,13 +95,23 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
       .filter((url): url is string => url !== null && url !== undefined && url.trim() !== '');
   }, [landmarkData]);
 
+  // 스피너 회전 각도
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   // 로딩 중이면 로딩 화면만 표시
   if (loading || loadingJourneyData || !dataReady) {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#1F2937" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366F1" />
+          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+            <View style={styles.spinnerCircle}>
+              <View style={styles.spinnerArc} />
+            </View>
+          </Animated.View>
           <Text style={styles.loadingText}>여정 정보를 불러오는 중...</Text>
         </View>
       </View>
@@ -81,7 +122,13 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1F2937" />
 
-      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+      <Animated.View
+        style={{
+          flex: 1,
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        }}
+      >
         <View style={styles.headerContainer}>
           {/* 배경 이미지 캐러셀 */}
           <ImageCarousel
@@ -343,11 +390,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
   },
+  spinnerCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 4,
+    borderColor: '#E5E7EB',
+    borderTopColor: '#6366F1',
+    borderRightColor: '#6366F1',
+  },
+  spinnerArc: {
+    position: 'absolute',
+    width: 52,
+    height: 52,
+    top: 0,
+    left: 0,
+  },
   loadingText: {
-    marginTop: 16,
+    marginTop: 24,
     fontSize: 16,
     color: '#6B7280',
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   headerContainer: {
     height: 300,
