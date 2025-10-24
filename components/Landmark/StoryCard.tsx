@@ -5,15 +5,27 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import type { StoryCard as StoryCardType } from '../../types/landmark';
 import { STORY_TYPE_LABELS, STORY_TYPE_COLORS } from '../../types/landmark';
+import GalleryManager from './GalleryManager';
 
 type Props = {
   story: StoryCardType;
   isAdmin?: boolean;
+  journeyId?: number; // 갤러리 관리를 위한 journeyId
+  landmarkId?: number; // 갤러리 관리를 위한 landmarkId
   onUploadImage?: (storyId: number) => void;
   onDelete?: (storyId: number) => void;
+  onRefresh?: () => void; // 갤러리 변경 후 새로고침
 };
 
-export default function StoryCard({ story, isAdmin, onUploadImage, onDelete }: Props) {
+export default function StoryCard({
+  story,
+  isAdmin,
+  journeyId,
+  landmarkId,
+  onUploadImage,
+  onDelete,
+  onRefresh,
+}: Props) {
   const typeColor = STORY_TYPE_COLORS[story.type];
   const typeLabel = STORY_TYPE_LABELS[story.type];
 
@@ -27,7 +39,7 @@ export default function StoryCard({ story, isAdmin, onUploadImage, onDelete }: P
       {/* 스토리 제목 */}
       <Text style={styles.title}>{story.title}</Text>
 
-      {/* 스토리 이미지 */}
+      {/* 스토리 커버 이미지 */}
       {story.imageUrl && (
         <Image
           source={{ uri: story.imageUrl }}
@@ -40,9 +52,9 @@ export default function StoryCard({ story, isAdmin, onUploadImage, onDelete }: P
           <TouchableOpacity
             style={styles.adminBtn}
             onPress={() => onUploadImage?.(story.id)}
-            accessibilityLabel="스토리 이미지 업로드"
+            accessibilityLabel="스토리 커버 이미지 업로드"
           >
-            <Text style={styles.adminBtnText}>📷 이미지 업로드</Text>
+            <Text style={styles.adminBtnText}>📷 커버 이미지 업로드</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.adminBtn, styles.adminBtnDelete]}
@@ -56,6 +68,19 @@ export default function StoryCard({ story, isAdmin, onUploadImage, onDelete }: P
 
       {/* 스토리 내용 */}
       <Text style={styles.content}>{story.content}</Text>
+
+      {/* 스토리 갤러리 관리 */}
+      {isAdmin && journeyId && landmarkId && (
+        <GalleryManager
+          type="story"
+          targetId={story.id}
+          journeyId={journeyId}
+          landmarkId={landmarkId}
+          images={story.images || []}
+          onRefresh={() => onRefresh?.()}
+          isAdmin={isAdmin}
+        />
+      )}
     </View>
   );
 }

@@ -14,7 +14,7 @@ export interface StoryCard {
   title: string;
   content: string;
   imageUrl: string | null; // 커버 이미지
-  images: GalleryImage[]; // 갤러리 이미지 배열 (순서 보장)
+  images?: GalleryImage[]; // 갤러리 이미지 배열 (순서 보장, optional)
   type: StoryType;
   orderIndex: number;
 }
@@ -28,7 +28,7 @@ export interface LandmarkDetail {
   distanceFromStart: number;
   orderIndex: number;
   imageUrl: string | null; // 커버 이미지
-  images: GalleryImage[]; // 갤러리 이미지 배열 (순서 보장)
+  images?: GalleryImage[]; // 갤러리 이미지 배열 (순서 보장, optional)
   countryCode: string;
   cityName: string;
   hasStamp: boolean;

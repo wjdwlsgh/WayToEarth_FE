@@ -403,8 +403,11 @@ export default function LandmarkStoryScreen({ route, navigation }: RouteParams) 
                   key={story.id}
                   story={story}
                   isAdmin={isAdmin}
+                  journeyId={journeyIdInput ? Number(journeyIdInput) : undefined}
+                  landmarkId={landmarkId}
                   onUploadImage={handleUploadStoryImage}
                   onDelete={handleDeleteStory}
+                  onRefresh={loadLandmarkDetail}
                 />
               ))}
             </>
