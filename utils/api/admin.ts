@@ -119,3 +119,43 @@ export async function updateStoryCard(storyId: number, data: StoryCardUpdateRequ
 export async function deleteStoryCard(storyId: number): Promise<void> {
   await client.delete(`/v1/admin/story-cards/${storyId}`);
 }
+
+// ========== 랜드마크 갤러리 관리 ==========
+
+// 랜드마크 갤러리 이미지 추가
+export async function addLandmarkGalleryImage(landmarkId: number | string, imageUrl: string): Promise<void> {
+  await client.post(`/v1/admin/landmarks/${landmarkId}/images`, { imageUrl });
+}
+
+// 랜드마크 갤러리 이미지 삭제
+export async function deleteLandmarkGalleryImage(imageId: number | string): Promise<void> {
+  await client.delete(`/v1/admin/landmarks/images/${imageId}`);
+}
+
+// 랜드마크 갤러리 이미지 순서 변경
+export async function reorderLandmarkGalleryImages(
+  landmarkId: number | string,
+  imageIds: number[]
+): Promise<void> {
+  await client.patch(`/v1/admin/landmarks/${landmarkId}/images/reorder`, { imageIds });
+}
+
+// ========== 스토리카드 갤러리 관리 ==========
+
+// 스토리카드 갤러리 이미지 추가
+export async function addStoryGalleryImage(storyId: number | string, imageUrl: string): Promise<void> {
+  await client.post(`/v1/admin/story-cards/${storyId}/images`, { imageUrl });
+}
+
+// 스토리카드 갤러리 이미지 삭제
+export async function deleteStoryGalleryImage(imageId: number | string): Promise<void> {
+  await client.delete(`/v1/admin/story-cards/images/${imageId}`);
+}
+
+// 스토리카드 갤러리 이미지 순서 변경
+export async function reorderStoryGalleryImages(
+  storyId: number | string,
+  imageIds: number[]
+): Promise<void> {
+  await client.patch(`/v1/admin/story-cards/${storyId}/images/reorder`, { imageIds });
+}

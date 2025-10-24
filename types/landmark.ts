@@ -3,11 +3,18 @@
 
 export type StoryType = 'HISTORY' | 'CULTURE' | 'NATURE';
 
+export interface GalleryImage {
+  id: number;
+  imageUrl: string;
+  orderIndex: number;
+}
+
 export interface StoryCard {
   id: number;
   title: string;
   content: string;
-  imageUrl: string | null;
+  imageUrl: string | null; // 커버 이미지
+  images: GalleryImage[]; // 갤러리 이미지 배열 (순서 보장)
   type: StoryType;
   orderIndex: number;
 }
@@ -20,7 +27,8 @@ export interface LandmarkDetail {
   longitude: number;
   distanceFromStart: number;
   orderIndex: number;
-  imageUrl: string | null;
+  imageUrl: string | null; // 커버 이미지
+  images: GalleryImage[]; // 갤러리 이미지 배열 (순서 보장)
   countryCode: string;
   cityName: string;
   hasStamp: boolean;
