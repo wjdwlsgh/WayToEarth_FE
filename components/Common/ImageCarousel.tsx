@@ -43,17 +43,6 @@ export default function ImageCarousel({
   // 유효한 이미지만 필터링
   const validImages = images.filter((img) => img && typeof img === 'string' && img.trim() !== '');
 
-  // 이미지가 없으면 플레이스홀더 표시
-  if (validImages.length === 0) {
-    return (
-      <View style={[styles.container, { height, borderRadius }, style]}>
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderIcon}>🏞️</Text>
-        </View>
-      </View>
-    );
-  }
-
   // 자동 슬라이드
   useEffect(() => {
     if (validImages.length <= 1) return; // 이미지가 1개 이하면 자동 슬라이드 비활성화
@@ -70,6 +59,17 @@ export default function ImageCarousel({
 
     return () => clearInterval(interval);
   }, [currentIndex, validImages.length, autoPlayInterval]);
+
+  // 이미지가 없으면 플레이스홀더 표시
+  if (validImages.length === 0) {
+    return (
+      <View style={[styles.container, { height, borderRadius }, style]}>
+        <View style={styles.placeholder}>
+          <Text style={styles.placeholderIcon}>🏞️</Text>
+        </View>
+      </View>
+    );
+  }
 
   // 스크롤 이벤트 핸들러
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {

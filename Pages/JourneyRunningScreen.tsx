@@ -23,6 +23,7 @@ import CountdownOverlay from "../components/Running/CountdownOverlay";
 import WeatherWidget from "../components/Running/WeatherWidget";
 import GuestbookCreateModal from "../components/Guestbook/GuestbookCreateModal";
 import LandmarkStatistics from "../components/Guestbook/LandmarkStatistics";
+import ImageCarousel from "../components/Common/ImageCarousel";
 import { useJourneyRunning } from "../hooks/journey/useJourneyRunning";
 import { useBackgroundRunning } from "../hooks/journey/useBackgroundRunning";
 import { useWeather } from "../contexts/WeatherContext";
@@ -31,7 +32,9 @@ import type { LatLng } from "../types/types";
 import type { JourneyId } from "../types/journey";
 import { apiComplete } from "../utils/api/running";
 import type { LandmarkSummary } from "../types/guestbook";
+import type { LandmarkDetail } from "../types/landmark";
 import { getMyProfile } from "../utils/api/users";
+import { getLandmarkDetail } from "../utils/api/landmarks";
 
 type RouteParams = {
   route: {
@@ -139,7 +142,26 @@ export default function JourneyRunningScreen(props?: RouteParams) {
   const [selectedLandmark, setSelectedLandmark] = useState<LandmarkSummary | null>(null);
   const [landmarkMenuVisible, setLandmarkMenuVisible] = useState(false);
   const [menuLandmark, setMenuLandmark] = useState<any>(null);
+  const [landmarkDetail, setLandmarkDetail] = useState<LandmarkDetail | null>(null);
   const [debugVisible, setDebugVisible] = useState(true);
+
+  // 랜드마크 메뉴가 열릴 때 상세 정보 로드
+  useEffect(() => {
+    if (landmarkMenuVisible && menuLandmark) {
+      const fetchLandmarkDetail = async () => {
+        try {
+          const detail = await getLandmarkDetail(parseInt(menuLandmark.id), userId);
+          setLandmarkDetail(detail);
+        } catch (err) {
+          console.error("[JourneyRunning] 랜드마크 상세 로드 실패:", err);
+          setLandmarkDetail(null);
+        }
+      };
+      fetchLandmarkDetail();
+    } else {
+      setLandmarkDetail(null);
+    }
+  }, [landmarkMenuVisible, menuLandmark, userId]);
 
   // 날씨 정보
   const { weather, loading: weatherLoading } = useWeather();
@@ -861,6 +883,33 @@ export default function JourneyRunningScreen(props?: RouteParams) {
 
             {menuLandmark && (
               <>
+                {/* 랜드마크 이미지 캐러셀 */}
+                {(() => {
+                  // 1. 랜드마크 대표 이미지 (imageUrl)
+                  // 2. 랜드마크 갤러리 이미지들 (images[])
+                  const carouselImages: string[] = [];
+
+                  if (landmarkDetail?.imageUrl) {
+                    carouselImages.push(landmarkDetail.imageUrl);
+                  }
+
+                  if (landmarkDetail?.images && Array.isArray(landmarkDetail.images)) {
+                    const galleryUrls = landmarkDetail.images
+                      .map((img: any) => typeof img === 'string' ? img : img?.imageUrl)
+                      .filter((url): url is string => url !== null && url !== undefined && url.trim() !== '');
+                    carouselImages.push(...galleryUrls);
+                  }
+
+                  return (
+                    <ImageCarousel
+                      images={carouselImages}
+                      height={180}
+                      borderRadius={0}
+                      autoPlayInterval={4000}
+                    />
+                  );
+                })()}
+
                 <View style={styles.bottomSheetHeader}>
                   <Text style={styles.bottomSheetTitle}>
                     {menuLandmark.name}

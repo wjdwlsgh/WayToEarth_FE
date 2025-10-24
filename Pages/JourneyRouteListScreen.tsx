@@ -1,12 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
 import useRouteList from "../hooks/journey/useJourneyRouteList";
 import type { RouteSummary } from "../utils/api/journeyRoutes";
+import { getJourneyLandmarks } from '../utils/api/landmarks';
 import ImageCarousel from '../components/Common/ImageCarousel';
 
 export default function RouteListScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState('전체');
   const { data: routes, loading } = useRouteList();
+  const [journeyImages, setJourneyImages] = useState<Record<string, string[]>>({});
+
+  // 각 여정의 랜드마크 이미지 로드
+  useEffect(() => {
+    if (!routes || routes.length === 0) return;
+
+    const loadJourneyImages = async () => {
+      const imagesMap: Record<string, string[]> = {};
+
+      for (const route of routes) {
+        try {
+          const landmarks = await getJourneyLandmarks(Number(route.id));
+          const imageUrls = landmarks
+            .map(lm => lm.imageUrl)
+            .filter((url): url is string => url !== null && url !== undefined && url.trim() !== '');
+
+          if (imageUrls.length > 0) {
+            imagesMap[String(route.id)] = imageUrls;
+          }
+        } catch (err) {
+          console.error(`[RouteList] 여정 ${route.id} 이미지 로드 실패:`, err);
+        }
+      }
+
+      setJourneyImages(imagesMap);
+    };
+
+    loadJourneyImages();
+  }, [routes]);
 
   const tabs = ['전체', '국내 여행', '해외 여행'];
 
@@ -62,11 +92,8 @@ export default function RouteListScreen({ navigation }: any) {
           <Text style={{ padding: 16, color: '#6B7280' }}>로딩 중...</Text>
         )}
         {((routes ?? []) as RouteSummary[]).map((route: RouteSummary) => {
-          // TODO: 백엔드 API에서 여정의 랜드마크 이미지 목록을 포함하도록 개선 필요
-          // 현재는 thumbnailUrl만 사용, 향후 landmarkImages[] 사용 예정
-          const carouselImages = route.image && route.image.startsWith('http')
-            ? [route.image]
-            : [];
+          // 여정의 랜드마크 이미지 사용
+          const carouselImages = journeyImages[String(route.id)] || [];
 
           return (
             <TouchableOpacity

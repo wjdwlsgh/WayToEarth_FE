@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Modal, ActivityIndicator } from 'react-native';
 import useRouteDetail from '../hooks/journey/useJourneyRouteDetail';
 import { getJourneyRoutes, type RouteId, type JourneyRoute } from '../utils/api/journeyRoutes';
@@ -39,10 +39,12 @@ export default function RouteDetailScreen({ route, navigation }: RouteParams) {
       });
   }, [id]);
 
-  // 랜드마크 이미지 URL 수집
-  const landmarkImages = landmarkData
-    .map((lm) => lm.imageUrl)
-    .filter((url): url is string => url !== null && url !== undefined && url.trim() !== '');
+  // 랜드마크 이미지 URL 수집 (메모이제이션)
+  const landmarkImages = useMemo(() => {
+    return landmarkData
+      .map((lm) => lm.imageUrl)
+      .filter((url): url is string => url !== null && url !== undefined && url.trim() !== '');
+  }, [landmarkData]);
 
   return (
     <View style={styles.container}>
