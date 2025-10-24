@@ -12,7 +12,9 @@ import {
   Animated,
   Easing,
   AppState,
+  TouchableOpacity,
 } from "react-native";
+import { LinearGradient } from 'expo-linear-gradient';
 import MapRoute from "../components/Running/MapRoute";
 import RunStatsCard from "../components/Running/RunStatsCard";
 import RunPlayControls from "../components/Running/RunPlayControls";
@@ -33,17 +35,16 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
 
   const insets = useSafeAreaInsets();
   const bottomSafe = Math.max(insets.bottom, 12);
-  const FAB_BASE = 100;
 
   const snapshotFnRef = useRef<(() => Promise<string | null>) | undefined>(
     undefined
   );
   const isStoppingRef = useRef(false);
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const progress = useRef(new Animated.Value(0)).current;
-
+  // 탭 상태: 'running' | 'journey'
+  const [activeTab, setActiveTab] = useState<'running' | 'journey'>('running');
   const [mapReady, setMapReady] = useState(false);
+  const [countdownVisible, setCountdownVisible] = useState(false);
 
   // 날씨 정보
   const { weather, loading: weatherLoading } = useWeather();
@@ -96,67 +97,8 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
     };
   }, []);
 
-  const fade = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-  const haloOpacity = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 0.25],
-  });
-  const haloScale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.9, 1.1],
-  });
-  const scaleMain = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.06],
-  });
-  const smallScale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.8, 1],
-  });
-  const smallOpacity = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-  const leftTx = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -120],
-  });
-  const rightTx = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 120],
-  });
-
-  const [countdownVisible, setCountdownVisible] = useState(false);
-
-  const openMenu = () => {
-    setMenuOpen(true);
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const closeMenu = () => {
-    Animated.timing(progress, {
-      toValue: 0,
-      duration: 120,
-      easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) setMenuOpen(false);
-    });
-  };
-
-  const handleStartPress = () => (menuOpen ? closeMenu() : openMenu());
-
   const handleRunningStart = useCallback(() => {
     console.log("[LiveRunning] start pressed -> show countdown");
-    closeMenu();
     // 카운트다운 동안 GPS 가열: 초기 위치 락 향상
     try { (t as any).prime?.(); } catch {}
     setCountdownVisible(true);
@@ -327,15 +269,67 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
         onMapReady={() => setMapReady(true)}
       />
 
-      {/* 날씨 위젯 */}
+      {/* 지도 비네팅 효과 */}
+      <LinearGradient
+        colors={['rgba(249, 250, 251, 0.7)', 'transparent', 'rgba(249, 250, 251, 0.7)']}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* 상단 탭 컨트롤 */}
       <View
         style={{
           position: "absolute",
           top: Math.max(insets.top, 12) + 12,
-          left: 16,
+          left: 20,
+          right: 20,
           zIndex: 10,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}
       >
+        <View style={styles.segmentControl}>
+          <TouchableOpacity
+            style={[
+              styles.segmentButton,
+              activeTab === 'running' && styles.segmentButtonActive,
+            ]}
+            onPress={() => setActiveTab('running')}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                activeTab === 'running' && styles.segmentTextActive,
+              ]}
+            >
+              러닝
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.segmentButton,
+              activeTab === 'journey' && styles.segmentButtonActive,
+            ]}
+            onPress={() => setActiveTab('journey')}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                activeTab === 'journey' && styles.segmentTextActive,
+              ]}
+            >
+              여정 러닝
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <WeatherWidget
           emoji={weather?.emoji}
           condition={weather?.condition}
@@ -344,8 +338,6 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
           loading={weatherLoading}
         />
       </View>
-
-      {/* 상단 내정보 버튼 제거 (하단 공통 내비로 이동) */}
 
       {(t.isRunning || t.isPaused) && (
         <RunStatsCard
@@ -384,133 +376,52 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
       )}
 
       {!t.isRunning && (
-        <>
-          {menuOpen && (
-            <Animated.View
-              pointerEvents="none"
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0,0,0,0.06)",
-                opacity: fade as any,
-              }}
-            />
-          )}
-
-          <View
+        <View
+          style={{
+            position: "absolute",
+            left: 20,
+            right: 20,
+            bottom: bottomSafe + 24,
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => {
+              if (activeTab === 'running') {
+                handleRunningStart();
+              } else {
+                navigation.navigate("JourneyRouteList");
+              }
+            }}
+            disabled={activeTab === 'running' && (!t.isReady || t.isInitializing)}
             style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
+              height: 64,
+              borderRadius: 32,
+              backgroundColor:
+                activeTab === 'running' && (!t.isReady || t.isInitializing)
+                  ? "#9CA3AF"
+                  : "#3B82F6",
               alignItems: "center",
               justifyContent: "center",
-              bottom: bottomSafe + FAB_BASE,
+              shadowColor: "#000",
+              shadowOpacity: 0.2,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 8,
             }}
           >
-            <Animated.View
-              style={{
-                position: "absolute",
-                bottom: 72,
-                opacity: smallOpacity as any,
-                transform: [
-                  { translateX: leftTx as any },
-                  { scale: smallScale as any },
-                ],
-              }}
-              pointerEvents={menuOpen ? "auto" : "none"}
+            <Text
+              style={{ fontSize: 18, fontWeight: "700", color: "#fff" }}
             >
-              <Pressable
-                onPress={handleRunningStart}
-                disabled={!t.isReady || t.isInitializing}
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: 999,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor:
-                    !t.isReady || t.isInitializing
-                      ? "rgba(0,0,0,0.03)"
-                      : "rgba(0,0,0,0.08)",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "800",
-                    color: !t.isReady || t.isInitializing ? "#9CA3AF" : "#111",
-                  }}
-                >
-                  {!t.isReady
-                    ? "준비중..."
-                    : t.isInitializing
-                    ? "시작중..."
-                    : "러닝"}
-                </Text>
-              </Pressable>
-            </Animated.View>
-
-            <Animated.View
-              style={{
-                position: "absolute",
-                bottom: 72,
-                opacity: smallOpacity as any,
-                transform: [
-                  { translateX: rightTx as any },
-                  { scale: smallScale as any },
-                ],
-              }}
-              pointerEvents={menuOpen ? "auto" : "none"}
-            >
-              <Pressable
-                onPress={() => {
-                  closeMenu();
-                  // 여정 리스트 화면으로 이동
-                  navigation.navigate("JourneyRouteList");
-                }}
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: 999,
-                  backgroundColor: "rgba(0,0,0,0.08)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "800", color: "#111" }}>
-                  여정 러닝
-                </Text>
-              </Pressable>
-            </Animated.View>
-
-            <Animated.View style={{ transform: [{ scale: scaleMain as any }] }}>
-              <Pressable
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: 999,
-                  backgroundColor: "#3B82F6",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  shadowColor: "#000",
-                  shadowOpacity: 0.16,
-                  shadowRadius: 16,
-                  shadowOffset: { width: 0, height: 8 },
-                }}
-                onPress={handleStartPress}
-              >
-                <Text
-                  style={{ fontSize: 22, fontWeight: "900", color: "#fff" }}
-                >
-                  시작
-                </Text>
-              </Pressable>
-            </Animated.View>
-          </View>
-        </>
+              {activeTab === 'running'
+                ? (!t.isReady
+                  ? "준비중..."
+                  : t.isInitializing
+                  ? "시작중..."
+                  : "러닝 시작")
+                : "여정 리스트 보기"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {t.isRunning && (
@@ -537,91 +448,31 @@ export default function LiveRunningScreen({ navigation, route }: { navigation: a
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.06)",
-  },
-  halo: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 40 + 60,
-    marginLeft: "auto",
-    marginRight: "auto",
-    width: 260,
-    height: 260,
-    borderRadius: 999,
-    backgroundColor: "#93C5FD",
-    opacity: 0.2,
-  },
-  bottomWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mainFab: {
-    width: 100,
-    height: 100,
-    borderRadius: 999,
-    backgroundColor: "#3B82F6",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-  },
-  mainFabText: { fontSize: 22, fontWeight: "900", color: "#fff" },
-  smallFabWrap: {
-    position: "absolute",
-    bottom: 72,
-  },
-  smallFab: {
-    width: 100,
-    height: 100,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  smallFabText: { fontSize: 16, fontWeight: "800", color: "#111" },
-  disabledFab: {
-    backgroundColor: "rgba(0,0,0,0.03)",
-  },
-  disabledText: {
-    color: "#9CA3AF",
-  },
-  pauseOverlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  pauseTitle: { fontSize: 22, fontWeight: "900", marginBottom: 8 },
-  pauseDesc: { color: "#4b5563", marginTop: 2 },
-  topRight: {
-    position: "absolute",
-    right: 12,
-    zIndex: 30,
-  },
-  profileBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
+  segmentControl: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: 4,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  segmentButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  segmentButtonActive: {
+    backgroundColor: '#3B82F6',
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  segmentTextActive: {
+    color: '#FFFFFF',
   },
 });
