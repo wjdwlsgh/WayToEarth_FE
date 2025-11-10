@@ -15,20 +15,32 @@ build/
 .expo-web/
 web-build/
 
-# iOS / Android 네이티브 생성물
+# iOS 네이티브 생성물
 ios/
-android/
 Pods/
 *.xcworkspace
 *.xcuserdatad
 *.xcodeproj/*
 !*.xcodeproj/project.pbxproj
-*.keystore
-*.jks
-*.gradle/
-gradle/
+
+# Android 빌드 산출물만 제외 (소스는 포함)
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.cxx/
 **/build/
 *.apk
+*.aab
+
+# Android signing (debug keystore는 포함, release keystore는 제외)
+*.jks
+# Allow debug.keystore for team collaboration
+!android/app/debug.keystore
+
+# Local Android signing (do not commit)
+android/keystore.properties
+android/keystores/
 
 # 환경/OS
 .env
@@ -38,6 +50,12 @@ gradle/
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Windows reserved file name
+nul
+
+# Credentials (do not commit)
+credentials.json
 
 # Local study materials: keep folder tracked but ignore its contents
 study/*
