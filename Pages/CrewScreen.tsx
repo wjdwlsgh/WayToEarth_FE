@@ -173,7 +173,7 @@ export default function CrewScreen() {
                           ? { uri: topCrews[2].imageUrl }
                           : undefined
                       }
-                      size="sm"
+                      size="md"
                     />
                   </View>
                 )}
